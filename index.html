@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>减盘 · 整合版可交互原型</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0a0e1a; --panel:#141b2d; --panel-hi:#1a2030; --border:#1f2638;
+  --red:#ff3b47; --green:#00c896; --blue:#5ac8fa; --amber:#ffb800; --purple:#c586c0;
+  --muted:#5a6478; --muted2:#9aa8be;
+}
+body {
+  font-family:-apple-system,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+  background:#0a0e1a; color:#fff; line-height:1.6; -webkit-font-smoothing:antialiased;
+  min-height:100vh; display:flex; justify-content:center; align-items:center; padding:24px;
+}
+.app {
+  width:400px; max-width:100%; background:var(--bg); border-radius:40px;
+  border:8px solid #1a1f2e; overflow:hidden; position:relative;
+  height:800px; display:flex; flex-direction:column;
+  box-shadow:0 30px 80px rgba(0,0,0,0.55);
+}
+.screen { flex:1; overflow-y:auto; scrollbar-width:none; position:relative; }
+.screen::-webkit-scrollbar { display:none; }
+.statusbar { display:flex; justify-content:space-between; padding:12px 22px 4px; font-size:12px; flex-shrink:0; }
+.statusbar .icons { display:flex; gap:6px; align-items:center; }
+.page { display:none; padding-bottom:80px; }
+.page.active { display:block; }
+.pheader { display:flex; justify-content:space-between; align-items:center; padding:10px 20px 6px; }
+.pheader .logo { display:flex; align-items:center; gap:10px; }
+.pheader .logo .lm { width:32px; height:32px; background:var(--red); border-radius:9px; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:16px; }
+.pheader .logo .lt { font-size:15px; font-weight:500; }
+.pheader .logo .lt small { display:block; color:var(--muted); font-size:10px; font-weight:400; }
+.pheader .reset { color:var(--muted); font-size:11px; cursor:pointer; padding:4px 10px; border:1px solid var(--border); border-radius:8px; }
+.backrow { display:flex; align-items:center; gap:8px; padding:12px 18px 0; color:var(--muted); font-size:13px; cursor:pointer; }
+.pagetitle { padding:10px 20px 4px; }
+.pagetitle .k { color:var(--muted); font-size:11px; }
+.pagetitle .t { font-size:22px; font-weight:600; margin-top:2px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; margin:12px 14px 0; }
+.card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.card-title .t { font-size:13px; font-weight:500; }
+.card-title .m { color:var(--muted); font-size:11px; }
+.balance { margin:10px 14px 0; padding:16px; background:var(--panel); border-radius:18px; border:1px solid var(--border); display:flex; align-items:center; gap:18px; }
+.balance .rows { flex:1; }
+.balance .r { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.balance .r:last-child { border-bottom:none; }
+.balance .r .k { color:var(--muted); }
+.net { margin:10px 14px 0; padding:13px 16px; border-radius:14px; display:flex; justify-content:space-between; align-items:center; }
+.net .lbl { font-size:11px; opacity:0.85; }
+.net .val { font-size:26px; font-weight:600; line-height:1.1; }
+.net .badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:500; }
+.metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 14px 0; }
+.metric { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
+.metric .l { color:var(--muted); font-size:11px; }
+.metric .v { font-size:20px; font-weight:500; margin-top:4px; }
+.metric .v small { color:var(--muted); font-size:11px; font-weight:400; }
+.metric .bar { height:3px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; }
+.metric .bar .fill { height:100%; border-radius:2px; }
+.metric .head { display:flex; justify-content:space-between; align-items:center; }
+.metric .head .l { color:var(--muted); font-size:11px; }
+.metric .st { font-size:10px; padding:2px 7px; border-radius:4px; font-weight:500; }
+.metric .st.ok { background:#0d3a32; color:#00c896; }
+.metric .st.warn { background:#2c1f0a; color:#ffb800; }
+.metric .st.bad { background:#2a0d10; color:#ff3b47; }
+.metric .ref { color:var(--muted); font-size:10px; margin-top:4px; }
+.body-source { display:flex; justify-content:space-between; align-items:center; padding:14px 18px 0; }
+.body-source .t { color:#fff; font-size:13px; font-weight:500; }
+.body-source .s { color:#5ac8fa; font-size:11px; }
+.body-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px 14px 0; }
+.body-action { padding:10px; background:var(--panel); border:1px solid var(--border); border-radius:10px; text-align:center; font-size:12px; color:#5ac8fa; cursor:pointer; transition:all .15s; }
+.body-action:active { background:var(--border); }
+.body-action.manual { color:var(--muted2); }
+
+/* 交易面板 */
+.addbtns { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 14px 0; }
+.addbtn { border-radius:16px; padding:14px; border:1px solid; }
+.addbtn .h { display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:500; }
+.addbtn .v { font-size:22px; font-weight:600; margin-top:8px; }
+.addbtn .s { font-size:11px; margin-top:2px; }
+.addbtn .cta { margin-top:10px; padding:8px; border-radius:8px; text-align:center; font-size:12px; font-weight:500; }
+
+/* 列表 */
+.entry { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+.entry:first-child { border-top:none; }
+.entry .ic { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.entry .meta { flex:1; min-width:0; }
+.entry .meta .n { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.entry .meta .s { color:var(--muted); font-size:11px; margin-top:2px; }
+.entry .val { font-size:13px; font-weight:500; flex-shrink:0; }
+.entry .del { color:var(--muted); font-size:16px; cursor:pointer; padding:4px; flex-shrink:0; }
+.entry .del:hover { color:#fff; }
+.empty { text-align:center; color:var(--muted); font-size:12px; padding:24px 0; }
+
+/* 搜索 */
+.searchbox { margin:12px 14px 0; }
+.searchbox input { width:100%; padding:12px 14px; background:var(--panel); border:1px solid var(--border); border-radius:12px; color:#fff; font-size:14px; outline:none; font-family:inherit; }
+.searchbox input::placeholder { color:var(--muted); }
+.searchbox input:focus { border-color:var(--blue); }
+.results { margin:10px 14px 0; }
+.result-item { display:flex; align-items:center; gap:10px; padding:12px; background:var(--panel); border:1px solid var(--border); border-radius:12px; margin-bottom:8px; cursor:pointer; transition:all .15s; }
+.result-item:hover { border-color:var(--blue); }
+.result-item .cat { font-size:10px; padding:2px 6px; border-radius:4px; background:#1f2638; color:var(--muted2); flex-shrink:0; }
+.result-item .n { flex:1; font-size:13px; }
+.result-item .kcal { color:var(--muted); font-size:12px; flex-shrink:0; }
+
+/* 排行榜 */
+.lb-item { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
+.lb-item:first-child { border-top:none; }
+.lb-item .rank { width:22px; height:22px; border-radius:6px; background:var(--panel); color:var(--muted); font-size:12px; font-weight:500; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.lb-item .rank.r1 { background:var(--amber); color:#0a0e1a; }
+.lb-item .rank.r2 { background:#c0c8d0; color:#0a0e1a; }
+.lb-item .rank.r3 { background:#d19060; color:#0a0e1a; }
+.lb-item .av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; flex-shrink:0; }
+.lb-item .meta { flex:1; }
+.lb-item .meta .n { font-size:13px; }
+.lb-item .meta .s { color:var(--muted); font-size:11px; margin-top:2px; }
+.lb-item .v { font-size:13px; font-weight:500; color:var(--green); flex-shrink:0; }
+.lb-item.me { background:#0d3a32; border-radius:12px; padding:10px 12px; margin-top:8px; border:none; }
+
+/* 我的 */
+.profile-head { background:linear-gradient(180deg,#141b2d,#0a0e1a); padding:20px 18px 24px; display:flex; flex-direction:column; align-items:center; }
+.profile-head .av-lg { width:72px; height:72px; border-radius:50%; background:var(--red); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:500; }
+.profile-head .name { font-size:18px; font-weight:500; margin-top:10px; }
+.profile-head .name .lvl { display:inline-block; padding:2px 8px; background:var(--amber); color:#0a0e1a; border-radius:4px; font-size:11px; margin-left:8px; }
+.profile-head .info { color:var(--muted); font-size:12px; margin-top:4px; }
+.profile-stat { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); margin-top:14px; border-radius:14px; overflow:hidden; width:calc(100% - 36px); }
+.profile-stat > div { background:var(--panel); padding:14px 8px; text-align:center; }
+.profile-stat > div .v { font-size:18px; font-weight:500; }
+.profile-stat > div .l { color:var(--muted); font-size:11px; margin-top:2px; }
+.coin-card { margin:14px; padding:16px; background:linear-gradient(135deg,#2c1f0a,#1a1306); border:1px solid #4a3010; border-radius:16px; display:flex; align-items:center; gap:14px; }
+.coin-card .coin { width:48px; height:48px; border-radius:50%; background:radial-gradient(circle at 30% 30%,#ffd24d,#c98e00 80%); display:flex; align-items:center; justify-content:center; color:#5a3d00; font-size:20px; font-weight:600; }
+.coin-card .meta .n { color:var(--amber); font-size:22px; font-weight:500; }
+.coin-card .meta .l { color:#c9a361; font-size:11px; margin-top:2px; }
+.menu-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid var(--border); cursor:pointer; }
+.menu-item:first-child { border-top:none; }
+.menu-item .ic { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.menu-item .n { flex:1; font-size:14px; }
+.menu-item .v { color:var(--muted); font-size:11px; }
+.menu-item .arr { color:var(--muted); }
+
+/* 成就 */
+.ach-hero { height:150px; background-size:cover; background-position:center; position:relative; }
+.ach-hero .overlay { position:absolute; inset:0; background:linear-gradient(180deg,transparent,#0a0e1a); display:flex; flex-direction:column; justify-content:end; padding:16px 20px; }
+.ach-hero h2 { font-size:20px; font-weight:500; }
+.ach-hero p { color:var(--muted2); font-size:12px; margin-top:4px; }
+.badge-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:14px; }
+.badge { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 8px; text-align:center; transition:all .2s; }
+.badge.locked { opacity:0.35; }
+.badge .b { width:48px; height:48px; margin:0 auto 8px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+.badge .lbl { font-size:11px; font-weight:500; }
+.badge .sub { color:var(--muted); font-size:10px; margin-top:2px; }
+.prog-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+.prog-row:first-child { border-top:none; }
+.prog-row .ic { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.prog-row .meta { flex:1; }
+.prog-row .meta .n { font-size:12px; font-weight:500; }
+.prog-row .meta .p { color:var(--muted); font-size:10px; margin-top:2px; }
+.prog-row .bar { width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; flex-shrink:0; }
+.prog-row .bar .fill { height:100%; border-radius:2px; }
+.prog-row .v { font-size:11px; min-width:30px; text-align:right; }
+
+/* 底部 Tab */
+.tabbar { display:flex; justify-content:space-around; padding:12px 0 16px; border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; }
+.tabbar > div { text-align:center; color:var(--muted); font-size:11px; cursor:pointer; }
+.tabbar > div.on { color:var(--red); }
+.tabbar .ico { width:22px; height:22px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
+
+/* 弹层 */
+.sheet-mask { position:absolute; inset:0; background:rgba(0,0,0,0.6); z-index:50; display:none; align-items:flex-end; }
+.sheet-mask.show { display:flex; }
+.sheet { width:100%; background:var(--panel-hi); border-radius:24px 24px 0 0; padding:20px 20px 28px; border-top:1px solid var(--border); animation:up .25s ease; position:relative; }
+@keyframes up { from { transform:translateY(100%); } to { transform:translateY(0); } }
+.sheet h3 { font-size:16px; font-weight:500; }
+.sheet .close { position:absolute; top:18px; right:20px; color:var(--muted); font-size:20px; cursor:pointer; }
+.qty-row { display:flex; align-items:center; justify-content:space-between; margin-top:16px; }
+.qty-row .lbl { font-size:13px; color:var(--muted2); }
+.stepper { display:flex; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.stepper button { width:40px; height:40px; background:var(--panel); border:none; color:#fff; font-size:18px; cursor:pointer; }
+.stepper button:hover { background:var(--border); }
+.stepper .num { width:56px; text-align:center; font-size:16px; font-weight:500; }
+.meal-row { display:flex; gap:8px; margin-top:14px; }
+.meal { flex:1; padding:8px; text-align:center; border-radius:8px; background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:12px; cursor:pointer; }
+.meal.on { background:var(--red); border-color:var(--red); color:#fff; }
+.intensity-row { display:flex; gap:8px; margin-top:14px; }
+.intensity { flex:1; padding:10px; text-align:center; border-radius:8px; background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:12px; cursor:pointer; }
+.intensity.on { background:var(--green); border-color:var(--green); color:#0a1a15; }
+.field { margin-top:14px; }
+.field label { font-size:12px; color:var(--muted2); display:block; margin-bottom:6px; }
+.field input, .field select { width:100%; padding:11px 12px; background:var(--panel); border:1px solid var(--border); border-radius:10px; color:#fff; font-size:14px; outline:none; font-family:inherit; }
+.field input:focus { border-color:var(--blue); }
+.field select option { background:var(--panel); color:#fff; }
+.confirm { width:100%; margin-top:18px; padding:14px; border:none; border-radius:12px; font-size:15px; font-weight:500; cursor:pointer; font-family:inherit; }
+.confirm.buy { background:var(--red); color:#fff; }
+.confirm.sell { background:var(--green); color:#0a1a15; }
+
+/* 涨停仪式 */
+.celeb { position:absolute; inset:0; z-index:100; display:none; background:radial-gradient(ellipse at 50% 30%,#ff3b47 0%,#c91f2c 35%,#0a0e1a 85%); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 24px; }
+.celeb.show { display:flex; }
+.celeb .big { font-size:80px; font-weight:600; line-height:1; color:#fff; }
+.celeb .big small { font-size:26px; color:rgba(255,255,255,0.7); }
+.celeb .heading { font-size:30px; font-weight:600; color:#fff; margin-top:18px; }
+.celeb .heading .em { background:linear-gradient(180deg,#ffb800,#ff8a00); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.celeb .trophy { width:84px; height:84px; border-radius:50%; background:var(--amber); margin-top:16px; display:flex; align-items:center; justify-content:center; }
+.celeb .stats { display:flex; gap:22px; margin-top:24px; }
+.celeb .stats > div { text-align:center; }
+.celeb .stats .n { font-size:20px; font-weight:500; }
+.celeb .stats .l { font-size:11px; opacity:0.7; margin-top:2px; }
+.celeb .btn { margin-top:28px; padding:12px 32px; border-radius:24px; background:#fff; color:#0a0e1a; font-size:14px; font-weight:500; cursor:pointer; border:none; }
+.fab-note { margin:12px 14px 0; padding:11px 14px; background:#0d2335; border:1px solid #103855; border-radius:12px; font-size:11px; color:#88c8fa; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="screen" id="screen">
+
+    <div class="statusbar"><span id="clock">--:--</span><span class="icons">
+      <svg width="14" height="10" viewBox="0 0 14 10"><rect x="0" y="6" width="2" height="4" fill="#fff"/><rect x="3" y="4" width="2" height="6" fill="#fff"/><rect x="6" y="2" width="2" height="8" fill="#fff"/><rect x="9" y="0" width="2" height="10" fill="#fff"/></svg>
+      <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0" y="0" width="18" height="10" rx="2" stroke="#fff" stroke-width="0.5" fill="none"/><rect x="2" y="2" width="12" height="6" fill="#fff"/><rect x="19" y="3" width="2" height="4" fill="#fff"/></svg>
+    </span></div>
+
+    <!-- ============ 行情 ============ -->
+    <section class="page active" id="page-market">
+      <div class="pheader">
+        <div class="logo"><div class="lm">K</div><div class="lt">减盘<small>自交易所 · SZ000001</small></div></div>
+        <div class="reset" onclick="resetAll()">↺ 重置</div>
+      </div>
+
+      <div class="balance">
+        <svg width="104" height="104" viewBox="0 0 120 120" id="ring">
+          <circle cx="60" cy="60" r="48" stroke="#1f2638" stroke-width="12" fill="none"/>
+          <circle id="ring-fill" cx="60" cy="60" r="48" stroke="#00c896" stroke-width="12" fill="none" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+          <text id="ring-num" x="60" y="52" text-anchor="middle" fill="#fff" font-size="20" font-weight="500">0</text>
+          <text id="ring-sub" x="60" y="70" text-anchor="middle" fill="#5a6478" font-size="9">摄入 / 预算</text>
+        </svg>
+        <div class="rows">
+          <div class="r"><span class="k">摄入</span><span id="m-intake" style="color:var(--red);">+0</span></div>
+          <div class="r"><span class="k">运动消耗</span><span id="m-burn" style="color:var(--green);">-0</span></div>
+          <div class="r"><span class="k">基础代谢</span><span id="m-bmr" style="color:var(--blue);">-0</span></div>
+        </div>
+      </div>
+
+      <div class="net" id="net-card">
+        <div>
+          <div class="lbl" id="net-lbl">今日净热量</div>
+          <div class="val" id="net-val">0 kcal</div>
+        </div>
+        <div class="badge" id="net-badge">平衡</div>
+      </div>
+
+      <!-- 身体成分 -->
+      <div class="body-source">
+        <span class="t">今日板块 · 身体成分</span>
+        <span class="s" id="body-source">已同步 · 08:30</span>
+      </div>
+      <div class="metric-grid" id="body-metrics" style="margin-top:8px;"></div>
+      <div class="body-actions">
+        <div class="body-action" onclick="syncBodyFromDevice()">↻ 同步设备</div>
+        <div class="body-action manual" onclick="openBodyEdit()">✎ 手动录入</div>
+      </div>
+
+      <!-- 体重 K 线 -->
+      <div class="card">
+        <div class="card-title"><span class="t">自营 · 体重 K 线</span><span class="m" id="kline-weight">-- kg</span></div>
+        <div id="kline"></div>
+      </div>
+
+      <!-- 今日成交摘要 -->
+      <div class="card">
+        <div class="card-title"><span class="t">今日成交</span><span class="m" id="m-count">0 笔</span></div>
+        <div id="m-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ 交易 ============ -->
+    <section class="page" id="page-trade">
+      <div class="pagetitle"><div class="k">SZ · TRADE</div><div class="t">交易大厅</div></div>
+
+      <div class="net" id="trade-net" style="margin-top:10px;">
+        <div><div class="lbl" style="color:var(--muted2);">今日净缺口</div><div class="val" id="trade-netval">0 kcal</div></div>
+        <div class="badge" id="trade-badge">平衡</div>
+      </div>
+
+      <div class="addbtns">
+        <div class="addbtn" style="background:#1a0a0d;border-color:#3a1014;cursor:pointer;" onclick="openFoodSearch()">
+          <div class="h"><span style="color:#ff8a93;">做多 · 饮食</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3 V21 M5 10 L12 3 L19 10" stroke="#ff3b47" stroke-width="2" stroke-linecap="round"/></svg></div>
+          <div class="v" id="t-intake" style="color:#ff8a93;">+0</div>
+          <div class="s" style="color:#5a6478;" id="t-intake-cnt">0 笔 · 食物库匹配</div>
+          <div class="cta" style="background:#ff3b47;color:#fff;">＋ 记录食物</div>
+        </div>
+        <div class="addbtn" style="background:#0a1a15;border-color:#103a30;cursor:pointer;" onclick="openExList()">
+          <div class="h"><span style="color:#5ee0c0;">做空 · 运动</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 21 V3 M5 14 L12 21 L19 14" stroke="#00c896" stroke-width="2" stroke-linecap="round"/></svg></div>
+          <div class="v" id="t-burn" style="color:#5ee0c0;">-0</div>
+          <div class="s" style="color:#5a6478;" id="t-burn-cnt">0 笔 · MET 自动算</div>
+          <div class="cta" style="background:#00c896;color:#0a1a15;">＋ 记录运动</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="t">今日成交</span><span class="m" id="t-count">0 笔</span></div>
+        <div id="t-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ 持仓 ============ -->
+    <section class="page" id="page-holdings">
+      <div class="pagetitle"><div class="k">PORTFOLIO · 持仓</div><div class="t">我的仓位</div></div>
+
+      <div class="metric-grid">
+        <div class="metric">
+          <div class="l">当前仓位</div>
+          <div class="v" id="h-weight">--<small> kg</small></div>
+          <div style="color:var(--green);font-size:11px;margin-top:4px;" id="h-change">--</div>
+        </div>
+        <div class="metric">
+          <div class="l">目标仓位</div>
+          <div class="v" id="h-target">--<small> kg</small></div>
+          <div style="color:var(--muted);font-size:11px;margin-top:4px;" id="h-remain">--</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="t">净热量趋势（近 7 日）</span><span class="m">缺口为负</span></div>
+        <div id="trend"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="t">本周战绩</span><span class="m">达标天数</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+          <div><div style="color:var(--muted);font-size:11px;">达标天数</div><div style="font-size:18px;font-weight:500;" id="h-days">0</div></div>
+          <div><div style="color:var(--muted);font-size:11px;">累计缺口</div><div style="font-size:18px;font-weight:500;color:var(--green);" id="h-gap">0</div></div>
+          <div><div style="color:var(--muted);font-size:11px;">健康币</div><div style="font-size:18px;font-weight:500;color:var(--amber);" id="h-coins">0</div></div>
+        </div>
+      </div>
+
+      <div class="card" id="stuck-card" style="display:none;">
+        <div class="card-title"><span class="t" style="color:#ff8a93;">⚠ 套牢预警 · 平台期</span><span class="m" style="color:#ff3b47;">连续超标</span></div>
+        <div style="color:#9aa8be;font-size:12px;">今日净热量为正，K 线翻红。建议增加运动或控制晚餐。</div>
+      </div>
+    </section>
+
+    <!-- ============ 榜单 ============ -->
+    <section class="page" id="page-leaderboard">
+      <div class="pagetitle"><div class="k">RANKINGS · 榜单</div><div class="t">市场行情</div></div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-title"><span class="t">本周涨幅榜 · 减重榜</span><span class="m">实时</span></div>
+        <div class="lb-item">
+          <div class="rank r1">1</div><div class="av" style="background:var(--amber);color:#0a0e1a;">林</div>
+          <div class="meta"><div class="n">林子轩 · 主力</div><div class="s">本周 -1.8 kg</div></div>
+          <div class="v">-2.41%</div>
+        </div>
+        <div class="lb-item">
+          <div class="rank r2">2</div><div class="av" style="background:var(--blue);color:#0a0e1a;">王</div>
+          <div class="meta"><div class="n">王思琦 · 险资</div><div class="s">本周 -1.5 kg</div></div>
+          <div class="v">-2.05%</div>
+        </div>
+        <div class="lb-item me" id="me-rank">
+          <div class="rank r3" id="me-rank-num">3</div>
+          <div class="av" style="background:var(--green);color:#0a0e1a;">我</div>
+          <div class="meta"><div class="n">我 · <span id="me-title">散户</span></div><div class="s" id="me-sub">本周 -- kg</div></div>
+          <div class="v" id="me-v">--</div>
+        </div>
+        <div class="lb-item">
+          <div class="rank">4</div><div class="av" style="background:#c586c0;color:#0a0e1a;">陈</div>
+          <div class="meta"><div class="n">陈墨 · 北向资金</div><div class="s">本周 -1.2 kg</div></div>
+          <div class="v">-1.66%</div>
+        </div>
+        <div class="lb-item">
+          <div class="rank">5</div><div class="av" style="background:var(--red);color:#fff;">赵</div>
+          <div class="meta"><div class="n">赵宇航 · 散户</div><div class="s">本周 -0.9 kg</div></div>
+          <div class="v">-1.24%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="t">我跟单的操作</span><span class="m">3 位</span></div>
+        <div class="lb-item" style="border:none;padding:8px 0;">
+          <div class="av" style="width:36px;height:36px;border-radius:50%;background:var(--blue);color:#0a0e1a;">王</div>
+          <div class="meta"><div class="n">王思琦 · 低碳水策略</div><div class="s">近 30 日 -4.2 kg</div></div>
+          <div style="background:#0d3a32;color:var(--green);padding:4px 10px;border-radius:12px;font-size:11px;">跟单中</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 我的 ============ -->
+    <section class="page" id="page-profile">
+      <div class="profile-head">
+        <div class="av-lg">小</div>
+        <div class="name">小鹿 <span class="lvl" id="p-lvl">Lvl 1</span></div>
+        <div class="info" id="p-title">散户 · 自交易所 · 持仓 0 天</div>
+        <div class="profile-stat">
+          <div><div class="v" id="p-diet">0</div><div class="l">累计饮食</div></div>
+          <div><div class="v" id="p-ex">0</div><div class="l">累计运动</div></div>
+          <div><div class="v" id="p-badges">0</div><div class="l">勋章</div></div>
+        </div>
+      </div>
+
+      <div class="coin-card">
+        <div class="coin">¥</div>
+        <div class="meta"><div class="n" id="p-coins">0</div><div class="l">健康币 · 可兑换奖励</div></div>
+        <div style="color:var(--amber);margin-left:auto;">›</div>
+      </div>
+
+      <div class="card" style="margin-top:4px;">
+        <div class="menu-item" onclick="showAchievements()">
+          <div class="ic" style="background:#1a0a0d;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="6" stroke="#ff3b47" stroke-width="1.5"/><path d="M9 14 L7 22 L12 19 L17 22 L15 14" stroke="#ff3b47" stroke-width="1.5" fill="none"/></svg></div>
+          <div class="n">成就殿堂</div>
+          <div class="v" id="p-badge-count" style="color:var(--amber);">0 / 6</div>
+          <div class="arr">›</div>
+        </div>
+        <div class="menu-item" onclick="scrollToProfile()">
+          <div class="ic" style="background:#0d2335;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#5ac8fa" stroke-width="1.5"/><path d="M12 7 V12 L15 14" stroke="#5ac8fa" stroke-width="1.5"/></svg></div>
+          <div class="n">身体档案</div>
+          <div class="v">影响 BMR</div>
+          <div class="arr">›</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="t">身体档案</span><span class="m">保存后重算 BMR</span></div>
+        <div class="field"><label>性别</label><select id="f-gender"><option value="male">男</option><option value="female">女</option></select></div>
+        <div class="field"><label>年龄</label><input id="f-age" type="number" min="10" max="100"></div>
+        <div class="field"><label>身高（cm）</label><input id="f-height" type="number" min="100" max="230"></div>
+        <div class="field"><label>体重（kg）</label><input id="f-weight" type="number" min="30" max="200" step="0.1"></div>
+        <div class="field"><label>每日目标缺口（kcal，负数=减重）</label><input id="f-target" type="number" step="50"></div>
+        <button class="confirm sell" onclick="saveProfile()">保存档案</button>
+      </div>
+    </section>
+
+    <!-- ============ 成就殿堂 ============ -->
+    <section class="page" id="page-achievements">
+      <div class="backrow" onclick="backToProfile()">‹ 返回我的</div>
+      <div class="ach-hero" style="background-image:url('assets/A_luxurious_dark__Achievement__2026-08-25T14-42-14.png');">
+        <div class="overlay"><h2>成就殿堂</h2><p id="ach-progress">0 / 6 · 已解锁 0%</p></div>
+      </div>
+      <div class="badge-grid" id="badge-grid"></div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title"><span class="t">进行中的任务</span><span class="m">实时进度</span></div>
+        <div id="ach-tasks"></div>
+      </div>
+    </section>
+
+    <!-- ============ 涨停仪式 ============ -->
+    <div class="celeb" id="celeb">
+      <div class="trophy"><svg width="52" height="52" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="6" fill="#0a0e1a"/><path d="M9 14 L7 22 L12 19 L17 22 L15 14 Z M9 9 L12 5 L15 9 L12 13 Z" fill="#0a0e1a"/></svg></div>
+      <div class="big" id="celeb-net">-0<small>kcal</small></div>
+      <div style="color:#fff;opacity:0.7;font-size:13px;margin-top:8px;">今日热量缺口 · 触发涨停</div>
+      <div class="heading">已<span class="em">封涨停</span>！</div>
+      <div class="stats">
+        <div><div class="n">+200</div><div class="l">健康币</div></div>
+        <div><div class="n">+30</div><div class="l">经验值</div></div>
+        <div><div class="n">+1</div><div class="l">勋章</div></div>
+      </div>
+      <button class="btn" onclick="closeCeleb()">收下奖励，继续盯盘</button>
+    </div>
+
+    <!-- ============ 食物搜索弹层 ============ -->
+    <div class="sheet-mask" id="food-search-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeFoodSearch()">×</span>
+        <h3>记录食物</h3>
+        <div class="searchbox" style="margin:12px 0 0;">
+          <input id="food-search" type="text" placeholder="搜索食物，如「米饭」「鸡胸肉」" autocomplete="off">
+        </div>
+        <div class="results" id="food-results" style="margin:10px 0 0;"></div>
+      </div>
+    </div>
+
+    <!-- ============ 份量弹层 ============ -->
+    <div class="sheet-mask" id="food-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeFoodSheet()">×</span>
+        <h3 id="fs-name">--</h3>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px;" id="fs-per">--</div>
+        <div class="qty-row"><span class="lbl">份量</span>
+          <div class="stepper"><button onclick="stepQty(-1)">−</button><div class="num" id="fs-qty">1</div><button onclick="stepQty(1)">＋</button></div>
+        </div>
+        <div class="meal-row" id="fs-meals">
+          <div class="meal on" data-meal="早餐">早餐</div>
+          <div class="meal" data-meal="午餐">午餐</div>
+          <div class="meal" data-meal="晚餐">晚餐</div>
+          <div class="meal" data-meal="加餐">加餐</div>
+        </div>
+        <button class="confirm buy" onclick="addFood()" id="fs-confirm">确认摄入 -- kcal</button>
+      </div>
+    </div>
+
+    <!-- ============ 运动列表弹层 ============ -->
+    <div class="sheet-mask" id="ex-list-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeExList()">×</span>
+        <h3>选择运动</h3>
+        <div class="results" id="ex-list" style="margin:12px 0 0;"></div>
+      </div>
+    </div>
+
+    <!-- ============ 身体成分录入弹层 ============ -->
+    <div class="sheet-mask" id="body-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeBodyEdit()">×</span>
+        <h3>手动录入 · 身体成分</h3>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px;">填写 6 项身体数据，保存后状态自动判定</div>
+        <div class="field"><label>BMI</label><input id="bi-bmi" type="number" step="0.1" placeholder="如 22.4"></div>
+        <div class="field"><label>体脂率（%）</label><input id="bi-fat" type="number" step="0.1" placeholder="如 18.2"></div>
+        <div class="field"><label>肌肉率（%）</label><input id="bi-muscle" type="number" step="0.1" placeholder="如 42.5"></div>
+        <div class="field"><label>水分率（%）</label><input id="bi-water" type="number" step="0.1" placeholder="如 55.8"></div>
+        <div class="field"><label>蛋白质（kg）</label><input id="bi-protein" type="number" step="0.1" placeholder="如 10.2"></div>
+        <div class="field"><label>内脏脂肪（级 1-30）</label><input id="bi-visceral" type="number" step="1" placeholder="如 8"></div>
+        <button class="confirm sell" onclick="saveBody()">保存并重算</button>
+      </div>
+    </div>
+
+    <!-- ============ 运动录入弹层 ============ -->
+    <div class="sheet-mask" id="ex-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeExSheet()">×</span>
+        <h3 id="es-name">--</h3>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px;" id="es-met">--</div>
+        <div class="field"><label>时长（分钟）</label><input id="es-duration" type="number" min="1" max="600" value="30"></div>
+        <div class="intensity-row" id="es-intensity">
+          <div class="intensity" data-i="低">低</div>
+          <div class="intensity on" data-i="中">中</div>
+          <div class="intensity" data-i="高">高</div>
+        </div>
+        <button class="confirm sell" onclick="addExercise()" id="es-confirm">确认消耗 -- kcal</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 底部 Tab · 固定在底部（不随 .screen 滚动） -->
+  <div class="tabbar">
+    <div class="on" data-tab="market" onclick="switchTab('market')">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>行情
+    </div>
+    <div data-tab="trade" onclick="switchTab('trade')">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/></svg></div>交易
+    </div>
+    <div data-tab="holdings" onclick="switchTab('holdings')">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/></svg></div>持仓
+    </div>
+    <div data-tab="leaderboard" onclick="switchTab('leaderboard')">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 20 H20" stroke="currentColor" stroke-width="2"/></svg></div>榜单
+    </div>
+    <div data-tab="profile" onclick="switchTab('profile')">
+      <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M4 21 C4 16 8 14 12 14 C16 14 20 16 20 21" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div>我的
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============ 数据 ============ */
+const FOOD_DB = [
+  {name:'米饭', cat:'主食', unit:'100g', kcal:116},
+  {name:'馒头', cat:'主食', unit:'1个', kcal:223},
+  {name:'面条', cat:'主食', unit:'100g', kcal:137},
+  {name:'全麦面包', cat:'主食', unit:'1片', kcal:80},
+  {name:'燕麦', cat:'主食', unit:'100g', kcal:389},
+  {name:'红薯', cat:'主食', unit:'100g', kcal:86},
+  {name:'玉米', cat:'主食', unit:'1根', kcal:112},
+  {name:'白粥', cat:'主食', unit:'1碗', kcal:80},
+  {name:'鸡胸肉', cat:'肉蛋', unit:'100g', kcal:133},
+  {name:'鸡蛋', cat:'肉蛋', unit:'1个', kcal:72},
+  {name:'瘦牛肉', cat:'肉蛋', unit:'100g', kcal:125},
+  {name:'猪里脊', cat:'肉蛋', unit:'100g', kcal:155},
+  {name:'三文鱼', cat:'肉蛋', unit:'100g', kcal:208},
+  {name:'基围虾', cat:'肉蛋', unit:'100g', kcal:93},
+  {name:'苹果', cat:'蔬果', unit:'1个', kcal:95},
+  {name:'香蕉', cat:'蔬果', unit:'1根', kcal:105},
+  {name:'西兰花', cat:'蔬果', unit:'100g', kcal:34},
+  {name:'生菜', cat:'蔬果', unit:'100g', kcal:15},
+  {name:'番茄', cat:'蔬果', unit:'1个', kcal:22},
+  {name:'牛奶', cat:'饮品', unit:'250ml', kcal:135},
+  {name:'豆浆', cat:'饮品', unit:'250ml', kcal:54},
+  {name:'珍珠奶茶', cat:'饮品', unit:'1杯', kcal:380},
+  {name:'可乐', cat:'饮品', unit:'330ml', kcal:142},
+  {name:'美式咖啡', cat:'饮品', unit:'1杯', kcal:5},
+  {name:'薯片', cat:'零食', unit:'1包', kcal:536},
+  {name:'巧克力', cat:'零食', unit:'1块', kcal:270},
+  {name:'饼干', cat:'零食', unit:'100g', kcal:435},
+  {name:'混合坚果', cat:'零食', unit:'30g', kcal:175},
+];
+
+const EXERCISE_DB = [
+  {name:'跑步', met:8.3, cat:'有氧'},
+  {name:'慢跑', met:7.0, cat:'有氧'},
+  {name:'快走', met:4.3, cat:'有氧'},
+  {name:'骑行', met:6.0, cat:'有氧'},
+  {name:'游泳', met:7.0, cat:'有氧'},
+  {name:'跳绳', met:10.0, cat:'有氧'},
+  {name:'爬楼梯', met:8.0, cat:'有氧'},
+  {name:'力量训练', met:5.0, cat:'力量'},
+  {name:'瑜伽', met:3.0, cat:'柔韧'},
+  {name:'篮球', met:6.5, cat:'有氧'},
+];
+
+const CAT_COLOR = {
+  '主食':'#ff8a93','肉蛋':'#ffb800','蔬果':'#5ee0c0','饮品':'#88c8fa','零食':'#c586c0',
+  '有氧':'#5ee0c0','力量':'#ffb800','柔韧':'#c586c0'
+};
+
+// 历史体重 K 线（过去 13 天，递减趋势）
+const HIST_K = [75.5,75.3, 75.3,75.0, 75.0,75.4, 75.4,74.9, 74.9,74.6, 74.6,74.8, 74.8,74.3, 74.3,74.1, 74.1,73.9, 73.9,74.2, 74.2,73.7, 73.7,73.5, 73.5,73.3];
+
+// 历史净热量（过去 6 天，模拟）
+const HIST_NET = [-320, -410, -280, -450, -390, -340];
+
+const STORAGE_KEY = 'jianpan_v2';
+
+// 身体成分指标参考区间
+const BODY_RANGES = [
+  { key:'bmi',          label:'BMI',       unit:'',   ref:'18.5 - 23.9',   min:18.5, max:23.9 },
+  { key:'bodyFat',      label:'体脂率',    unit:'%',  ref:'10 - 20%',     min:10,   max:20 },
+  { key:'muscleRate',   label:'肌肉率',    unit:'%',  ref:'40 - 45%',     min:40,   max:45 },
+  { key:'waterRate',    label:'水分率',    unit:'%',  ref:'50 - 60%',     min:50,   max:60 },
+  { key:'proteinKg',    label:'蛋白质',    unit:'kg', ref:'9.5 - 11 kg',  min:9.5,  max:11 },
+  { key:'visceralFat',  label:'内脏脂肪',  unit:'级', ref:'1 - 9 级',     min:1,    max:9 }
+];
+
+const BADGES = [
+  {id:'first', name:'首笔交易', desc:'完成第一笔记录', color:'#ffb800', icon:'star', cond:s => (s.diet.length + s.exercise.length) >= 1},
+  {id:'food5', name:'饮食记录家', desc:'累计记录 5 笔饮食', color:'#ff3b47', icon:'bowl', cond:s => s.diet.length >= 5},
+  {id:'ex3', name:'运动达人', desc:'累计记录 3 次运动', color:'#00c896', icon:'run', cond:s => s.exercise.length >= 3},
+  {id:'limitup', name:'涨停王', desc:'达成一次涨停', color:'#ffb800', icon:'trophy', cond:s => s.limitUpCount > 0},
+  {id:'gap', name:'热量缺口', desc:'当日净热量达标', color:'#00c896', icon:'gap', cond:s => s.gapToday},
+  {id:'rich', name:'分红大户', desc:'健康币满 1000', color:'#5ac8fa', icon:'coin', cond:s => s.coins >= 1000},
+];
+
+/* ============ 状态 ============ */
+let state = loadState();
+function defaultState() {
+  return {
+    user: { gender:'male', age:30, height:175, weight:72.8, target:-500, startWeight:75.5 },
+    body: { bmi:22.4, bodyFat:18.2, muscleRate:42.5, waterRate:55.8, proteinKg:10.2, visceralFat:8, source:'sync', syncedAt:'08:30' },
+    diet: [], exercise: [],
+    coins: 0, exp: 0, limitUpCount: 0, gapToday: false,
+    celebFired: false
+  };
+}
+function loadState() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e) {}
+  return defaultState();
+}
+function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
+function resetAll() {
+  if (!confirm('确定清空所有记录并重置吗？')) return;
+  state = defaultState();
+  saveState(); render();
+}
+
+/* ============ 计算 ============ */
+function calcBMR() {
+  const u = state.user;
+  const base = 10*u.weight + 6.25*u.height - 5*u.age;
+  return Math.round(base + (u.gender==='male' ? 5 : -161));
+}
+function exerciseKcal(met, duration, intensity) {
+  const coef = intensity==='低' ? 0.8 : intensity==='高' ? 1.25 : 1.0;
+  return Math.round(met * 3.5 * state.user.weight / 200 * duration * coef);
+}
+function totals() {
+  const intake = state.diet.reduce((s,d)=>s+d.kcal, 0);
+  const burn = state.exercise.reduce((s,e)=>s+e.kcal, 0);
+  const bmr = calcBMR();
+  const net = intake - burn - bmr;
+  return { intake, burn, bmr, net, budget: burn + bmr };
+}
+
+/* ============ 图标 SVG ============ */
+function badgeIcon(type) {
+  const s = { star:'<path d="M12 3 L14 9 L20 10 L15 14 L17 20 L12 17 L7 20 L9 14 L4 10 L10 9 Z" fill="#0a0e1a"/>',
+    bowl:'<path d="M5 12 Q12 4 19 12 Q12 14 5 12 Z" fill="#0a0e1a"/>',
+    run:'<circle cx="14" cy="5" r="2" fill="#0a0e1a"/><path d="M8 21 L14 11 L11 9 L9 7" stroke="#0a0e1a" stroke-width="1.5" fill="none"/>',
+    trophy:'<circle cx="12" cy="9" r="6" fill="#0a0e1a"/><path d="M9 14 L7 22 L12 19 L17 22 L15 14 Z" fill="#0a0e1a"/>',
+    gap:'<path d="M3 17 L9 11 L13 15 L21 7" stroke="#0a0e1a" stroke-width="2.5" stroke-linecap="round" fill="none"/>',
+    coin:'<circle cx="12" cy="12" r="9" fill="#0a0e1a"/><text x="12" y="17" text-anchor="middle" font-size="12" font-weight="600" fill="#5ac8fa">¥</text>' };
+  return '<svg width="26" height="26" viewBox="0 0 24 24" fill="none">' + s[type] + '</svg>';
+}
+
+/* ============ 渲染 ============ */
+function render() {
+  const t = totals();
+  const C = 2 * Math.PI * 48;
+
+  // 更新成就条件状态
+  state.gapToday = t.net <= state.user.target && t.net < 0;
+  BADGES.forEach(b => { if (b.cond(state) && state[b.id] !== true) state[b.id] = true; });
+  const unlocked = BADGES.filter(b => state[b.id]).length;
+
+  // 环形图
+  let ratio = t.budget > 0 ? t.intake / t.budget : 0;
+  ratio = Math.min(Math.max(ratio, 0), 1);
+  const fill = document.getElementById('ring-fill');
+  fill.setAttribute('stroke-dasharray', C);
+  fill.setAttribute('stroke-dashoffset', C * (1 - ratio));
+  fill.setAttribute('stroke', t.net < 0 ? '#00c896' : '#ff3b47');
+  document.getElementById('ring-num').textContent = t.intake;
+  document.getElementById('ring-sub').textContent = '摄入 / ' + t.budget;
+  document.getElementById('m-intake').textContent = '+' + t.intake;
+  document.getElementById('m-burn').textContent = '-' + t.burn;
+  document.getElementById('m-bmr').textContent = '-' + t.bmr;
+
+  // 净热量结论（行情 + 交易共用逻辑）
+  renderNet('net-card', 'net-lbl', 'net-val', 'net-badge', t.net);
+  renderNet('trade-net', null, 'trade-netval', 'trade-badge', t.net);
+
+  // 身体成分（6 指标）
+  renderBodyMetrics();
+
+  // 体重 K 线
+  renderKline();
+
+  // 成交列表
+  const all = [...state.diet.map(d=>({...d,type:'food'})), ...state.exercise.map(e=>({...e,type:'ex'}))]
+    .sort((a,b)=>(b.time||0)-(a.time||0));
+  const listHTML = all.length === 0 ? '<div class="empty">还没有记录，去「交易」记一笔吧</div>' : all.map(entryHTML).join('');
+  document.getElementById('m-count').textContent = all.length + ' 笔';
+  document.getElementById('m-list').innerHTML = listHTML;
+  document.getElementById('t-count').textContent = all.length + ' 笔';
+  document.getElementById('t-list').innerHTML = listHTML;
+
+  // 交易面板数字
+  document.getElementById('t-intake').textContent = '+' + t.intake;
+  document.getElementById('t-burn').textContent = '-' + t.burn;
+  document.getElementById('t-intake-cnt').textContent = state.diet.length + ' 笔 · 食物库匹配';
+  document.getElementById('t-burn-cnt').textContent = state.exercise.length + ' 笔 · MET 自动算';
+
+  // 持仓
+  document.getElementById('h-weight').innerHTML = u.weight + '<small> kg</small>';
+  const targetW = Math.max(40, u.startWeight - 7.5);
+  document.getElementById('h-target').innerHTML = targetW.toFixed(1) + '<small> kg</small>';
+  const change = (u.weight - u.startWeight).toFixed(1);
+  document.getElementById('h-change').textContent = '较起点 ' + (change < 0 ? '' : '+') + change + ' kg';
+  document.getElementById('h-remain').textContent = '还差 ' + Math.max(0, u.weight - targetW).toFixed(1) + ' kg';
+  renderTrend(t.net);
+  document.getElementById('h-coins').textContent = state.coins;
+  document.getElementById('h-days').textContent = state.limitUpCount;
+  document.getElementById('h-gap').textContent = t.net < 0 ? t.net : 0;
+  document.getElementById('stuck-card').style.display = t.net > 0 ? 'block' : 'none';
+
+  // 榜单
+  renderLeaderboard(t.net);
+
+  // 我的
+  const lvl = Math.floor(state.exp / 100) + 1;
+  document.getElementById('p-lvl').textContent = 'Lvl ' + lvl;
+  document.getElementById('p-title').textContent = (state.limitUpCount >= 3 ? '主力' : '散户') + ' · 自交易所 · 持仓 87 天';
+  document.getElementById('p-diet').textContent = state.diet.length;
+  document.getElementById('p-ex').textContent = state.exercise.length;
+  document.getElementById('p-badges').textContent = unlocked;
+  document.getElementById('p-coins').textContent = state.coins;
+  document.getElementById('p-badge-count').textContent = unlocked + ' / ' + BADGES.length;
+
+  // 成就殿堂
+  document.getElementById('ach-progress').textContent = unlocked + ' / ' + BADGES.length + ' · 已解锁 ' + Math.round(unlocked/BADGES.length*100) + '%';
+  renderBadges();
+  renderTasks();
+
+  // 身体档案表单
+  document.getElementById('f-gender').value = u.gender;
+  document.getElementById('f-age').value = u.age;
+  document.getElementById('f-height').value = u.height;
+  document.getElementById('f-weight').value = u.weight;
+  document.getElementById('f-target').value = u.target;
+
+  // 涨停触发
+  if (t.net <= u.target && !state.celebFired && (state.diet.length || state.exercise.length)) {
+    state.celebFired = true;
+    state.limitUpCount++;
+    state.coins += 200;
+    state.exp += 30;
+    document.getElementById('celeb-net').innerHTML = t.net + '<small>kcal</small>';
+    document.getElementById('celeb').classList.add('show');
+  }
+  saveState();
+}
+
+function renderNet(cardId, lblId, valId, badgeId, net) {
+  const card = document.getElementById(cardId);
+  const badge = document.getElementById(badgeId);
+  document.getElementById(valId).textContent = (net > 0 ? '+' : '') + net + ' kcal';
+  if (lblId) document.getElementById(lblId).style.color = net < 0 ? '#5ee0c0' : net > 0 ? '#ff8a93' : '#9aa8be';
+  if (net < -50) {
+    card.style.background = '#0d3a32'; card.style.border = '1px solid #103a30';
+    document.getElementById(valId).style.color = '#00c896';
+    badge.textContent = '热量缺口 · 牛市'; badge.style.background = '#00c896'; badge.style.color = '#0a1a15';
+  } else if (net > 50) {
+    card.style.background = '#1a0a0d'; card.style.border = '1px solid #3a1014';
+    document.getElementById(valId).style.color = '#ff3b47';
+    badge.textContent = '热量盈余 · 跌停'; badge.style.background = '#ff3b47'; badge.style.color = '#fff';
+  } else {
+    card.style.background = '#141b2d'; card.style.border = '1px solid #1f2638';
+    document.getElementById(valId).style.color = '#fff';
+    badge.textContent = '热量平衡'; badge.style.background = '#1f2638'; badge.style.color = '#9aa8be';
+  }
+}
+
+function entryHTML(item) {
+  return item.type === 'food' ? `<div class="entry">
+    <div class="ic" style="background:#2a0d10;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#ff3b47" stroke-width="1.5"/></svg></div>
+    <div class="meta"><div class="n">${item.name} ×${item.qty}${item.unit}</div><div class="s">${item.meal} · ${item.time||''}</div></div>
+    <div class="val" style="color:#ff3b47;">+${item.kcal}</div>
+    <div class="del" onclick="removeFood('${item.id}')">×</div>
+  </div>` : `<div class="entry">
+    <div class="ic" style="background:#0d3a32;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="14" cy="5" r="2" stroke="#00c896" stroke-width="1.5"/><path d="M8 21 L14 11 L11 9 L9 7" stroke="#00c896" stroke-width="1.5" fill="none"/></svg></div>
+    <div class="meta"><div class="n">${item.name} ${item.duration}min · ${item.intensity}强度</div><div class="s">${item.time||''}</div></div>
+    <div class="val" style="color:#00c896;">-${item.kcal}</div>
+    <div class="del" onclick="removeEx('${item.id}')">×</div>
+  </div>`;
+}
+
+function renderBodyMetrics() {
+  const b = state.body;
+  document.getElementById('body-source').textContent =
+    (b.source === 'sync' ? '已同步 · ' : '手动录入 · ') + b.syncedAt;
+  document.getElementById('body-metrics').innerHTML = BODY_RANGES.map(m => {
+    const v = b[m.key];
+    const status = getMetricStatus(v, m.min, m.max);
+    const pct = getMetricPct(v, m.min, m.max);
+    return `<div class="metric">
+      <div class="head"><span class="l">${m.label}</span><span class="st ${status}">${statusLabel(status)}</span></div>
+      <div class="v">${v}<small> ${m.unit}</small></div>
+      <div class="ref">参考 ${m.ref}</div>
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${statusColor(status)};"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function getMetricStatus(v, min, max) {
+  if (v < min) return v < min * 0.9 ? 'bad' : 'warn';
+  if (v > max) return v > max * 1.1 ? 'bad' : 'warn';
+  const pos = (v - min) / (max - min);
+  if (pos > 0.85 || pos < 0.15) return 'warn';
+  return 'ok';
+}
+function getMetricPct(v, min, max) { return Math.min(Math.max((v - min) / (max - min) * 100, 5), 100); }
+function statusLabel(s) { return s === 'ok' ? '正常' : s === 'warn' ? '边缘' : '异常'; }
+function statusColor(s) { return s === 'ok' ? '#00c896' : s === 'warn' ? '#ffb800' : '#ff3b47'; }
+
+function openBodyEdit() {
+  const b = state.body;
+  document.getElementById('bi-bmi').value = b.bmi;
+  document.getElementById('bi-fat').value = b.bodyFat;
+  document.getElementById('bi-muscle').value = b.muscleRate;
+  document.getElementById('bi-water').value = b.waterRate;
+  document.getElementById('bi-protein').value = b.proteinKg;
+  document.getElementById('bi-visceral').value = b.visceralFat;
+  document.getElementById('body-sheet').classList.add('show');
+}
+function closeBodyEdit() { document.getElementById('body-sheet').classList.remove('show'); }
+function saveBody() {
+  const b = state.body;
+  b.bmi = parseFloat(document.getElementById('bi-bmi').value) || b.bmi;
+  b.bodyFat = parseFloat(document.getElementById('bi-fat').value) || b.bodyFat;
+  b.muscleRate = parseFloat(document.getElementById('bi-muscle').value) || b.muscleRate;
+  b.waterRate = parseFloat(document.getElementById('bi-water').value) || b.waterRate;
+  b.proteinKg = parseFloat(document.getElementById('bi-protein').value) || b.proteinKg;
+  b.visceralFat = parseInt(document.getElementById('bi-visceral').value) || b.visceralFat;
+  b.source = 'manual';
+  b.syncedAt = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+  closeBodyEdit();
+  render();
+}
+function syncBodyFromDevice() {
+  const btn = document.querySelector('.body-action');
+  const orig = btn.textContent;
+  btn.textContent = '同步中…';
+  btn.style.color = '#5ac8fa';
+  setTimeout(() => {
+    state.body = {
+      bmi: 22.4, bodyFat: 18.2, muscleRate: 42.5, waterRate: 55.8, proteinKg: 10.2, visceralFat: 8,
+      source: 'sync',
+      syncedAt: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})
+    };
+    render();
+  }, 1200);
+}
+
+function renderKline() {
+  const u = state.user;
+  const days = HIST_K; // 26 个数 = 13 根
+  const bars = [];
+  for (let i = 0; i < days.length; i += 2) {
+    bars.push({ o: days[i], c: days[i+1] });
+  }
+  // 今天
+  bars.push({ o: bars[bars.length-1].c, c: u.weight });
+  const min = Math.min(...bars.map(b => Math.min(b.o, b.c))) - 0.3;
+  const max = Math.max(...bars.map(b => Math.max(b.o, b.c))) + 0.3;
+  const w = 340, h = 90, pad = 8;
+  const step = w / bars.length;
+  const y = v => pad + (max - v) / (max - min) * (h - 2*pad);
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:90px;">';
+  [0.25,0.5,0.75].forEach(p => {
+    svg += '<line x1="0" y1="' + y(max - (max-min)*p) + '" x2="' + w + '" y2="' + y(max - (max-min)*p) + '" stroke="#1f2638" stroke-width="0.5"/>';
+  });
+  bars.forEach((b, i) => {
+    const x = pad + i * step + step/2;
+    const up = b.c < b.o;
+    const color = up ? '#00c896' : '#ff3b47';
+    const yTop = y(Math.max(b.o, b.c));
+    const yBot = y(Math.min(b.o, b.c));
+    const bodyH = Math.max(2, yBot - yTop);
+    svg += '<rect x="' + (x-3) + '" y="' + yTop + '" width="6" height="' + bodyH + '" fill="' + color + '"/>';
+    svg += '<line x1="' + x + '" y1="' + yTop + '" x2="' + x + '" y2="' + yTop + '" stroke="' + color + '" stroke-width="1"/>';
+  });
+  svg += '</svg>';
+  document.getElementById('kline').innerHTML = svg;
+  document.getElementById('kline-weight').textContent = u.weight + ' kg';
+}
+
+function renderTrend(netToday) {
+  const data = HIST_NET.concat([netToday]);
+  const w = 340, h = 80, pad = 12;
+  const min = Math.min(...data) - 60;
+  const max = Math.max(...data, 0) + 60;
+  const step = w / (data.length - 1);
+  const y = v => pad + (max - v) / (max - min) * (h - 2*pad);
+  let path = 'M0 ' + y(data[0]);
+  data.forEach((v, i) => { if (i > 0) path += ' L' + (i*step) + ' ' + y(v); });
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:80px;">';
+  svg += '<line x1="0" y1="' + y(0) + '" x2="' + w + '" y2="' + y(0) + '" stroke="#1f2638" stroke-width="0.5" stroke-dasharray="3,3"/>';
+  svg += '<text x="2" y="' + (y(0)-3) + '" fill="#5a6478" font-size="8">0</text>';
+  svg += '<path d="' + path + '" stroke="#00c896" stroke-width="2" fill="none"/>';
+  data.forEach((v, i) => {
+    svg += '<circle cx="' + (i*step) + '" cy="' + y(v) + '" r="2.5" fill="' + (v<0?'#00c896':'#ff3b47') + '"/>';
+  });
+  svg += '</svg>';
+  document.getElementById('trend').innerHTML = svg;
+}
+
+function renderLeaderboard(net) {
+  const weekLoss = Math.max(0.3, Math.abs(state.user.startWeight - state.user.weight)).toFixed(1);
+  const rank = net < 0 ? 3 : 5;
+  document.getElementById('me-rank-num').textContent = rank;
+  document.getElementById('me-rank-num').className = 'rank' + (rank<=3 ? ' r'+rank : '');
+  document.getElementById('me-title').textContent = state.limitUpCount >= 3 ? '主力' : '散户';
+  document.getElementById('me-sub').textContent = '本周 -' + weekLoss + ' kg';
+  document.getElementById('me-v').textContent = '-' + (weekLoss / state.user.startWeight * 100).toFixed(2) + '%';
+}
+
+function renderBadges() {
+  document.getElementById('badge-grid').innerHTML = BADGES.map(b => {
+    const got = state[b.id];
+    return `<div class="badge ${got ? '' : 'locked'}">
+      <div class="b" style="background:${got ? b.color : '#2a3142'};">${badgeIcon(b.icon)}</div>
+      <div class="lbl" style="color:${got ? '#fff' : '#5a6478'};">${b.name}</div>
+      <div class="sub">${b.desc}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTasks() {
+  const tasks = [
+    { label:'首笔交易', now: state.diet.length + state.exercise.length, goal: 1, color:'#ffb800' },
+    { label:'饮食记录家', now: state.diet.length, goal: 5, color:'#ff3b47' },
+    { label:'运动达人', now: state.exercise.length, goal: 3, color:'#00c896' },
+    { label:'分红大户', now: state.coins, goal: 1000, color:'#5ac8fa' },
+  ];
+  document.getElementById('ach-tasks').innerHTML = tasks.map(t => {
+    const pct = Math.min(Math.round(t.now / t.goal * 100), 100);
+    return `<div class="prog-row">
+      <div class="ic" style="background:${t.color}22;"><span style="color:${t.color};font-size:11px;font-weight:500;">${t.label[0]}</span></div>
+      <div class="meta"><div class="n">${t.label}</div><div class="p">${t.now} / ${t.goal}</div></div>
+      <div class="bar"><div class="fill" style="width:${pct}%;background:${t.color};"></div></div>
+      <div class="v">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+/* ============ 饮食交互 ============ */
+let curFood = null, curQty = 1, curMeal = '早餐';
+
+function openFoodSearch() {
+  document.getElementById('food-sheet').classList.remove('show');
+  document.getElementById('ex-sheet').classList.remove('show');
+  document.getElementById('ex-list-sheet').classList.remove('show');
+  document.getElementById('food-search-sheet').classList.add('show');
+  document.getElementById('food-search').value = '';
+  document.getElementById('food-results').innerHTML = '';
+  setTimeout(() => document.getElementById('food-search').focus(), 100);
+}
+function closeFoodSearch() { document.getElementById('food-search-sheet').classList.remove('show'); }
+
+document.getElementById('food-search').addEventListener('input', function(e) {
+  const q = e.target.value.trim();
+  const box = document.getElementById('food-results');
+  if (!q) { box.innerHTML = ''; return; }
+  const matched = FOOD_DB.filter(f => f.name.includes(q) || f.cat.includes(q));
+  box.innerHTML = matched.length === 0 ? '<div class="empty">没有匹配的食物</div>'
+    : matched.map(f => `<div class="result-item" onclick="openFoodSheet('${f.name}')">
+      <span class="cat" style="color:${CAT_COLOR[f.cat]||'#9aa8be'};">${f.cat}</span>
+      <span class="n">${f.name}</span>
+      <span class="kcal">${f.kcal} kcal/${f.unit}</span>
+    </div>`).join('');
+});
+
+function openFoodSheet(name) {
+  curFood = FOOD_DB.find(f => f.name === name);
+  curQty = 1; curMeal = '早餐';
+  document.getElementById('food-search-sheet').classList.remove('show');
+  document.getElementById('fs-name').textContent = curFood.name;
+  document.getElementById('fs-per').textContent = curFood.kcal + ' kcal / ' + curFood.unit + ' · ' + curFood.cat;
+  document.getElementById('fs-qty').textContent = curQty;
+  document.querySelectorAll('#fs-meals .meal').forEach(m => m.classList.toggle('on', m.dataset.meal === curMeal));
+  updateFoodConfirm();
+  document.getElementById('food-sheet').classList.add('show');
+}
+function closeFoodSheet() { document.getElementById('food-sheet').classList.remove('show'); }
+function stepQty(d) { curQty = Math.max(1, curQty + d); document.getElementById('fs-qty').textContent = curQty; updateFoodConfirm(); }
+document.querySelectorAll('#fs-meals .meal').forEach(m => {
+  m.addEventListener('click', function() {
+    curMeal = this.dataset.meal;
+    document.querySelectorAll('#fs-meals .meal').forEach(x => x.classList.remove('on'));
+    this.classList.add('on');
+  });
+});
+function updateFoodConfirm() { document.getElementById('fs-confirm').textContent = '确认摄入 ' + (curFood.kcal * curQty) + ' kcal'; }
+function addFood() {
+  if (!curFood) return;
+  state.diet.push({ id:'f'+Date.now(), name:curFood.name, unit:curFood.unit, qty:curQty, kcal:curFood.kcal*curQty, meal:curMeal,
+    time: new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) });
+  state.celebFired = false;
+  closeFoodSheet(); render();
+}
+function removeFood(id) { state.diet = state.diet.filter(d => d.id !== id); render(); }
+
+/* ============ 运动交互 ============ */
+let curEx = null, curDuration = 30, curIntensity = '中';
+
+function openExList() {
+  document.getElementById('food-sheet').classList.remove('show');
+  document.getElementById('food-search-sheet').classList.remove('show');
+  document.getElementById('ex-sheet').classList.remove('show');
+  document.getElementById('ex-list-sheet').classList.add('show');
+  document.getElementById('ex-list').innerHTML = EXERCISE_DB.map(ex => `
+    <div class="result-item" onclick="openExSheet('${ex.name}')">
+      <span class="cat" style="color:${CAT_COLOR[ex.cat]||'#9aa8be'};">${ex.cat}</span>
+      <span class="n">${ex.name}</span>
+      <span class="kcal">MET ${ex.met}</span>
+    </div>`).join('');
+}
+function closeExList() { document.getElementById('ex-list-sheet').classList.remove('show'); }
+function openExSheet(name) {
+  curEx = EXERCISE_DB.find(e => e.name === name);
+  curDuration = 30; curIntensity = '中';
+  document.getElementById('ex-list-sheet').classList.remove('show');
+  document.getElementById('es-name').textContent = curEx.name;
+  document.getElementById('es-met').textContent = 'MET ' + curEx.met + ' · ' + curEx.cat;
+  document.getElementById('es-duration').value = curDuration;
+  document.querySelectorAll('#es-intensity .intensity').forEach(i => i.classList.toggle('on', i.dataset.i === curIntensity));
+  updateExConfirm();
+  document.getElementById('ex-sheet').classList.add('show');
+}
+function closeExSheet() { document.getElementById('ex-sheet').classList.remove('show'); }
+document.getElementById('es-duration').addEventListener('input', function() { curDuration = parseInt(this.value)||0; updateExConfirm(); });
+document.querySelectorAll('#es-intensity .intensity').forEach(i => {
+  i.addEventListener('click', function() {
+    curIntensity = this.dataset.i;
+    document.querySelectorAll('#es-intensity .intensity').forEach(x => x.classList.remove('on'));
+    this.classList.add('on'); updateExConfirm();
+  });
+});
+function updateExConfirm() {
+  const kcal = curEx ? exerciseKcal(curEx.met, curDuration, curIntensity) : 0;
+  document.getElementById('es-confirm').textContent = '确认消耗 -' + kcal + ' kcal';
+}
+function addExercise() {
+  if (!curEx) return;
+  const kcal = exerciseKcal(curEx.met, curDuration, curIntensity);
+  state.exercise.push({ id:'e'+Date.now(), name:curEx.name, duration:curDuration, intensity:curIntensity, kcal,
+    time: new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) });
+  state.celebFired = false;
+  closeExSheet(); render();
+}
+function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }
+
+/* ============ 档案 ============ */
+function saveProfile() {
+  state.user.gender = document.getElementById('f-gender').value;
+  state.user.age = parseInt(document.getElementById('f-age').value) || 30;
+  state.user.height = parseFloat(document.getElementById('f-height').value) || 175;
+  state.user.weight = parseFloat(document.getElementById('f-weight').value) || 72.8;
+  state.user.target = parseInt(document.getElementById('f-target').value) || -500;
+  state.celebFired = false;
+  render(); switchTab('market');
+  alert('身体档案已保存，基础代谢重算为 ' + calcBMR() + ' kcal');
+}
+function scrollToProfile() { document.getElementById('screen').scrollTop = document.getElementById('screen').scrollHeight; }
+
+/* ============ 成就 / 涨停 ============ */
+function showAchievements() { switchTab('achievements'); }
+function backToProfile() { switchTab('profile'); }
+function closeCeleb() { document.getElementById('celeb').classList.remove('show'); render(); }
+
+/* ============ Tab 切换 ============ */
+function switchTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  const tabs = ['market','trade','holdings','leaderboard','profile'];
+  document.querySelectorAll('.tabbar > div').forEach(t => t.classList.remove('on'));
+  if (tabs.includes(tab)) {
+    document.querySelector('.tabbar > div[data-tab="' + tab + '"]').classList.add('on');
+  } else {
+    document.querySelector('.tabbar > div[data-tab="profile"]').classList.add('on');
+  }
+  document.getElementById('screen').scrollTop = 0;
+}
+
+/* ============ 初始化 ============ */
+function tickClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+}
+tickClock(); setInterval(tickClock, 30000);
+render();
+</script>
+</body>
+</html>
