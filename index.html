@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>减盘 · 把减肥做成炒股游戏</title>
+<title>健身交易员 · 把健身做成交易游戏</title>
 <meta name="theme-color" content="#0a0e1a">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="assets/icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="减盘">
+<meta name="apple-mobile-web-app-title" content="健身交易员">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -127,7 +127,7 @@ body {
 
 /* 我的 */
 .profile-head { background:linear-gradient(180deg,#141b2d,#0a0e1a); padding:20px 18px 24px; display:flex; flex-direction:column; align-items:center; }
-.profile-head .av-lg { width:72px; height:72px; border-radius:50%; background:var(--red); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:500; }
+.profile-head .av-lg { width:72px; height:72px; border-radius:50%; background:#2a3142; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:500; }
 .profile-head .name { font-size:18px; font-weight:500; margin-top:10px; }
 .profile-head .name .lvl { display:inline-block; padding:2px 8px; background:var(--amber); color:#0a0e1a; border-radius:4px; font-size:11px; margin-left:8px; }
 .profile-head .info { color:var(--muted); font-size:12px; margin-top:4px; }
@@ -256,6 +256,21 @@ body {
 .fs-mode { display:flex; gap:8px; margin-top:16px; }
 .fs-mode-item { flex:1; padding:10px; text-align:center; border-radius:10px; background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:13px; cursor:pointer; }
 .fs-mode-item.on { background:var(--red); border-color:var(--red); color:#fff; }
+
+/* 头像模块 */
+.avatar-sm { width:32px; height:32px; border-radius:50%; background:#2a3142; overflow:hidden; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; border:1px solid var(--border); }
+.avatar-sm img { width:100%; height:100%; object-fit:cover; }
+.av-lg { cursor:pointer; overflow:hidden; }
+.av-lg img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+/* 资料编辑弹层 */
+.pe-avatar { display:flex; flex-direction:column; align-items:center; gap:10px; margin:14px 0; cursor:pointer; }
+.pe-avatar .ring { width:84px; height:84px; border-radius:50%; background:#2a3142; overflow:hidden; display:flex; align-items:center; justify-content:center; border:2px solid var(--border); }
+.pe-avatar .ring img { width:100%; height:100%; object-fit:cover; }
+.pe-avatar .cam { color:var(--blue); font-size:12px; }
+/* K线均线图例 */
+.ma-legend { display:flex; gap:14px; margin-top:10px; font-size:10px; }
+.ma-legend .ma7 { color:var(--amber); }
+.ma-legend .ma30 { color:var(--blue); }
 </style>
 </head>
 <body>
@@ -270,7 +285,10 @@ body {
     <!-- ============ 行情 ============ -->
     <section class="page active" id="page-market">
       <div class="pheader">
-        <div class="logo"><div class="lm">K</div><div class="lt">减盘<small>自交易所 · SZ000001</small></div></div>
+        <div class="logo">
+          <div class="avatar-sm" id="hdr-avatar" onclick="openProfileEdit()"></div>
+          <div class="lt"><span id="hdr-id">FT_8848</span><small>自交易所 · SZ000001</small></div>
+        </div>
         <div class="reset" onclick="resetAll()">↺ 重置</div>
       </div>
 
@@ -296,6 +314,13 @@ body {
         <div class="badge" id="net-badge">平衡</div>
       </div>
 
+      <!-- 体重 K 线 -->
+      <div class="card">
+        <div class="card-title"><span class="t">自营 · 体重 K 线</span><span class="m" id="kline-weight">-- kg</span></div>
+        <div id="kline"></div>
+        <div class="ma-legend"><span class="ma7">● MA7</span><span class="ma30">● MA30</span></div>
+      </div>
+
       <!-- 身体成分 -->
       <div class="body-source">
         <span class="t">今日板块 · 身体成分</span>
@@ -305,12 +330,6 @@ body {
       <div class="body-actions">
         <div class="body-action" onclick="syncBodyFromDevice()">↻ 同步设备</div>
         <div class="body-action manual" onclick="openBodyEdit()">✎ 手动录入</div>
-      </div>
-
-      <!-- 体重 K 线 -->
-      <div class="card">
-        <div class="card-title"><span class="t">自营 · 体重 K 线</span><span class="m" id="kline-weight">-- kg</span></div>
-        <div id="kline"></div>
       </div>
 
       <!-- 今日成交摘要 -->
@@ -434,8 +453,8 @@ body {
     <!-- ============ 我的 ============ -->
     <section class="page" id="page-profile">
       <div class="profile-head">
-        <div class="av-lg">小</div>
-        <div class="name">小鹿 <span class="lvl" id="p-lvl">Lvl 1</span></div>
+        <div class="av-lg" id="p-avatar" onclick="openProfileEdit()"></div>
+        <div class="name"><span id="p-id">FT_8848</span> <span class="lvl" id="p-lvl">Lvl 1</span></div>
         <div class="info" id="p-title">散户 · 自交易所 · 持仓 0 天</div>
         <div class="profile-stat">
           <div><div class="v" id="p-diet">0</div><div class="l">累计饮食</div></div>
@@ -513,6 +532,21 @@ body {
       <button class="btn" onclick="closeCeleb()">收下奖励，继续盯盘</button>
     </div>
 
+    <!-- ============ 个人资料编辑弹层 ============ -->
+    <div class="sheet-mask" id="profile-edit-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closeProfileEdit()">×</span>
+        <h3>个人资料</h3>
+        <div class="pe-avatar" onclick="document.getElementById('avatar-input').click()">
+          <div class="ring" id="pe-avatar-img"></div>
+          <div class="cam">📷 点击更换头像</div>
+        </div>
+        <div class="field"><label>自定义 ID（交易账号）</label><input id="pe-id" type="text" maxlength="20" placeholder="设置你的交易账号ID"></div>
+        <button class="confirm buy" onclick="saveProfileEdit()">保存</button>
+      </div>
+    </div>
+    <input type="file" id="avatar-input" accept="image/*" style="display:none;">
+
     <!-- ============ 食物搜索弹层 ============ -->
     <div class="sheet-mask" id="food-search-sheet">
       <div class="sheet">
@@ -573,12 +607,12 @@ body {
       <div class="sheet">
         <span class="close" onclick="closeBodyEdit()">×</span>
         <h3>手动录入 · 身体成分</h3>
-        <div style="color:var(--muted);font-size:12px;margin-top:4px;">填写 6 项身体数据，保存后状态自动判定</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px;">填写身体数据，保存后状态自动判定（基础代谢 / 脂肪重量由系统计算）</div>
         <div class="field"><label>BMI</label><input id="bi-bmi" type="number" step="0.1" placeholder="如 22.4"></div>
         <div class="field"><label>体脂率（%）</label><input id="bi-fat" type="number" step="0.1" placeholder="如 18.2"></div>
         <div class="field"><label>肌肉率（%）</label><input id="bi-muscle" type="number" step="0.1" placeholder="如 42.5"></div>
         <div class="field"><label>水分率（%）</label><input id="bi-water" type="number" step="0.1" placeholder="如 55.8"></div>
-        <div class="field"><label>蛋白质（kg）</label><input id="bi-protein" type="number" step="0.1" placeholder="如 10.2"></div>
+        <div class="field"><label>身体年龄（岁）</label><input id="bi-bodyage" type="number" step="1" placeholder="如 28"></div>
         <div class="field"><label>内脏脂肪（级 1-30）</label><input id="bi-visceral" type="number" step="1" placeholder="如 8"></div>
         <button class="confirm sell" onclick="saveBody()">保存并重算</button>
       </div>
@@ -822,7 +856,7 @@ const CAT_COLOR = {
 };
 
 // 历史体重 K 线（过去 13 天，递减趋势）
-const HIST_K = [75.5,75.3, 75.3,75.0, 75.0,75.4, 75.4,74.9, 74.9,74.6, 74.6,74.8, 74.8,74.3, 74.3,74.1, 74.1,73.9, 73.9,74.2, 74.2,73.7, 73.7,73.5, 73.5,73.3];
+const HIST_K = (function(){ const a=[]; let w=76.0; for(let i=0;i<40;i++){ const o=Math.round(w*10)/10; const c=Math.round((w-0.06-((i*3)%4)*0.01)*10)/10; a.push(o,c); w=c; } return a; })();
 
 // 历史净热量（过去 6 天，模拟）
 const HIST_NET = [-320, -410, -280, -450, -390, -340];
@@ -896,19 +930,48 @@ const BODY_RANGES = [
     ]
   },
   {
-    key:'proteinKg', label:'蛋白质', unit:'kg', ref:'9.5 - 11 kg', min:9.5, max:11,
+    key:'bodyAge', label:'身体年龄', unit:'岁', ref:'≤ 实际年龄', min:18, max:40,
     levels:[
-      {name:'不足', min:0, max:8, color:'#ffb800'},
-      {name:'偏低', min:8, max:9.5, color:'#5ac8fa'},
-      {name:'正常', min:9.5, max:11, color:'#00c896'},
-      {name:'良好', min:11, max:13, color:'#00a878'},
-      {name:'偏高', min:13, max:20, color:'#ff7a38'}
+      {name:'年轻', min:0, max:25, color:'#00c896'},
+      {name:'正常', min:25, max:35, color:'#5ac8fa'},
+      {name:'偏大', min:35, max:45, color:'#ffb800'},
+      {name:'明显偏大', min:45, max:90, color:'#ff3b47'}
     ],
-    aiTemplate:(v,s)=>`身体蛋白质${s.name}。蛋白质是肌肉与免疫的基础，${v < 9.5 ? '不足会影响恢复与饱腹感' : v > 13 ? '偏高通常意味着肌肉量较大或测量误差' : '含量合适，配合运动可维持'}。`,
+    aiTemplate:(v,s)=>`身体年龄${s.name}。身体年龄反映身体的实际损耗程度，${v > 35 ? '偏大说明生活习惯或体成分有待改善，建议加强运动与睡眠' : v < 25 ? '比实际年龄更年轻，身体状态很棒，继续保持' : '处于正常区间，保持规律作息即可'}。`,
     tips:[
-      {t:'优质蛋白', d:'鸡蛋、鱼、鸡胸、豆腐、牛奶都是好选择。'},
-      {t:'分散摄入', d:'每餐 20~30g 蛋白质比一天一次更利于吸收。'},
-      {t:'运动后补充', d:'力量训练后补充蛋白质能促进肌肉修复。'}
+      {t:'规律睡眠', d:'每天 7~8 小时，身体修复主要在深睡期。'},
+      {t:'有氧+力量', d:'双管齐下能显著拉低身体年龄。'},
+      {t:'控糖控油', d:'减少精制碳水与反式脂肪摄入。'}
+    ]
+  },
+  {
+    key:'bmr', label:'基础代谢', unit:'kcal', ref:'1400 - 2000', min:1400, max:2000,
+    levels:[
+      {name:'偏低', min:0, max:1400, color:'#5ac8fa'},
+      {name:'正常', min:1400, max:2000, color:'#00c896'},
+      {name:'偏高', min:2000, max:2600, color:'#ffb800'},
+      {name:'过高', min:2600, max:4000, color:'#ff7a38'}
+    ],
+    aiTemplate:(v,s)=>`基础代谢${s.name}。基础代谢是你躺着也要消耗的热量，是每日热量预算的底座，${v < 1400 ? '偏低可能与肌肉不足有关，建议增加抗阻训练' : v > 2000 ? '较高说明肌肉量充足，减脂更轻松' : '处于健康区间，是制定热量缺口的好基准'}。`,
+    tips:[
+      {t:'别低于基础代谢吃', d:'摄入长期低于 BMR 会触发身体保护机制，反而更难瘦。'},
+      {t:'增加肌肉', d:'每公斤肌肉每天多消耗约 13 kcal。'},
+      {t:'保证蛋白质', d:'充足蛋白维持肌肉，稳住代谢。'}
+    ]
+  },
+  {
+    key:'fatWeight', label:'脂肪重量', unit:'kg', ref:'8 - 18', min:8, max:18,
+    levels:[
+      {name:'偏低', min:0, max:8, color:'#5ac8fa'},
+      {name:'标准', min:8, max:15, color:'#00c896'},
+      {name:'偏高', min:15, max:20, color:'#ffb800'},
+      {name:'过高', min:20, max:50, color:'#ff3b47'}
+    ],
+    aiTemplate:(v,s)=>`脂肪重量${s.name}。脂肪重量 = 体重 × 体脂率，反映体内囤积的多少，${v > 15 ? '偏高建议通过有氧与饮食控制优先削减' : v < 8 ? '过低需警惕，脂肪也是必要储能' : '处于合理区间，配合运动可进一步精雕'}。`,
+    tips:[
+      {t:'优先减脂不是减重', d:'关注脂肪重量下降，而非单纯体重数字。'},
+      {t:'有氧为主', d:'快走、游泳、骑行对减脂最直接。'},
+      {t:'控制酒精', d:'酒精热量高且优先转化为脂肪。'}
     ]
   },
   {
@@ -941,8 +1004,8 @@ const BADGES = [
 let state = loadState();
 function defaultState() {
   return {
-    user: { gender:'male', age:30, height:175, weight:72.8, target:-500, startWeight:75.5 },
-    body: { bmi:22.4, bodyFat:18.2, muscleRate:42.5, waterRate:55.8, proteinKg:10.2, visceralFat:8, source:'sync', syncedAt:'08:30' },
+    user: { gender:'male', age:30, height:175, weight:72.8, target:-500, startWeight:75.5, avatar:null, userId:'FT_8848' },
+    body: { bmi:22.4, bodyFat:18.2, muscleRate:42.5, waterRate:55.8, bodyAge:28, visceralFat:8, source:'sync', syncedAt:'08:30' },
     diet: [], exercise: [],
     coins: 0, exp: 0, limitUpCount: 0, gapToday: false,
     celebFired: false
@@ -1053,6 +1116,7 @@ function render() {
   // 榜单
   renderLeaderboard(t.net);
 
+  renderAvatar();
   // 我的
   const lvl = Math.floor(state.exp / 100) + 1;
   document.getElementById('p-lvl').textContent = 'Lvl ' + lvl;
@@ -1122,12 +1186,18 @@ function entryHTML(item) {
   </div>`;
 }
 
+function bodyValue(key) {
+  const b = state.body, u = state.user;
+  if (key === 'bmr') return calcBMR();
+  if (key === 'fatWeight') return +((u.weight * b.bodyFat / 100).toFixed(1));
+  return b[key];
+}
 function renderBodyMetrics() {
   const b = state.body;
   document.getElementById('body-source').textContent =
     (b.source === 'sync' ? '已同步 · ' : '手动录入 · ') + b.syncedAt;
   document.getElementById('body-metrics').innerHTML = BODY_RANGES.map((m, i) => {
-    const v = b[m.key];
+    const v = bodyValue(m.key);
     const status = getMetricStatus(v, m.min, m.max);
     const pct = getMetricPct(v, m.min, m.max);
     return `<div class="metric" onclick="openBodyDetail(${i})" style="cursor:pointer;">
@@ -1172,7 +1242,7 @@ function switchBodyTab(idx) {
 }
 function renderBodyDetail() {
   const m = BODY_RANGES[curBodyIdx];
-  const v = state.body[m.key];
+  const v = bodyValue(m.key);
   const level = findMetricLevel(m, v);
   const score = calcMetricScore(m, v);
   const pct = calcPercentile(v, m.min, m.max);
@@ -1215,7 +1285,7 @@ function renderBodyDetail() {
   const aiText = m.aiTemplate(v, level);
   const prev = state.body._prev ? state.body._prev[m.key] : null;
   const trend = prev ? `，对比上次${prev > v ? '下降' : '上升'}${Math.abs(prev - v).toFixed(1)}${m.unit}` : '';
-  document.getElementById('bd-ai').innerHTML = `${aiText}${trend}。继续记录饮食和运动，减盘会帮你把趋势变成绿色牛市。`;
+  document.getElementById('bd-ai').innerHTML = `${aiText}${trend}。继续记录饮食和运动，健身交易员会帮你把趋势变成绿色牛市。`;
 
   document.getElementById('bd-expert').innerHTML = `
     <div class="h"><div class="ico">👩‍⚕️</div><div class="t">专家建议</div></div>
@@ -1245,7 +1315,7 @@ function openBodyEdit() {
   document.getElementById('bi-fat').value = b.bodyFat;
   document.getElementById('bi-muscle').value = b.muscleRate;
   document.getElementById('bi-water').value = b.waterRate;
-  document.getElementById('bi-protein').value = b.proteinKg;
+  document.getElementById('bi-bodyage').value = b.bodyAge;
   document.getElementById('bi-visceral').value = b.visceralFat;
   document.getElementById('body-sheet').classList.add('show');
 }
@@ -1256,7 +1326,7 @@ function saveBody() {
   b.bodyFat = parseFloat(document.getElementById('bi-fat').value) || b.bodyFat;
   b.muscleRate = parseFloat(document.getElementById('bi-muscle').value) || b.muscleRate;
   b.waterRate = parseFloat(document.getElementById('bi-water').value) || b.waterRate;
-  b.proteinKg = parseFloat(document.getElementById('bi-protein').value) || b.proteinKg;
+  b.bodyAge = parseFloat(document.getElementById('bi-bodyage').value) || b.bodyAge;
   b.visceralFat = parseInt(document.getElementById('bi-visceral').value) || b.visceralFat;
   b.source = 'manual';
   b.syncedAt = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
@@ -1270,7 +1340,7 @@ function syncBodyFromDevice() {
   btn.style.color = '#5ac8fa';
   setTimeout(() => {
     state.body = {
-      bmi: 22.4, bodyFat: 18.2, muscleRate: 42.5, waterRate: 55.8, proteinKg: 10.2, visceralFat: 8,
+      bmi: 22.4, bodyFat: 18.2, muscleRate: 42.5, waterRate: 55.8, bodyAge: 28, visceralFat: 8,
       source: 'sync',
       syncedAt: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})
     };
@@ -1280,22 +1350,31 @@ function syncBodyFromDevice() {
 
 function renderKline() {
   const u = state.user;
-  const days = HIST_K; // 26 个数 = 13 根
+  const days = HIST_K;
   const bars = [];
-  for (let i = 0; i < days.length; i += 2) {
-    bars.push({ o: days[i], c: days[i+1] });
-  }
-  // 今天
+  for (let i = 0; i < days.length; i += 2) bars.push({ o: days[i], c: days[i+1] });
   bars.push({ o: bars[bars.length-1].c, c: u.weight });
-  const min = Math.min(...bars.map(b => Math.min(b.o, b.c))) - 0.3;
-  const max = Math.max(...bars.map(b => Math.max(b.o, b.c))) + 0.3;
-  const w = 340, h = 90, pad = 8;
-  const step = w / bars.length;
+  const n = bars.length;
+  const closes = bars.map(b => b.c);
+  const ma = (p) => closes.map((_, i) => i >= p-1 ? +(closes.slice(i-p+1, i+1).reduce((s,x)=>s+x,0)/p).toFixed(2) : null);
+  const ma7 = ma(7), ma30 = ma(30);
+  const min = Math.min(...closes) - 0.4;
+  const max = Math.max(...closes) + 0.4;
+  const w = 340, h = 96, pad = 8;
+  const step = w / n;
   const y = v => pad + (max - v) / (max - min) * (h - 2*pad);
-  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:90px;">';
+  let svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:96px;">';
   [0.25,0.5,0.75].forEach(p => {
-    svg += '<line x1="0" y1="' + y(max - (max-min)*p) + '" x2="' + w + '" y2="' + y(max - (max-min)*p) + '" stroke="#1f2638" stroke-width="0.5"/>';
+    const yy = y(max - (max-min)*p);
+    svg += '<line x1="0" y1="' + yy + '" x2="' + w + '" y2="' + yy + '" stroke="#1f2638" stroke-width="0.5"/>';
   });
+  const drawMA = (arr, color) => {
+    let d = '';
+    arr.forEach((val, i) => { if (val == null) return; const x = pad + i*step + step/2; d += (d ? ' L' : 'M') + x + ' ' + y(val); });
+    if (d) svg += '<path d="' + d + '" stroke="' + color + '" stroke-width="1.2" fill="none" opacity="0.9"/>';
+  };
+  drawMA(ma30, '#5ac8fa');
+  drawMA(ma7, '#ffb800');
   bars.forEach((b, i) => {
     const x = pad + i * step + step/2;
     const up = b.c < b.o;
@@ -1303,7 +1382,7 @@ function renderKline() {
     const yTop = y(Math.max(b.o, b.c));
     const yBot = y(Math.min(b.o, b.c));
     const bodyH = Math.max(2, yBot - yTop);
-    svg += '<rect x="' + (x-3) + '" y="' + yTop + '" width="6" height="' + bodyH + '" fill="' + color + '"/>';
+    svg += '<rect x="' + (x-2.5) + '" y="' + yTop + '" width="5" height="' + bodyH + '" fill="' + color + '"/>';
     svg += '<line x1="' + x + '" y1="' + yTop + '" x2="' + x + '" y2="' + yTop + '" stroke="' + color + '" stroke-width="1"/>';
   });
   svg += '</svg>';
@@ -1587,6 +1666,44 @@ function switchTab(tab) {
   }
   document.getElementById('screen').scrollTop = 0;
 }
+
+/* ============ 头像 / 自定义ID ============ */
+function avatarHTML(size) {
+  const a = state.user.avatar;
+  if (a) return '<img src="' + a + '" alt="">';
+  return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none"><circle cx="12" cy="9" r="4" fill="#5a6478"/><path d="M5 20 C5 15 9 13 12 13 C15 13 19 15 19 20" stroke="#5a6478" stroke-width="1.5" fill="none"/></svg>';
+}
+function renderAvatar() {
+  document.getElementById('hdr-avatar').innerHTML = avatarHTML(18);
+  document.getElementById('p-avatar').innerHTML = avatarHTML(80);
+  document.getElementById('hdr-id').textContent = state.user.userId;
+  document.getElementById('p-id').textContent = state.user.userId;
+}
+function openProfileEdit() {
+  document.getElementById('pe-id').value = state.user.userId;
+  document.getElementById('pe-avatar-img').innerHTML = state.user.avatar
+    ? '<img src="' + state.user.avatar + '" alt="">'
+    : '<svg viewBox="0 0 24 24" width="80" height="80" fill="none"><circle cx="12" cy="9" r="4" fill="#5a6478"/><path d="M5 20 C5 15 9 13 12 13 C15 13 19 15 19 20" stroke="#5a6478" stroke-width="1.5" fill="none"/></svg>';
+  document.getElementById('profile-edit-sheet').classList.add('show');
+}
+function closeProfileEdit() { document.getElementById('profile-edit-sheet').classList.remove('show'); }
+function saveProfileEdit() {
+  const v = document.getElementById('pe-id').value.trim();
+  if (v) state.user.userId = v;
+  saveState(); render(); closeProfileEdit();
+}
+document.getElementById('avatar-input').addEventListener('change', function(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = function(ev) {
+    state.user.avatar = ev.target.result;
+    saveState();
+    document.getElementById('pe-avatar-img').innerHTML = '<img src="' + state.user.avatar + '" alt="">';
+    renderAvatar();
+  };
+  r.readAsDataURL(f);
+});
 
 /* ============ 初始化 ============ */
 function tickClock() {
