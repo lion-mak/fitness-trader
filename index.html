@@ -1702,24 +1702,31 @@ function renderHoldingsRating() {
     const polys = unionOutline(g.rs.map(r => ({ x0: X(r.fa), x1: X(r.fb), y0: Y(r.mb), y1: Y(r.ma) })));
     polys.forEach(pts => {
       const p = insetPoly(pts, GAP);
-      // 方正：去掉 round，用 miter 角；填色用更深的同色实边，块与块之间缝隙靠 inset 留出来
-      svg += `<path d="${polyPath(p)}" fill="${fill}" stroke="${fill}" stroke-width="${GAP * 2}" stroke-linejoin="miter"/>`;
+      // 方正矩形：仅填充（描边会与相邻块重叠加厚、把缝隙吃没），缝隙由 inset 留出来
+      svg += `<path d="${polyPath(p)}" fill="${fill}"/>`;
     });
   });
 
-  /* ---- 分型标签：居中、仅中文、纯文字，无底无描边 ---- */
-  const best = {};
-  rects.forEach(r2 => {
-    const a = (r2.fb - r2.fa) * (r2.mb - r2.ma);
-    if (!best[r2.t.name] || a > best[r2.t.name].a) best[r2.t.name] = { a, r: r2 };
-  });
-  Object.keys(best).forEach(k => {
-    const r2 = best[k].r, t = r2.t;
-    const bw = X(r2.fb) - X(r2.fa), bh = Y(r2.ma) - Y(r2.mb);
-    const cx = (X(r2.fa) + X(r2.fb)) / 2, cy = (Y(r2.ma) + Y(r2.mb)) / 2;
-    // 按块大小选字号，最小 9.5 足够清晰，避免被截
-    const fs = bw >= 70 && bh >= 36 ? 12 : bw >= 50 ? 10.5 : 9.5;
-    svg += `<text x="${cx.toFixed(1)}" y="${(cy + fs * 0.35).toFixed(1)}" text-anchor="middle" fill="${t.color}" font-size="${fs}" font-weight="600">${k}</text>`;
+  /* ---- 分型标签：统一 10px；窄块竖排；水平用 L 型面积加权质心、竖排用最大子块中心 ---- */
+  const FS = 10;
+  Object.keys(groups).forEach(k => {
+    const g = groups[k], t = g.t;
+    let ax = 0, ay = 0, at = 0, bestA = 0, bx = 0, by = 0, maxBw = 0;
+    g.rs.forEach(r => {
+      const a = (r.fb - r.fa) * (r.mb - r.ma);
+      ax += (r.fa + r.fb) / 2 * a; ay += (r.ma + r.mb) / 2 * a; at += a;
+      if (a > bestA) { bestA = a; bx = (r.fa + r.fb) / 2; by = (r.ma + r.mb) / 2; }
+      maxBw = Math.max(maxBw, X(r.fb) - X(r.fa));
+    });
+    const cenX = X(ax / at), cenY = Y(ay / at);
+    if (maxBw < FS * k.length + 18) {       // 窄块放不下 → 竖排（如 健康型 / 偏胖型）
+      const lh = FS + 2, sx = X(bx), sy = Y(by) - (k.length - 1) * lh / 2;
+      [...k].forEach((ch, i) => {
+        svg += `<text x="${sx.toFixed(1)}" y="${(sy + i * lh + FS * 0.35).toFixed(1)}" text-anchor="middle" fill="${t.color}" font-size="${FS}" font-weight="600">${ch}</text>`;
+      });
+    } else {
+      svg += `<text x="${cenX.toFixed(1)}" y="${(cenY + FS * 0.35).toFixed(1)}" text-anchor="middle" fill="${t.color}" font-size="${FS}" font-weight="600">${k}</text>`;
+    }
   });
 
   // 坐标轴
