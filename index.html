@@ -57,8 +57,8 @@ body {
 .net .lbl { font-size:11px; opacity:0.85; }
 .net .val { font-size:26px; font-weight:600; line-height:1.1; }
 .net .badge { padding:4px 12px; border-radius:12px; font-size:12px; font-weight:500; }
-.net .net-sub { margin-top:6px; font-size:11px; color:var(--muted2); line-height:1.5; }
-.net .net-sub b { color:#fff; font-weight:500; }
+.net-sub { margin-top:6px; font-size:11px; color:var(--muted2); line-height:1.5; }
+.net-sub b { color:#fff; font-weight:500; }
 
 /* 每日缺口评级 */
 .gap-hero { display:flex; align-items:flex-end; gap:14px; padding:2px 0 10px; }
@@ -325,6 +325,20 @@ body {
 .sector-short .sector-item { background:#0d3a32; color:#5ee0c0; }
 .sector-long .sector-item { background:#2a0d10; color:#ff8a93; }
 
+/* 历史成交 · 摄入/消耗双柱图 */
+.history-card { padding:14px; }
+.history-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; }
+.history-header .t { font-size:13px; font-weight:500; white-space:nowrap; }
+.history-tabs { display:flex; gap:2px; background:#0b1120; border:1px solid var(--border); border-radius:8px; padding:3px; }
+.history-tab { font-size:11px; color:var(--muted2); padding:4px 8px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+.history-tab.on { background:var(--panel); color:#fff; border:1px solid var(--border); }
+.history-chart { min-height:180px; }
+.history-chart svg { overflow:visible; }
+.history-legend { display:flex; justify-content:center; gap:16px; margin-top:10px; font-size:11px; color:var(--muted2); }
+.history-legend span { display:flex; align-items:center; gap:5px; }
+.history-legend .dot { width:7px; height:7px; border-radius:50%; }
+.history-empty { text-align:center; color:var(--muted2); font-size:12px; padding:40px 0; }
+
 /* 持仓评级 */
 .hr-chart { margin-top:6px; }
 .hr-desc { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:11px; color:var(--muted2); line-height:1.7; }
@@ -393,15 +407,6 @@ body {
         </div>
       </div>
 
-      <div class="net" id="net-card">
-        <div>
-          <div class="lbl" id="net-lbl">今日净热量</div>
-          <div class="val" id="net-val">0 kcal</div>
-          <div class="net-sub" id="net-sub">记录一笔后显示减脂折算</div>
-        </div>
-        <div class="badge" id="net-badge">平衡</div>
-      </div>
-
       <!-- 体重 K 线 -->
       <div class="card">
         <div class="card-title"><span class="t">自营 · 体重 K 线</span><span class="m" id="kline-weight">-- kg</span></div>
@@ -418,6 +423,21 @@ body {
       <div class="body-actions">
         <div class="body-action" onclick="syncBodyFromDevice()">↻ 同步设备</div>
         <div class="body-action manual" onclick="openBodyEdit()">✎ 手动录入</div>
+      </div>
+
+      <!-- 历史成交 · 摄入与消耗双柱图 -->
+      <div class="card history-card">
+        <div class="history-header">
+          <span class="t">历史成交 · 摄入与消耗</span>
+          <div class="history-tabs">
+            <div class="history-tab on" data-range="7d" onclick="switchHistoryRange('7d')">7日</div>
+            <div class="history-tab" data-range="30d" onclick="switchHistoryRange('30d')">月度</div>
+            <div class="history-tab" data-range="365d" onclick="switchHistoryRange('365d')">年度</div>
+            <div class="history-tab" data-range="all" onclick="switchHistoryRange('all')">全部</div>
+          </div>
+        </div>
+        <div class="history-chart" id="history-chart"></div>
+        <div class="history-empty" id="history-empty" style="display:none;">暂无历史记录，去「交易」记一笔吧</div>
       </div>
 
       <!-- 今日成交摘要 -->
@@ -506,6 +526,7 @@ body {
           <div><div class="v" id="gap-month">--</div><div class="l">按此速度每月（斤）</div></div>
         </div>
         <div class="gap-bar" id="gap-bar"></div>
+        <div class="net-sub" id="net-sub">记录一笔后显示减脂折算</div>
         <div class="gap-note">
           <b>换算依据：</b>7700 kcal ≈ 1 kg 体脂肪（即 <b>1 斤 ≈ 3850 kcal</b>）。<br>
           缺口 = 基础代谢 + 运动消耗 − 饮食摄入，为全天口径；实际体重变化还受水分、糖原与代谢适应影响，此折算仅作趋势参考。
@@ -1380,9 +1401,6 @@ function render() {
   document.getElementById('m-burn').textContent = '-' + t.burn;
   document.getElementById('m-bmr').textContent = '-' + t.bmr;
 
-  // 净热量结论（行情页）
-  renderNet('net-card', 'net-lbl', 'net-val', 'net-badge', t.net);
-
   // 交易页今日板块（显示当前数据归属日期）
   const dEl = document.getElementById('sector-date');
   if (dEl) dEl.textContent = todayStr().slice(5).replace('-', '/');
@@ -1390,6 +1408,9 @@ function render() {
 
   // 身体成分（6 指标）
   renderBodyMetrics();
+
+  // 历史成交 · 摄入/消耗双柱图（7日/月度/年度/全部）
+  renderHistoryChart();
 
   // 体重 K 线
   renderKline();
@@ -1471,24 +1492,106 @@ function render() {
   saveState();
 }
 
-function renderNet(cardId, lblId, valId, badgeId, net) {
-  const card = document.getElementById(cardId);
-  const badge = document.getElementById(badgeId);
-  document.getElementById(valId).textContent = (net > 0 ? '+' : '') + net + ' kcal';
-  if (lblId) document.getElementById(lblId).style.color = net < 0 ? '#5ee0c0' : net > 0 ? '#ff8a93' : '#9aa8be';
-  if (net < -50) {
-    card.style.background = '#0d3a32'; card.style.border = '1px solid #103a30';
-    document.getElementById(valId).style.color = '#00c896';
-    badge.textContent = '热量缺口 · 牛市'; badge.style.background = '#00c896'; badge.style.color = '#0a1a15';
-  } else if (net > 50) {
-    card.style.background = '#1a0a0d'; card.style.border = '1px solid #3a1014';
-    document.getElementById(valId).style.color = '#ff3b47';
-    badge.textContent = '热量盈余 · 跌停'; badge.style.background = '#ff3b47'; badge.style.color = '#fff';
+/* ============ 历史成交 · 摄入/消耗可视化 ============ */
+let historyRange = '7d';
+function switchHistoryRange(r) {
+  historyRange = r;
+  renderHistoryChart();
+}
+function dateLabel(k) { return k.slice(5).replace('-', '/'); }
+function monthLabel(k) { return k.slice(5).replace('-', '/'); }
+function renderHistoryChart() {
+  const chart = document.getElementById('history-chart');
+  const empty = document.getElementById('history-empty');
+  if (!chart) return;
+  document.querySelectorAll('.history-tab').forEach(el => {
+    el.classList.toggle('on', el.dataset.range === historyRange);
+  });
+  const today = new Date();
+  const allDiet = state.diet || [], allEx = state.exercise || [];
+  let buckets = []; // { key, label, intake, burn }
+
+  if (historyRange === '7d' || historyRange === '30d') {
+    const n = historyRange === '7d' ? 7 : 30;
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const k = todayStr(d);
+      buckets.push({ key: k, label: dateLabel(k), intake: 0, burn: 0 });
+    }
+    const idx = {};
+    buckets.forEach((b, i) => idx[b.key] = i);
+    allDiet.forEach(x => { const i = idx[x.date || todayStr()]; if (i >= 0) buckets[i].intake += (x.kcal || 0); });
+    allEx.forEach(x => { const i = idx[x.date || todayStr()]; if (i >= 0) buckets[i].burn += (x.kcal || 0); });
   } else {
-    card.style.background = '#141b2d'; card.style.border = '1px solid #1f2638';
-    document.getElementById(valId).style.color = '#fff';
-    badge.textContent = '热量平衡'; badge.style.background = '#1f2638'; badge.style.color = '#9aa8be';
+    const dietM = {}, exM = {};
+    allDiet.forEach(x => { const m = (x.date || todayStr()).slice(0, 7); dietM[m] = (dietM[m] || 0) + (x.kcal || 0); });
+    allEx.forEach(x => { const m = (x.date || todayStr()).slice(0, 7); exM[m] = (exM[m] || 0) + (x.kcal || 0); });
+    let months = [];
+    if (historyRange === '365d') {
+      const cur = todayStr(today).slice(0, 7);
+      let y = +cur.slice(0, 4), m = +cur.slice(5, 7);
+      for (let i = 0; i < 12; i++) {
+        months.unshift(y + '-' + String(m).padStart(2, '0'));
+        m--; if (m === 0) { m = 12; y--; }
+      }
+    } else {
+      months = Array.from(new Set([...Object.keys(dietM), ...Object.keys(exM)])).sort();
+      if (months.length === 0) months = [todayStr(today).slice(0, 7)];
+    }
+    months.forEach(k => buckets.push({ key: k, label: monthLabel(k), intake: dietM[k] || 0, burn: exM[k] || 0 }));
   }
+
+  const hasData = buckets.some(b => b.intake > 0 || b.burn > 0);
+  if (!hasData) {
+    chart.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  chart.style.display = 'block';
+  empty.style.display = 'none';
+
+  // SVG 绘制
+  const W = 316, H = 190, PAD_L = 38, PAD_R = 6, PAD_B = 28, PAD_T = 14;
+  const max = Math.max(1, ...buckets.map(b => Math.max(b.intake, b.burn)));
+  const n = buckets.length;
+  const slotW = (W - PAD_L - PAD_R) / n;
+  const barGap = Math.min(6, slotW * 0.22);
+  const barW = Math.max(2, (slotW - barGap) / 2);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">`;
+  // 网格与 Y 轴刻度
+  [0.5, 1].forEach(r => {
+    const y = PAD_T + (H - PAD_T - PAD_B) * (1 - r);
+    svg += `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="#1f2638" stroke-width="1" stroke-dasharray="2 3"/>`;
+    svg += `<text x="${PAD_L - 7}" y="${y + 4}" text-anchor="end" fill="#5a6478" font-size="9">${Math.round(max * r)}</text>`;
+  });
+  svg += `<text x="${PAD_L - 7}" y="${H - PAD_B + 4}" text-anchor="end" fill="#5a6478" font-size="9">0</text>`;
+  // 柱
+  const yBase = H - PAD_B;
+  const chartH = H - PAD_T - PAD_B;
+  buckets.forEach((b, i) => {
+    const x0 = PAD_L + i * slotW + barGap / 2;
+    const hIn = b.intake / max * chartH;
+    const hEx = b.burn / max * chartH;
+    if (hIn > 0.5) svg += `<rect x="${x0.toFixed(1)}" y="${(yBase - hIn).toFixed(1)}" width="${barW.toFixed(1)}" height="${hIn.toFixed(1)}" fill="#ff3b47"/>`;
+    if (hEx > 0.5) svg += `<rect x="${(x0 + barW).toFixed(1)}" y="${(yBase - hEx).toFixed(1)}" width="${barW.toFixed(1)}" height="${hEx.toFixed(1)}" fill="#00c896"/>`;
+    // X 轴标签
+    const step = n <= 10 ? 1 : n <= 21 ? 2 : Math.ceil(n / 8);
+    if (i % step === 0) svg += `<text x="${(x0 + slotW / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle" fill="#7c8aa5" font-size="9">${b.label}</text>`;
+  });
+  // X 轴线
+  svg += `<line x1="${PAD_L}" y1="${yBase}" x2="${W - PAD_R}" y2="${yBase}" stroke="#2a3348" stroke-width="1"/>`;
+  svg += '</svg>';
+
+  const totalIn = buckets.reduce((s, b) => s + b.intake, 0);
+  const totalEx = buckets.reduce((s, b) => s + b.burn, 0);
+  const avgIn = Math.round(totalIn / buckets.length);
+  const avgEx = Math.round(totalEx / buckets.length);
+  const legend = `<div class="history-legend">
+    <span><i class="dot" style="background:#ff3b47;"></i>摄入 ${totalIn}</span>
+    <span><i class="dot" style="background:#00c896;"></i>运动 ${totalEx}</span>
+    <span>平均 ${avgIn} / ${avgEx}</span>
+  </div>`;
+  chart.innerHTML = svg + legend;
 }
 
 function renderSectors() {
