@@ -4,11 +4,15 @@
    （原型为单文件内联 HTML，应用壳只需缓存 index.html + 图标）
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-1.0.0';
+const CACHE_VERSION = 'jianpan-2.1.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './assets/icon.png'
+  './assets/icon.png',
+  './js/nutrition-engine.js',
+  './js/food-store.js',
+  './data/foods.json',
+  './data/py-initials.json'
 ];
 
 // 安装时缓存应用核心资源
