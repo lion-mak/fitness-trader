@@ -327,6 +327,8 @@ body {
 
 /* 持仓评级 */
 .hr-chart { margin-top:6px; }
+.hr-desc { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:11px; color:var(--muted2); line-height:1.7; }
+.hr-desc b { font-weight:600; }
 
 /* 身体档案 · 人体模型可视化 */
 .body-viz { display:flex; justify-content:center; padding:6px 0 2px; }
@@ -518,6 +520,7 @@ body {
       <div class="card hr-card">
         <div class="card-title"><span class="t">持仓评级</span><span class="m" id="holdings-rating-text">当前评级：--</span></div>
         <div class="hr-chart" id="holdings-rating"></div>
+        <div class="hr-desc" id="holdings-rating-desc">--</div>
       </div>
     </section>
 
@@ -1524,82 +1527,141 @@ function renderSectors() {
   renderCol(longItems, 'sector-long', '+');
 }
 
+/* ============ 持仓评级：体脂率(横轴) × BMI(纵轴) 九宫分型 ============
+   分型规则（区间无缝衔接、恰好铺满整个坐标系）：
+   消瘦型     体脂 0–10%   · BMI <18.5
+   偏瘦型     体脂 10–21%  · BMI <18.5
+   隐性肥胖型 体脂 21–40%  · BMI <21
+   苗条型     体脂 0–15%   · BMI 18.5–21
+   模特型     体脂 0–15%   · BMI 21–24
+   运动型     体脂 0–15%   · BMI ≥24
+   健康型     体脂 15–21%  · BMI 18.5–24
+   偏胖型     体脂 21–26% 且 BMI 21–28，或 体脂 15–21% 且 BMI 24–28
+   肥胖型     体脂 >26% 且 BMI >21，或 体脂 15–26% 且 BMI >28
+================================================================== */
+const BODY_TYPES = {
+  '消瘦型':     { color:'#5ac8fa', range:'体脂 <10% · BMI <18.5',   desc:'体重不足，需增重并配合力量训练增加肌肉量。' },
+  '偏瘦型':     { color:'#4fd1e0', range:'体脂 10–21% · BMI <18.5', desc:'体重偏轻，建议提高总热量与蛋白质摄入，以增肌为主。' },
+  '苗条型':     { color:'#6fd39c', range:'体脂 <15% · BMI 18.5–21', desc:'体型苗条，保持现有饮食与运动节奏即可。' },
+  '模特型':     { color:'#00e5a0', range:'体脂 <15% · BMI 21–24',   desc:'理想体型，注意维持蛋白质摄入与规律训练。' },
+  '运动型':     { color:'#00c896', range:'体脂 <15% · BMI ≥24',     desc:'肌肉量高、体脂低，体质优秀，注意关节负担与恢复。' },
+  '健康型':     { color:'#2bbd8e', range:'体脂 15–21% · BMI 18.5–24', desc:'标准健康体型，维持热量平衡与每周运动量即可。' },
+  '偏胖型':     { color:'#ffb800', range:'体脂 21–26%·BMI 21–28 或 体脂 15–21%·BMI 24–28', desc:'偏胖区间，建议每日 -300 kcal 缺口并增加有氧。' },
+  '隐性肥胖型': { color:'#ff7a38', range:'体脂 21–40% · BMI <21',   desc:'体重正常但脂肪偏高，应减脂增肌而非单纯减重。' },
+  '肥胖型':     { color:'#ff3b47', range:'体脂 >26%·BMI >21 或 体脂 15–26%·BMI >28', desc:'肥胖区间，建议系统减脂，优先控制总热量与精制碳水。' }
+};
+const FAT_GRID = [0, 10, 15, 21, 26, 40];      // 体脂率分格（横轴）
+const BMI_GRID = [15, 18.5, 21, 24, 28, 30];   // BMI 分格（纵轴，<15 归入首格）
 function getBodyType(bmi, fat) {
-  if (bmi < 18.5) return { name: '消瘦型', color: '#ff9f43' };
-  if (bmi < 21) {
-    if (fat < 15) return { name: '偏瘦型', color: '#ff9f43' };
-    if (fat < 21) return { name: '苗条型', color: '#00c896' };
-    return { name: '隐性肥胖型', color: '#ff3b47' };
-  }
-  if (bmi < 24) {
-    if (fat < 15) return { name: '模特型', color: '#00c896' };
-    if (fat < 21) return { name: '健康型', color: '#00c896' };
-    return { name: '隐性肥胖型', color: '#ff3b47' };
-  }
-  if (bmi < 28) {
-    if (fat < 15) return { name: '运动型', color: '#00c896' };
-    return { name: '偏胖型', color: '#ff9f43' };
-  }
-  if (fat < 15) return { name: '运动型', color: '#00c896' };
-  return { name: '肥胖型', color: '#ff3b47' };
+  const f = Math.max(0, Math.min(40, +fat || 0));
+  const b = +bmi || 0;
+  let n;
+  if (b < 18.5)    n = f < 10 ? '消瘦型' : f < 21 ? '偏瘦型' : '隐性肥胖型';
+  else if (b < 21) n = f < 15 ? '苗条型' : f < 21 ? '健康型' : '隐性肥胖型';
+  else if (b < 24) n = f < 15 ? '模特型' : f < 21 ? '健康型' : f < 26 ? '偏胖型' : '肥胖型';
+  else if (b < 28) n = f < 15 ? '运动型' : f < 26 ? '偏胖型' : '肥胖型';
+  else             n = f < 15 ? '运动型' : '肥胖型';
+  const m = BODY_TYPES[n];
+  return { name: n, color: m.color, range: m.range, desc: m.desc };
 }
 
 function renderHoldingsRating() {
   const b = state.body;
-  const fat = b.bodyFat;
-  const bmi = b.bmi;
-  const type = getBodyType(bmi, fat);
+  const fatRaw = +b.bodyFat || 0, bmiRaw = +b.bmi || 0;
+  const fat = Math.max(0, Math.min(40, fatRaw));
+  const bmi = Math.max(0, Math.min(30, bmiRaw));
+  const type = getBodyType(bmiRaw, fatRaw);
+
   const head = document.getElementById('holdings-rating-text');
   head.textContent = '当前评级：' + type.name;
   head.style.color = type.color;
+  const descEl = document.getElementById('holdings-rating-desc');
+  if (descEl) descEl.innerHTML =
+    `体脂 <b style="color:#fff">${fatRaw.toFixed(1)}%</b> · BMI <b style="color:#fff">${bmiRaw.toFixed(1)}</b>` +
+    `　<span style="color:${type.color}">${type.range}</span><br>${type.desc}`;
 
-  const fatBands = [5, 15, 21, 26, 30];
-  const bmiBands = [16, 18.5, 21, 24, 28, 32];
-  const chartW = 280, chartH = 180, left = 42, top = 16;
-  const fatRange = fatBands[fatBands.length - 1] - fatBands[0];
-  const bmiRange = bmiBands[bmiBands.length - 1] - bmiBands[0];
-  const x = f => left + (f - fatBands[0]) / fatRange * chartW;
-  const y = b_ => top + (bmiBands[bmiBands.length - 1] - b_) / bmiRange * chartH;
+  const L = 46, T = 14, W = 286, H = 186;
+  const F0 = 0, F1 = 40, M0 = 15, M1 = 30;
+  const X = f => L + (f - F0) / (F1 - F0) * W;
+  const Y = m => T + (M1 - m) / (M1 - M0) * H;
 
-  let svg = '<svg viewBox="0 0 340 232" style="width:100%;">';
-  for (let ri = 0; ri < bmiBands.length - 1; ri++) {
-    for (let ci = 0; ci < fatBands.length - 1; ci++) {
-      const bmiCenter = (bmiBands[ri] + bmiBands[ri + 1]) / 2;
-      const fatCenter = (fatBands[ci] + fatBands[ci + 1]) / 2;
-      const cell = getBodyType(bmiCenter, fatCenter);
-      const xx = x(fatBands[ci]);
-      const yy = y(bmiBands[ri + 1]);
-      const ww = x(fatBands[ci + 1]) - xx;
-      const hh = y(bmiBands[ri]) - yy;
-      svg += `<rect x="${xx.toFixed(1)}" y="${yy.toFixed(1)}" width="${ww.toFixed(1)}" height="${hh.toFixed(1)}" fill="${cell.color}1a" stroke="${cell.color}40" stroke-width="1"/>`;
+  // 1) 逐格判定 → 2) 同型横向合并 → 3) 同型纵向合并，得到无缝铺满的色块
+  const rects = [];
+  for (let r = 0; r < BMI_GRID.length - 1; r++) {
+    const mc = (BMI_GRID[r] + BMI_GRID[r + 1]) / 2;
+    let c = 0;
+    while (c < FAT_GRID.length - 1) {
+      const t = getBodyType(mc, (FAT_GRID[c] + FAT_GRID[c + 1]) / 2);
+      let e = c + 1;
+      while (e < FAT_GRID.length - 1 &&
+             getBodyType(mc, (FAT_GRID[e] + FAT_GRID[e + 1]) / 2).name === t.name) e++;
+      rects.push({ t, fa: FAT_GRID[c], fb: FAT_GRID[e], ma: BMI_GRID[r], mb: BMI_GRID[r + 1] });
+      c = e;
     }
   }
-  const labels = [
-    { bmi: 17.25, fat: 17.5, text: '消瘦型' },
-    { bmi: 19.75, fat: 10, text: '偏瘦型' },
-    { bmi: 19.75, fat: 18, text: '苗条型' },
-    { bmi: 22.5, fat: 10, text: '模特型' },
-    { bmi: 22.5, fat: 18, text: '健康型' },
-    { bmi: 20.5, fat: 24.5, text: '隐性肥胖型' },
-    { bmi: 26, fat: 10, text: '运动型' },
-    { bmi: 26, fat: 18, text: '偏胖型' },
-    { bmi: 30, fat: 24.5, text: '肥胖型' }
-  ];
-  labels.forEach(l => {
-    const t = getBodyType(l.bmi, l.fat);
-    svg += `<text x="${x(l.fat).toFixed(1)}" y="${y(l.bmi).toFixed(1)}" text-anchor="middle" fill="${t.color}" font-size="11" font-weight="500">${l.text}</text>`;
+  for (let i = rects.length - 1; i >= 0; i--) {
+    for (let j = 0; j < i; j++) {
+      if (rects[i].t.name === rects[j].t.name && rects[i].fa === rects[j].fa &&
+          rects[i].fb === rects[j].fb && Math.abs(rects[i].ma - rects[j].mb) < 1e-9) {
+        rects[j].mb = rects[i].mb; rects.splice(i, 1); break;
+      }
+    }
+  }
+  const hitIdx = (() => {
+    let idx = -1;
+    rects.forEach((r2, i) => {
+      if (fat >= r2.fa && fat < r2.fb && bmi >= r2.ma && bmi < r2.mb && idx < 0) idx = i;
+    });
+    return idx;
+  })();
+
+  let svg = '<svg viewBox="0 0 340 246" style="width:100%;display:block;">';
+  rects.forEach((r2, i) => {
+    const on = i === hitIdx;
+    const x0 = X(r2.fa), x1 = X(r2.fb), y0 = Y(r2.mb), y1 = Y(r2.ma);
+    svg += `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${(y1 - y0).toFixed(1)}" ` +
+           `rx="3" fill="${r2.t.color}${on ? '3d' : '1f'}" stroke="${r2.t.color}${on ? 'ff' : '55'}" stroke-width="${on ? 2 : 1}"/>`;
   });
-  svg += `<line x1="${left}" y1="${top + chartH}" x2="${left + chartW}" y2="${top + chartH}" stroke="#5a6478" stroke-width="1"/>`;
-  svg += `<line x1="${left}" y1="${top}" x2="${left}" y2="${top + chartH}" stroke="#5a6478" stroke-width="1"/>`;
-  [10, 15, 21, 26].forEach(f => svg += `<text x="${x(f).toFixed(1)}" y="${top + chartH + 15}" text-anchor="middle" fill="#9aa8be" font-size="10">${f}%</text>`);
-  svg += `<text x="${left + chartW / 2}" y="${top + chartH + 29}" text-anchor="middle" fill="#9aa8be" font-size="11">体脂率</text>`;
-  [18.5, 21, 24, 28].forEach(b_ => svg += `<text x="${left - 8}" y="${y(b_) + 4}" text-anchor="end" fill="#9aa8be" font-size="10">${b_.toFixed(1)}</text>`);
-  svg += `<text x="14" y="${top + chartH / 2}" text-anchor="middle" fill="#9aa8be" font-size="11" transform="rotate(-90 14 ${top + chartH / 2})">BMI</text>`;
-  svg += `<circle cx="${x(fat).toFixed(1)}" cy="${y(bmi).toFixed(1)}" r="5" fill="#fff" stroke="${type.color}" stroke-width="2.5"/>`;
-  svg += `<circle cx="${x(fat).toFixed(1)}" cy="${y(bmi).toFixed(1)}" r="2.5" fill="${type.color}"/>`;
+  // 分格基准线
+  FAT_GRID.forEach(f => {
+    if (f > F0 && f < F1) svg += `<line x1="${X(f).toFixed(1)}" y1="${T}" x2="${X(f).toFixed(1)}" y2="${T + H}" stroke="#232b3a" stroke-width="1"/>`;
+  });
+  BMI_GRID.forEach(m => {
+    if (m > M0 && m < M1) svg += `<line x1="${L}" y1="${Y(m).toFixed(1)}" x2="${L + W}" y2="${Y(m).toFixed(1)}" stroke="#232b3a" stroke-width="1"/>`;
+  });
+  // 分型名称（取该型面积最大的色块居中）
+  const best = {};
+  rects.forEach(r2 => {
+    const a = (r2.fb - r2.fa) * (r2.mb - r2.ma);
+    if (!best[r2.t.name] || a > best[r2.t.name].a) best[r2.t.name] = { a, r: r2 };
+  });
+  Object.keys(best).forEach(k => {
+    const r2 = best[k].r;
+    const cx = (X(r2.fa) + X(r2.fb)) / 2, cy = (Y(r2.ma) + Y(r2.mb)) / 2 + 4;
+    svg += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" fill="${r2.t.color}" font-size="11" font-weight="600">${k}</text>`;
+  });
+  // 坐标轴
+  svg += `<line x1="${L}" y1="${T + H}" x2="${L + W}" y2="${T + H}" stroke="#5a6478" stroke-width="1"/>`;
+  svg += `<line x1="${L}" y1="${T}" x2="${L}" y2="${T + H}" stroke="#5a6478" stroke-width="1"/>`;
+  FAT_GRID.forEach(f => {
+    svg += `<text x="${X(f).toFixed(1)}" y="${T + H + 15}" text-anchor="middle" fill="#9aa8be" font-size="10">${f}%</text>`;
+  });
+  svg += `<text x="${L + W / 2}" y="${T + H + 31}" text-anchor="middle" fill="#9aa8be" font-size="11">体脂率</text>`;
+  BMI_GRID.forEach(m => {
+    svg += `<text x="${L - 8}" y="${(Y(m) + 4).toFixed(1)}" text-anchor="end" fill="#9aa8be" font-size="10">${m}</text>`;
+  });
+  svg += `<text x="14" y="${T + H / 2}" text-anchor="middle" fill="#9aa8be" font-size="11" transform="rotate(-90 14 ${T + H / 2})">BMI</text>`;
+  // 当前位置
+  const px = X(fat), py = Y(bmi);
+  svg += `<line x1="${L}" y1="${py.toFixed(1)}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${type.color}" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>`;
+  svg += `<line x1="${px.toFixed(1)}" y1="${T + H}" x2="${px.toFixed(1)}" y2="${py.toFixed(1)}" stroke="${type.color}" stroke-width="1" stroke-dasharray="3 3" opacity=".7"/>`;
+  svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="9" fill="${type.color}" opacity=".18"/>`;
+  svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5" fill="#0a0e1a" stroke="${type.color}" stroke-width="2.5"/>`;
+  svg += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.2" fill="${type.color}"/>`;
   svg += '</svg>';
   document.getElementById('holdings-rating').innerHTML = svg;
 }
+
 
 function entryHTML(item) {
   const qtyDisplay = item.displayQty || (item.qty + item.unit);
