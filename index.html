@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.18"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.19"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2311,12 +2311,16 @@ function renderMarketMap() {
     const alpha = (0.38 + 0.62 * ratio).toFixed(3);
     const col = isLong ? 'rgba(255,59,71,' + alpha + ')' : 'rgba(0,200,150,' + alpha + ')';
     const txtCol = isLong ? '#ffd7da' : '#c9f2e5';
+    /* 字号随块大小自适应：短边越大字越大；细长块按宽/2.2 折中防止字比行宽 */
+    const sMin = Math.min(r.w, r.h), ref = Math.min(sMin, r.w / 2.2);
+    const fsN = Math.round(Math.max(10, Math.min(16, ref * 0.32)));
+    const fsV = Math.max(9, fsN - 2);
     const showN = r.w > 42 && r.h > 20, showV = r.w > 30 && r.h > 14;
     html += '<div class="mm-block" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
       + 'px;width:' + Math.max(1, r.w).toFixed(1) + 'px;height:' + Math.max(1, r.h).toFixed(1) + 'px;background:' + col + ';"'
       + ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">'
-      + (showN ? '<span class="n" style="color:' + txtCol + '">' + b.name + '</span>' : '')
-      + (showV ? '<span class="v" style="color:' + txtCol + '">' + (isLong ? '+' : '−') + b.kcal + '</span>' : '')
+      + (showN ? '<span class="n" style="font-size:' + fsN + 'px;color:' + txtCol + '">' + b.name + '</span>' : '')
+      + (showV ? '<span class="v" style="font-size:' + fsV + 'px;color:' + txtCol + '">' + (isLong ? '+' : '−') + b.kcal + '</span>' : '')
       + '</div>';
   });
   el.innerHTML = html;
