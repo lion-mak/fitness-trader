@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.14"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
+<meta name="app-version" content="2.7.15"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -421,6 +421,16 @@ body {
 .kw-cancel { border:1px solid var(--border); background:transparent; color:var(--muted2); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; }
 .tw-btn { border:1px solid var(--border); background:var(--panel-hi); color:var(--amber); font-size:10px; padding:2px 8px; border-radius:99px; cursor:pointer; white-space:nowrap; }
 .tw-btn:active { opacity:.6; }
+/* 板块云图：今日每笔成交=一个板块块，面积∝热量，红=做多(吃入)/绿=做空(消耗)，同花顺热力图式矩形树图 */
+.mm-frame { background:#070b14; border:1px solid var(--border); border-radius:10px; padding:3px; }
+.mm-inner { position:relative; width:100%; height:212px; border-radius:7px; overflow:hidden; }
+.mm-block { position:absolute; box-sizing:border-box; border:1px solid #070b14; border-radius:3px; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:3px 5px; cursor:pointer; }
+.mm-block .n { font-size:10px; font-weight:500; line-height:1.25; word-break:break-all; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.mm-block .v { font-size:9px; line-height:1.1; opacity:.85; font-weight:600; align-self:flex-end; }
+.mm-legend { display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:9px; font-size:10px; color:var(--muted2); }
+.mm-legend .dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:1px; }
+.mm-legend .dim { color:#4a5468; }
+.mm-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted2); text-align:center; line-height:1.8; }
 
 /* 今日板块 */
 .sector-card { padding:14px; }
@@ -558,6 +568,20 @@ body {
             <button class="kw-save" onclick="saveQuickWeight()">保存</button>
             <button class="kw-cancel" onclick="closeQuickWeight()">取消</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 板块云图：今日每笔成交 = 一个板块块（矩形树图，同花顺热力图式） -->
+      <div class="card" style="margin-top:12px;">
+        <div class="card-title">
+          <span class="t">自营 · 大盘云图</span>
+          <span class="m" id="mm-sub">--</span>
+        </div>
+        <div class="mm-frame"><div class="mm-inner" id="market-map"></div></div>
+        <div class="mm-legend">
+          <span><i class="dot" style="background:#ff3b47;"></i>做多 · 吃入</span>
+          <span><i class="dot" style="background:#00c896;"></i>做空 · 消耗</span>
+          <span class="dim">面积 ∝ 热量 · 色深 ∝ 占额度 · 点块可改</span>
         </div>
       </div>
 
@@ -2098,6 +2122,9 @@ function render() {
   renderSectors();
   renderIntraday();
 
+  // 行情页 · 板块云图（今日每笔成交矩形树图）
+  renderMarketMap();
+
   // 身体成分（6 指标）
   renderBodyMetrics();
 
@@ -2216,6 +2243,89 @@ function spanDays(a, b) {   // a→b 含两端的天数
   const x = new Date(a + 'T00:00:00'), y = new Date(b + 'T00:00:00');
   return Math.round((y - x) / 86400000) + 1;
 }
+/* ============ 板块云图：今日每笔成交 = 一个板块块 ============
+   矩形树图（treemap，同花顺热力图式）：块面积 ∝ kcal；红=做多(食物吃入)、绿=做空(运动消耗)；
+   色深 ∝ 单块占当日额度(budget)比例（越深=这一口越接近打板）；点块进 openRecordEdit 改数值 */
+function marketMapData() {
+  const diet = todayDiet().map(d => ({ id: d.id, type: 'food', name: d.name, kcal: +d.kcal || 0 }));
+  const ex = todayExercise().map(e => ({ id: e.id, type: 'ex', name: e.name, kcal: +e.kcal || 0 }));
+  return { diet: diet, ex: ex };
+}
+/* 递归二分 treemap：面积精确成比例、零重叠、100% 覆盖容器；返回 rects=[{x,y,w,h,b}] */
+function treemapLayout(blocks, W, H) {
+  const out = [];
+  const total = blocks.reduce(function(s, b) { return s + Math.max(1, b.kcal); }, 0);
+  if (!(total > 0)) return out;
+  const items = blocks
+    .map(function(b) { return { b: b, a: Math.max(1, b.kcal) / total * W * H }; })
+    .sort(function(p, q) { return q.a - p.a; });
+  function fill(x, y, w, h, list) {
+    if (!list.length || w < 1.2 || h < 1.2) return;
+    if (list.length === 1) { out.push({ x: x, y: y, w: w, h: h, b: list[0].b }); return; }
+    if (w < 26 || h < 26) {           // 剩余太窄：沿短边方向平铺成细条
+      let s = 0; list.forEach(function(i) { s += i.a; });
+      const vertical = h > w; let acc = y;
+      if (!vertical) { s = 0; list.forEach(function(i) { s += i.a; }); }
+      if (vertical) {
+        list.forEach(function(i) { const hh = h * i.a / s; out.push({ x: x, y: acc, w: w, h: hh, b: i.b }); acc += hh; });
+      } else {
+        list.forEach(function(i) { const ww = w * i.a / s; out.push({ x: acc, y: y, w: ww, h: h, b: i.b }); acc += ww; });
+      }
+      return;
+    }
+    const s = list.reduce(function(s, i) { return s + i.a; }, 0);
+    let acc = 0, cut = list.length - 1;
+    for (let k = 0; k < list.length - 1; k++) { acc += list[k].a; if (acc >= s / 2) { cut = Math.max(1, k); break; } }
+    const l = list.slice(0, cut), r = list.slice(cut);
+    const ls = l.reduce(function(s, i) { return s + i.a; }, 0);
+    if (w >= h) {
+      const lw = Math.max(8, w * ls / s);
+      fill(x, y, lw, h, l); fill(x + lw, y, w - lw, h, r);
+    } else {
+      const lh = Math.max(8, h * ls / s);
+      fill(x, y, w, lh, l); fill(x, y + lh, w, h - lh, r);
+    }
+  }
+  fill(0, 0, W, H, items);
+  return out;
+}
+function renderMarketMap() {
+  const el = document.getElementById('market-map');
+  if (!el) return;
+  const t = totals();
+  const dd = marketMapData();
+  const blocks = dd.diet.concat(dd.ex);
+  const sub = document.getElementById('mm-sub');
+  if (sub) sub.textContent = blocks.length
+    ? '做多 ' + dd.diet.length + ' 笔 +' + (dd.diet.reduce(function(s, d) { return s + d.kcal; }, 0))
+      + ' · 做空 ' + dd.ex.length + ' 笔 −' + (dd.ex.reduce(function(s, e) { return s + e.kcal; }, 0))
+    : '--';
+  if (!blocks.length) {
+    el.innerHTML = '<div class="mm-empty">今日暂无成交<br>去「交易」记一笔，云图会亮起来</div>';
+    return;
+  }
+  const W = el.clientWidth || 320, H = 212;
+  const budget = Math.max(1, t.budget);
+  const rects = treemapLayout(blocks, W, H);
+  let html = '';
+  rects.forEach(function(r) {
+    if (r.w < 3 || r.h < 3) return;
+    const b = r.b, isLong = b.type === 'food';
+    const ratio = Math.min(1, b.kcal / budget);
+    const alpha = (0.38 + 0.62 * ratio).toFixed(3);
+    const col = isLong ? 'rgba(255,59,71,' + alpha + ')' : 'rgba(0,200,150,' + alpha + ')';
+    const txtCol = isLong ? '#ffd7da' : '#c9f2e5';
+    const showN = r.w > 42 && r.h > 20, showV = r.w > 30 && r.h > 14;
+    html += '<div class="mm-block" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
+      + 'px;width:' + r.w.toFixed(1) + 'px;height:' + r.h.toFixed(1) + 'px;background:' + col + ';"'
+      + ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">'
+      + (showN ? '<span class="n" style="color:' + txtCol + '">' + b.name + '</span>' : '')
+      + (showV ? '<span class="v" style="color:' + txtCol + '">' + (isLong ? '+' : '−') + b.kcal + '</span>' : '')
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
 function renderHistoryChart() {
   const chart = document.getElementById('history-chart');
   const empty = document.getElementById('history-empty');
