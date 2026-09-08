@@ -4,7 +4,7 @@
    （原型为单文件内联 HTML，应用壳只需缓存 index.html + 图标）
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-2.7.15';
+const CACHE_VERSION = 'jianpan-2.7.16';
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,10 +35,29 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-// 请求拦截：缓存优先 + 运行时缓存
+// 请求拦截：页面导航=网络优先（在线永远拿最新版，杜绝"进去停旧版"）；静态资源=缓存优先
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
+  // 文档/页面导航：网络优先 —— 只要在线就从服务器拿最新 index.html，并回填缓存；离线才回退缓存
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
+        .then((resp) => {
+          if (resp && resp.status === 200) {
+            const clone = resp.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(e.request, clone));
+          }
+          return resp;
+        })
+        .catch(() =>
+          caches.match(e.request).then((c) => c || caches.match('./index.html'))
+        )
+    );
+    return;
+  }
+
+  // 其余静态资源（js/data/icon 等）：缓存优先
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if (cached) return cached;
@@ -52,9 +71,6 @@ self.addEventListener('fetch', (e) => {
           return resp;
         })
         .catch(() => {
-          if (e.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
           return cached;
         });
     })
