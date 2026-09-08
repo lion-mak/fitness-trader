@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.13"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
+<meta name="app-version" content="2.7.14"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2435,8 +2435,7 @@ function renderIntraday() {
   const PAD_T = 9;              /* 分时线上沿（收窄） */
   const LINE_BOT = 146;         /* 分时线值区下沿 */
   const LINE_H = LINE_BOT - PAD_T;
-  const SEP_Y = LINE_BOT + 7;   /* 分时区 ↔ 成交量区 分隔线（明显一道线区分，替代卡片背景） */
-  const VOL_TOP = SEP_Y + 5;    /* 成交量线带顶 */
+  const VOL_TOP = LINE_BOT + 5; /* 成交量线带顶（与分时值区留 5px 呼吸，无卡片无分隔线） */
   const VOL_BOT = VOL_TOP + 20; /* 成交量基线（下沿） */
   const VOL_H = VOL_BOT - VOL_TOP;
   const PAD_B = 11;
@@ -2456,19 +2455,27 @@ function renderIntraday() {
 
   const vals = verts.map(function(v) { return v.y; });
   vals.push(0, base);
-  let vmin = Math.min.apply(null, vals), vmax = Math.max.apply(null, vals);
-  vmin -= Math.max(140, (vmax - vmin) * 0.10);
-  vmax += Math.max(140, (vmax - vmin) * 0.10);
+  const rawMin = Math.min.apply(null, vals), rawMax = Math.max.apply(null, vals);
+  /* 没进水下（净值从未 <0）就把值域底边钉在 0：不画水下空间、不出负数刻度；
+     真跌进水下才向下留白容纳负值（否则底部会出现 -189 之类误导刻度） */
+  let vmin = rawMin < 0 ? rawMin - Math.max(140, (rawMax - rawMin) * 0.10) : 0;
+  let vmax = rawMax + Math.max(140, (rawMax - (rawMin < 0 ? rawMin : 0)) * 0.10);
   const Y = function(v) { return PAD_T + (vmax - v) / (vmax - vmin) * LINE_H; };
 
   let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;">';
   svg += '<line x1="' + PAD_L + '" y1="' + Y(base).toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + Y(base).toFixed(1) + '" stroke="#ff3b47" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 4"/>';
   svg += '<text x="' + (PAD_L + 4) + '" y="' + (Y(base) - 5).toFixed(1) + '" fill="#ff8b96" font-size="10">封死涨停 ' + base + '</text>';
-  /* 盈亏 0 线（淡） */
-  svg += '<line x1="' + PAD_L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + Y(0).toFixed(1) + '" stroke="#2a3348" stroke-width="0.8"/>';
-  /* Y 轴刻度（净热量） */
-  svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(vmin) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">' + Math.round(vmin) + '</text>';
-  svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(0) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">0</text>';
+  /* 盈亏 0 线（淡）：仅当真正跌进水下才画；没进水时 0 就是值域底边，不额外画线 */
+  if (vmin < 0) {
+    svg += '<line x1="' + PAD_L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + Y(0).toFixed(1) + '" stroke="#2a3348" stroke-width="0.8"/>';
+  }
+  /* Y 轴刻度：跌进水下才显示负刻度 + 0 行；只在水面以上则底部刻度就是 0，不再出现负数字 */
+  if (vmin < 0) {
+    svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(vmin) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">' + Math.round(vmin) + '</text>';
+    svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(0) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">0</text>';
+  } else {
+    svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(0) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">0</text>';
+  }
   svg += '<text x="' + (PAD_L - 5) + '" y="' + (Y(base) + 3).toFixed(1) + '" fill="#5a6478" font-size="10" text-anchor="end">' + base + '</text>';
 
   let d = 'M' + verts[0].x.toFixed(1) + ' ' + Y(verts[0].y).toFixed(1);
@@ -2578,8 +2585,7 @@ function renderIntraday() {
       + ' data-kind="' + m.ev.kind + '"/>';
   });
 
-  /* ---- 成交量区：与分时区用一条明显的分隔线区分（无卡片背景）；食物摄入=红线 / 运动消耗=绿线，细而短 ---- */
-  svg += '<line x1="' + PAD_L + '" y1="' + SEP_Y + '" x2="' + (W - PAD_R) + '" y2="' + SEP_Y + '" stroke="#3d4b68" stroke-width="1.2"/>';
+  /* ---- 成交量区：与分时区直接衔接（无卡片、无分隔线），细红线/绿线 + 底部基线即足以区分 ---- */
   svg += '<line x1="' + PAD_L + '" y1="' + VOL_BOT + '" x2="' + (W - PAD_R) + '" y2="' + VOL_BOT + '" stroke="#202838" stroke-width="0.8"/>';
   svg += '<text x="' + (PAD_L - 4) + '" y="' + ((VOL_TOP + VOL_BOT) / 2 + 3).toFixed(1) + '" fill="#7c8aa5" font-size="9" text-anchor="end">成交量</text>';
   const volShown = shown.slice().sort(function(a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });   /* 高的先画：同刻多笔时短的叠底部，颜色与长短仍可辨 */
