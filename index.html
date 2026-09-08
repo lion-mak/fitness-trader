@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.17"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.18"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -407,13 +407,13 @@ body {
 .pe-avatar .ring img { width:100%; height:100%; object-fit:cover; }
 .pe-avatar .cam { color:var(--blue); font-size:12px; }
 /* K线均线图例 */
-.ma-legend { display:flex; gap:14px; margin-top:10px; font-size:10px; }
+.ma-legend { display:flex; align-items:center; gap:14px; margin-top:10px; font-size:10px; }
 .ma-legend .ma7 { color:var(--amber); }
 .ma-legend .ma30 { color:var(--blue); }
 /* 体重快速记录 */
-.kw-wrap { margin-top:10px; }
-.kw-open { display:flex; align-items:center; justify-content:center; gap:6px; padding:8px 0; border:1px dashed var(--border); border-radius:10px; background:rgba(90,200,250,.05); color:var(--blue); font-size:12px; cursor:pointer; }
-.kw-open:active { opacity:.6; }
+/* 记录今日体重 = 迷你胶囊按钮，与 MA7/MA30 图例同一行右对齐，省掉原来一整行独立按钮 */
+.kw-mini { margin-left:auto; display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border:1px dashed var(--border); border-radius:99px; background:rgba(90,200,250,.06); color:var(--blue); font-size:10px; line-height:1.6; cursor:pointer; white-space:nowrap; }
+.kw-mini:active { opacity:.6; }
 .kw-row { display:none; gap:8px; align-items:center; margin-top:8px; }
 .kw-row input { flex:1; min-width:0; background:var(--panel-hi); border:1px solid var(--border); border-radius:8px; color:#fff; padding:7px 10px; font-size:14px; outline:none; }
 .kw-row input:focus { border-color:var(--blue); }
@@ -560,14 +560,11 @@ body {
       <div class="card" data-page-node-id="55LDeXTNDoQVJnEJu3EAHY">
         <div class="card-title" data-page-node-id="KLOsFIfybJxDojoyzE3zHz"><span class="t" data-page-node-id="ESuZKTSC5FpqMHGu5dOvjF">自营 · 体重 K 线</span><div class="kline-title-right"><span class="m" id="kline-weight" data-page-node-id="7eSa0rSoY3YJfTvMMPEbx2">-- kg</span><div class="kline-tabs" id="kline-tabs" data-page-node-id="JPKlineTabs"><div class="kline-tab on" data-p="d" onclick="switchKlinePeriod('d')">日K</div><div class="kline-tab" data-p="w" onclick="switchKlinePeriod('w')">周K</div><div class="kline-tab" data-p="m" onclick="switchKlinePeriod('m')">月K</div><div class="kline-tab" data-p="q" onclick="switchKlinePeriod('q')">季K</div></div></div></div>
         <div id="kline" data-page-node-id="Q0O5zqNz65Oq2qIeQRS3l9"></div>
-        <div class="ma-legend" data-page-node-id="4VIl4avuHHWZnUyxEVMucg"><span class="ma7" id="ma7-lab" data-page-node-id="WmAVbGi2U14FDSCxXlPJ56">● MA7</span><span class="ma30" id="ma30-lab" data-page-node-id="UywBDZczrplzlGxBytPiNw">● MA30</span></div>
-        <div class="kw-wrap">
-          <div class="kw-open" id="kw-open" onclick="openQuickWeight()">⚖️ 记录今日体重</div>
-          <div class="kw-row" id="kw-row">
-            <input type="number" id="kw-input" inputmode="decimal" step="0.1" min="20" max="300" placeholder="今日体重 (kg)">
-            <button class="kw-save" onclick="saveQuickWeight()">保存</button>
-            <button class="kw-cancel" onclick="closeQuickWeight()">取消</button>
-          </div>
+        <div class="ma-legend" data-page-node-id="4VIl4avuHHWZnUyxEVMucg"><span class="ma7" id="ma7-lab" data-page-node-id="WmAVbGi2U14FDSCxXlPJ56">● MA7</span><span class="ma30" id="ma30-lab" data-page-node-id="UywBDZczrplzlGxBytPiNw">● MA30</span><span class="kw-mini" id="kw-open" data-page-node-id="JPKwMini" onclick="openQuickWeight()">⚖️ 记体重</span></div>
+        <div class="kw-row" id="kw-row">
+          <input type="number" id="kw-input" inputmode="decimal" step="0.1" min="20" max="300" placeholder="今日体重 (kg)">
+          <button class="kw-save" onclick="saveQuickWeight()">保存</button>
+          <button class="kw-cancel" onclick="closeQuickWeight()">取消</button>
         </div>
       </div>
 
@@ -2263,12 +2260,12 @@ function treemapLayout(blocks, W, H) {
     if (!list.length || w < 1.2 || h < 1.2) return;
     if (list.length === 1) { out.push({ x: x, y: y, w: w, h: h, b: list[0].b }); return; }
     if (w < 26 || h < 26) {           // 剩余太窄：沿短边方向平铺成细条
-      let s = 0; list.forEach(function(i) { s += i.a; });
-      const vertical = h > w; let acc = y;
-      if (!vertical) { s = 0; list.forEach(function(i) { s += i.a; }); }
-      if (vertical) {
+      const s = list.reduce(function(s, i) { return s + i.a; }, 0);
+      if (h > w) {                    // 竖直细条：x 不变、沿 y 自上而下
+        let acc = y;
         list.forEach(function(i) { const hh = h * i.a / s; out.push({ x: x, y: acc, w: w, h: hh, b: i.b }); acc += hh; });
-      } else {
+      } else {                        // 横向细条：y 不变、沿 x 自左而右（acc 必须从 x 起，旧 bug 误用 y 导致整排右移出洞）
+        let acc = x;
         list.forEach(function(i) { const ww = w * i.a / s; out.push({ x: acc, y: y, w: ww, h: h, b: i.b }); acc += ww; });
       }
       return;
@@ -2309,7 +2306,6 @@ function renderMarketMap() {
   const rects = treemapLayout(blocks, W, H);
   let html = '';
   rects.forEach(function(r) {
-    if (r.w < 3 || r.h < 3) return;
     const b = r.b, isLong = b.type === 'food';
     const ratio = Math.min(1, b.kcal / budget);
     const alpha = (0.38 + 0.62 * ratio).toFixed(3);
@@ -2317,7 +2313,7 @@ function renderMarketMap() {
     const txtCol = isLong ? '#ffd7da' : '#c9f2e5';
     const showN = r.w > 42 && r.h > 20, showV = r.w > 30 && r.h > 14;
     html += '<div class="mm-block" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
-      + 'px;width:' + r.w.toFixed(1) + 'px;height:' + r.h.toFixed(1) + 'px;background:' + col + ';"'
+      + 'px;width:' + Math.max(1, r.w).toFixed(1) + 'px;height:' + Math.max(1, r.h).toFixed(1) + 'px;background:' + col + ';"'
       + ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">'
       + (showN ? '<span class="n" style="color:' + txtCol + '">' + b.name + '</span>' : '')
       + (showV ? '<span class="v" style="color:' + txtCol + '">' + (isLong ? '+' : '−') + b.kcal + '</span>' : '')
@@ -3405,7 +3401,7 @@ function renderKline() {
   // 无真实历史数据：不绘制任何模拟曲线，仅显示空态提示（一切以真实数据为准）
   if (log.length < 2) {
     const msg = log.length === 0
-      ? '暂无历史体重数据<br/>点下方「⚖️ 记录今日体重」开始生成真实 K 线'
+      ? '暂无历史体重数据<br/>点「⚖️ 记体重」开始生成真实 K 线'
       : '已记录 1 次，明日再称一次即可生成 K 线';
     document.getElementById('kline').innerHTML =
       '<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#5a6478;'
@@ -4197,7 +4193,7 @@ function openQuickWeight() {
 }
 function closeQuickWeight() {
   document.getElementById('kw-row').style.display = 'none';
-  document.getElementById('kw-open').style.display = 'flex';
+  document.getElementById('kw-open').style.display = 'inline-flex';
 }
 function saveQuickWeight() {
   const v = parseFloat(document.getElementById('kw-input').value);
