@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.16"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
+<meta name="app-version" content="2.7.17"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -4722,7 +4722,7 @@ setInterval(checkDayRollover, 60000);
     }).catch(function(){});
   }
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', __swCheck);
+    window.addEventListener('load', function(){ __swCheck(); __autoProbe(); });
     document.addEventListener('visibilitychange', function() { if (!document.hidden) __swCheck(); });
     window.addEventListener('focus', __swCheck);
     /* 新 SW 接管控制即自动刷新，确保已加载的旧页面换成新版本（避免 SW 命中旧缓存文档、误报「已是最新」） */
@@ -4733,24 +4733,48 @@ setInterval(checkDayRollover, 60000);
       window.location.reload();
     });
   }
-  /* 手动检查更新（「我的」页按钮）：有新版本则自动刷新，无则提示已最新 */
+  /* ---- 服务器真实版本探针：ver.txt 带随机 query —— 任何 SW 缓存策略下 miss → 网络直达，拿到服务器当前真实版本 ---- */
+  function __serverVer() {
+    return fetch('ver.txt?t=' + Date.now(), { cache: 'no-store' })
+      .then(function(r) { return r.ok ? r.text() : ''; })
+      .then(function(t) { return (t || '').trim(); })
+      .catch(function() { return ''; });
+  }
+  /* 强制刷新到最新文档：?v=ts 导航。旧 cache-first SW 对带 query 的导航缓存 miss → 走网络 → 任何环境都拿到服务器最新版 */
+  function __forceRefresh() {
+    try { location.href = location.pathname + '?v=' + Date.now(); } catch (e) {}
+  }
+  /* 手动检查更新：直连服务器比对 ver.txt 与当前 meta 版本，不再依赖 SW installing/waiting 信号
+     （iOS 主屏幕等环境 SW 更新被系统节流时该信号恒为空 → 曾误报「已是最新」） */
   function checkUpdate() {
     try { toast('正在检查更新…'); } catch(e) {}
-    if (!('serviceWorker' in navigator)) {
-      setTimeout(function(){ try { toastInfo('当前为浏览器直开，已是最新'); } catch(e){} }, 500);
-      return;
-    }
-    var found = false;
-    navigator.serviceWorker.getRegistration().then(function(reg) {
-      if (!reg) { try { toastInfo('首次访问，已加载最新版'); } catch(e){} return; }
-      var nw = reg.waiting || reg.installing;
-      if (nw) { found = true; __swWatch(nw); }
-      reg.addEventListener('updatefound', function h() { found = true; reg.removeEventListener('updatefound', h); __swWatch(reg.installing); });
-      reg.update().catch(function(){});
+    var vLocal = ((document.querySelector('meta[name="app-version"]')||{}).content || '').trim();
+    __serverVer().then(function(vServer) {
+      if (!vServer) {
+        if (!('serviceWorker' in navigator)) { try { toastInfo('当前为浏览器直开，已是最新'); } catch(e){} }
+        else { try { toastInfo('网络不可用，无法确认版本'); } catch(e){} }
+        return;
+      }
+      if (vServer !== vLocal) {
+        try { toast('发现新版本 v' + vServer + '，正在刷新…'); } catch(e) {}
+        setTimeout(__forceRefresh, 900);
+      } else {
+        try { toastInfo('✓ 已是最新版本 v' + vLocal); } catch(e) {}
+      }
+    });
+  }
+  /* 自动探测（每次冷启动 load 一次）：服务器已有新版、但 2.5s 内 SW 优雅路径没接管时，主动强刷一次兜底 */
+  var __autoProbed = false;
+  function __autoProbe() {
+    if (__autoProbed || !('serviceWorker' in navigator)) return;
+    __autoProbed = true;
+    var vLocal = ((document.querySelector('meta[name="app-version"]')||{}).content || '').trim();
+    __serverVer().then(function(vServer) {
+      if (!vServer || vServer === vLocal || __swRefreshed) return;
       setTimeout(function() {
-        if (!found) { try { toastInfo('✓ 已是最新版本'); } catch(e){} }
+        if (!__swRefreshed) __forceRefresh();
       }, 2500);
-    }).catch(function(){});
+    });
   }
   /* 显示当前运行版本号（读页面 meta，内容即当前文件版本，准确且离线可用） */
   function readAppVersion() {
