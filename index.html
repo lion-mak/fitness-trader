@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.20"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.21"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -424,7 +424,7 @@ body {
 /* 板块云图：今日每笔成交=一个板块块，面积∝热量，红=做多(吃入)/绿=做空(消耗)，同花顺热力图式矩形树图 */
 .mm-frame { background:#070b14; border:1px solid var(--border); border-radius:10px; padding:3px; }
 .mm-inner { position:relative; width:100%; height:212px; border-radius:7px; overflow:hidden; }
-.mm-block { position:absolute; box-sizing:border-box; border:1px solid #070b14; border-radius:3px; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:3px 5px; cursor:pointer; }
+.mm-block { position:absolute; box-sizing:border-box; border:1px solid #070b14; border-radius:3px; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:4px 7px; cursor:pointer; }
 .mm-block .n { font-size:10px; font-weight:500; line-height:1.25; word-break:break-all; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .mm-block .v { font-size:9px; line-height:1.1; opacity:.85; font-weight:600; align-self:flex-end; }
 .mm-legend { display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:9px; font-size:10px; color:var(--muted2); }
@@ -578,7 +578,7 @@ body {
         <div class="mm-legend">
           <span><i class="dot" style="background:#ff3b47;"></i>做多 · 吃入</span>
           <span><i class="dot" style="background:#00c896;"></i>做空 · 消耗</span>
-          <span class="dim">面积 ∝ 热量 · 色深 ∝ 占额度 · 点块可改</span>
+          <span class="dim">面积 ∝ 热量 · 色深 ∝ 数值 · 点块可改</span>
         </div>
       </div>
 
@@ -2242,7 +2242,7 @@ function spanDays(a, b) {   // a→b 含两端的天数
 }
 /* ============ 板块云图：今日每笔成交 = 一个板块块 ============
    矩形树图（treemap，同花顺热力图式）：块面积 ∝ kcal；红=做多(食物吃入)、绿=做空(运动消耗)；
-   色深 ∝ 单块占当日额度(budget)比例（越深=这一口越接近打板）；点块进 openRecordEdit 改数值 */
+   色深 ∝ 单笔数值（以当日最大单笔为满档：数值最大=满红/满绿，越小越浅）；点块进 openRecordEdit 改数值 */
 function marketMapData() {
   const diet = todayDiet().map(d => ({ id: d.id, type: 'food', name: d.name, kcal: +d.kcal || 0 }));
   const ex = todayExercise().map(e => ({ id: e.id, type: 'ex', name: e.name, kcal: +e.kcal || 0 }));
@@ -2289,7 +2289,6 @@ function treemapLayout(blocks, W, H) {
 function renderMarketMap() {
   const el = document.getElementById('market-map');
   if (!el) return;
-  const t = totals();
   const dd = marketMapData();
   const blocks = dd.diet.concat(dd.ex);
   const sub = document.getElementById('mm-sub');
@@ -2302,28 +2301,28 @@ function renderMarketMap() {
     return;
   }
   const W = el.clientWidth || 320, H = 212;
-  const budget = Math.max(1, t.budget);
+  /* 色深分档基准 = 当日最大单笔：数值最大的块满红/满绿，小一些的依次变浅（文字颜色不随数值变化） */
+  const maxK = Math.max(1, Math.max.apply(null, blocks.map(function(x) { return +x.kcal || 0; })));
   const rects = treemapLayout(blocks, W, H);
   let html = '';
   rects.forEach(function(r) {
     const b = r.b, isLong = b.type === 'food';
-    const ratio = Math.min(1, b.kcal / budget);
-    const alpha = (0.38 + 0.62 * ratio).toFixed(3);
+    const ratio = Math.min(1, (+b.kcal || 0) / maxK);
+    const alpha = (0.35 + 0.65 * ratio).toFixed(3);
     const col = isLong ? 'rgba(255,59,71,' + alpha + ')' : 'rgba(0,200,150,' + alpha + ')';
-    const txtCol = isLong ? '#ffd7da' : '#c9f2e5';
+    const txtCol = isLong ? '#ffd7da' : '#c9f2e5';               /* 文字颜色统一 */
     /* 字号随块大小自适应：短边越大字越大；细长块按宽/2.2 折中防止字比行宽 */
     const sMin = Math.min(r.w, r.h), ref = Math.min(sMin, r.w / 2.2);
     const fsN = Math.round(Math.max(10, Math.min(16, ref * 0.32)));
     const fsV = Math.max(9, fsN - 2);
     const mt = Math.max(1, Math.round(fsN * 0.18));              /* 名字距块顶留白，字越大留越多 */
-    const vOp = (0.55 + 0.45 * ratio).toFixed(3);                /* 数值越大颜色越实/深，小数值偏淡 */
     const showN = r.w > 42 && r.h > 20, showV = r.w > 38 && r.h > 14;
     html += '<div class="mm-block" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
       + 'px;width:' + Math.max(1, r.w).toFixed(1) + 'px;height:' + Math.max(1, r.h).toFixed(1) + 'px;background:' + col + ';"'
       + ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">'
       + (showN ? '<span class="n" style="font-size:' + fsN + 'px;color:' + txtCol + ';margin-top:' + mt + 'px;">' + b.name + '</span>' : '')
-      + (showV ? '<span class="v" style="font-size:' + fsV + 'px;color:' + txtCol + ';opacity:' + vOp + ';">' + (isLong ? '+' : '−') + b.kcal
-          + '<span style="font-size:' + Math.max(7, fsV - 3) + 'px;opacity:.82;">kcal</span></span>' : '')
+      + (showV ? '<span class="v" style="font-size:' + fsV + 'px;color:' + txtCol + ';">' + (isLong ? '+' : '−') + b.kcal
+          + '<span style="font-size:' + Math.max(7, fsV - 3) + 'px;">kcal</span></span>' : '')
       + '</div>';
   });
   el.innerHTML = html;
