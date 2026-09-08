@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.12"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
+<meta name="app-version" content="2.7.13"><!-- 与 sw.js CACHE_VERSION 同步，用于「我的」页显示当前运行版本 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -459,13 +459,13 @@ body {
 .history-legend { display:flex; justify-content:center; gap:16px; margin-top:10px; font-size:11px; color:var(--muted2); }
 .history-legend span { display:flex; align-items:center; gap:5px; }
 .history-legend .dot { width:7px; height:7px; border-radius:50%; }
-.intraday-chart { position:relative; min-height:210px; }
+.intraday-chart { position:relative; min-height:150px; }
 .intraday-chart svg { display:block; width:100%; height:auto; overflow:visible; touch-action:none; }
 /* 末端「现价」琥珀点：呼吸闪烁，让分时线看起来在实时跳动 */
 @keyframes jpLiveBlink { 0%,100% { opacity:1; } 50% { opacity:0.38; } }
 .jp-live-dot { animation: jpLiveBlink 1.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .jp-live-dot { animation:none; } }
-.intraday-legend { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px 14px; margin-top:9px; font-size:11px; color:var(--muted2); }
+.intraday-legend { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px 14px; margin-top:6px; font-size:11px; color:var(--muted2); }
 .intraday-legend span { display:flex; align-items:center; gap:5px; white-space:nowrap; }
 .intraday-legend .dot { width:7px; height:7px; border-radius:50%; flex:none; }
 /* 标题区：标题 + 状态胶囊 并排 */
@@ -2432,14 +2432,14 @@ function renderIntraday() {
   events.sort(function(a, b) { return (a.min - b.min) || ((a.seq || 0) - (b.seq || 0)); });
 
   const W = 340, PAD_L = 30, PAD_R = 8;
-  const PAD_T = 14;             /* 分时线上沿 */
-  const LINE_BOT = 158;         /* 分时线值区下沿 */
+  const PAD_T = 9;              /* 分时线上沿（收窄） */
+  const LINE_BOT = 146;         /* 分时线值区下沿 */
   const LINE_H = LINE_BOT - PAD_T;
-  const VOL_GAP = 14;           /* 分时线 ↔ 成交量 间隔（放「成交量」标签） */
-  const VOL_TOP = LINE_BOT + VOL_GAP;    /* 成交量柱区上沿 */
-  const VOL_BOT = VOL_TOP + 28;          /* 成交量柱区下沿（基线），压矮让分时线占主要视觉 */
+  const SEP_Y = LINE_BOT + 7;   /* 分时区 ↔ 成交量区 分隔线（明显一道线区分，替代卡片背景） */
+  const VOL_TOP = SEP_Y + 5;    /* 成交量线带顶 */
+  const VOL_BOT = VOL_TOP + 20; /* 成交量基线（下沿） */
   const VOL_H = VOL_BOT - VOL_TOP;
-  const PAD_B = 16;
+  const PAD_B = 11;
   const H = VOL_BOT + PAD_B;
   const X = function(m) { return PAD_L + (m - OPEN) / (CLOSE - OPEN) * (W - PAD_L - PAD_R); };
 
@@ -2578,23 +2578,22 @@ function renderIntraday() {
       + ' data-kind="' + m.ev.kind + '"/>';
   });
 
-  /* ---- 成交量盒子：食物摄入=红柱 / 运动消耗=绿柱（与 A 股分时图下方成交量同构）---- */
-  /* 成交量区卡片边界：圆角卡片把成交量区和分时线区分开，避免两者毫无边界 */
-  svg += '<rect x="' + (PAD_L - 2) + '" y="' + (VOL_TOP - 4) + '" width="' + (W - PAD_L - PAD_R + 4) + '" height="' + (VOL_BOT - VOL_TOP + 6) + '" rx="6" fill="rgba(8,12,22,0.45)" stroke="rgba(120,140,170,0.18)" stroke-width="1"/>';
-  svg += '<text x="' + (PAD_L + 4) + '" y="' + (VOL_TOP + 1) + '" fill="#7c8aa5" font-size="10">成交量（摄入红 / 消耗绿）</text>';
-  const volShown = shown;
-  const volMax = Math.max(1, Math.max.apply(null, volShown.map(function(e) { return Math.abs(e.delta); })));
-  const volBW = Math.max(2, Math.min(4, (W - PAD_L - PAD_R) / Math.max(volShown.length, 1) * 0.4));
+  /* ---- 成交量区：与分时区用一条明显的分隔线区分（无卡片背景）；食物摄入=红线 / 运动消耗=绿线，细而短 ---- */
+  svg += '<line x1="' + PAD_L + '" y1="' + SEP_Y + '" x2="' + (W - PAD_R) + '" y2="' + SEP_Y + '" stroke="#3d4b68" stroke-width="1.2"/>';
+  svg += '<line x1="' + PAD_L + '" y1="' + VOL_BOT + '" x2="' + (W - PAD_R) + '" y2="' + VOL_BOT + '" stroke="#202838" stroke-width="0.8"/>';
+  svg += '<text x="' + (PAD_L - 4) + '" y="' + ((VOL_TOP + VOL_BOT) / 2 + 3).toFixed(1) + '" fill="#7c8aa5" font-size="9" text-anchor="end">成交量</text>';
+  const volShown = shown.slice().sort(function(a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });   /* 高的先画：同刻多笔时短的叠底部，颜色与长短仍可辨 */
+  const volMax = Math.max(1, Math.max.apply(null, shown.map(function(e) { return Math.abs(e.delta); })));
   volShown.forEach(function(ev) {
     const cx = X(ev.min);
-    const h = Math.abs(ev.delta) / volMax * VOL_H;
-    const col = ev.kind === 'food' ? 'rgba(255,59,71,0.85)' : 'rgba(0,200,150,0.85)';
-    svg += '<rect x="' + (cx - volBW / 2).toFixed(1) + '" y="' + (VOL_BOT - 1 - h).toFixed(1) + '" width="' + volBW.toFixed(1) + '" height="' + Math.max(1, h).toFixed(1) + '" fill="' + col + '" rx="1"/>';
+    const h = Math.max(1, Math.abs(ev.delta) / volMax * (VOL_H - 2));
+    const col = ev.kind === 'food' ? '#ff3b47' : '#00c896';
+    svg += '<line x1="' + cx.toFixed(1) + '" y1="' + VOL_BOT.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + (VOL_BOT - h).toFixed(1) + '" stroke="' + col + '" stroke-width="1.5"/>';
   });
 
   /* 时间轴刻度（最底部） */
   [[OPEN, 'start'], [11 * 60, 'middle'], [17 * 60, 'middle'], [CLOSE, 'end']].forEach(function(tk) {
-    svg += '<text x="' + X(tk[0]).toFixed(1) + '" y="' + (VOL_BOT + 12) + '" fill="#5a6478" font-size="10" text-anchor="' + tk[1] + '">' + fmtClock(tk[0]) + '</text>';
+    svg += '<text x="' + X(tk[0]).toFixed(1) + '" y="' + (VOL_BOT + 8) + '" fill="#5a6478" font-size="10" text-anchor="' + tk[1] + '">' + fmtClock(tk[0]) + '</text>';
   });
   svg += '</svg>';
 
