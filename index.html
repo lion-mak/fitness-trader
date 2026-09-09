@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.22"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.23"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2300,7 +2300,12 @@ function renderMarketMap() {
     el.innerHTML = '<div class="mm-empty">今日暂无成交<br>去「交易」记一笔，云图会亮起来</div>';
     return;
   }
-  const W = el.clientWidth || 320, H = 212;
+  const Wraw = el.clientWidth || el.offsetWidth || 0;
+  if (Wraw < 2) {   // 行情页隐藏时 clientWidth=0，退回 320 会让 treemap 比真实容器窄 → 右侧露出 frame 黑底；延后到可见再绘
+    requestAnimationFrame(function () { const e2 = document.getElementById('market-map'); if (e2 && e2.clientWidth > 1) renderMarketMap(); });
+    return;
+  }
+  const W = Wraw, H = 212;
   /* 色深分档基准 = 当日最大单笔：数值最大的块满红/满绿，小一些的依次变浅（文字颜色不随数值变化） */
   const maxK = Math.max(1, Math.max.apply(null, blocks.map(function(x) { return +x.kcal || 0; })));
   const rects = treemapLayout(blocks, W, H);
@@ -2595,6 +2600,24 @@ function renderIntraday() {
   svg += '<path d="' + d + '" stroke="#f5c451" stroke-width="1.2" fill="none" stroke-linejoin="round"/>';
   svg += '<circle cx="' + X(OPEN).toFixed(1) + '" cy="' + Y(0).toFixed(1) + '" r="3" fill="#8b97ad"/>';
 
+  /* ---- 分时线在任意 x 处的 y（线性插值 step polyline），用于判断标签是否压线 ---- */
+  function lineYAt(x) {
+    for (let i = 0; i < verts.length - 1; i++) {
+      const a = verts[i], b = verts[i + 1];
+      if (x >= a.x && x <= b.x) {
+        const t = (b.x === a.x) ? 1 : (x - a.x) / (b.x - a.x);
+        return Y(a.y + (b.y - a.y) * t);
+      }
+    }
+    return Y(verts[verts.length - 1].y);
+  }
+  function lineHitsBox(x1, x2, y1, y2) {
+    const xs = [x1, (x1 + x2) / 2, x2];
+    for (let k = 0; k < xs.length; k++) { const ly = lineYAt(xs[k]); if (ly >= y1 && ly <= y2) return true; }
+    const ya = lineYAt(x1), yb = lineYAt(x2);
+    if ((ya < y1 && yb > y2) || (ya > y2 && yb < y1)) return true;
+    return false;
+  }
   /* ---- 标签排布：同一时刻多笔时自动错行，挤不下就让位给点位 + 长按提示 ---- */
   const textW = function(s) { let w = 0; for (let i = 0; i < s.length; i++) { w += (/[\u4e00-\u9fa5\uff00-\uffef]/.test(s.charAt(i)) ? 10 : 5.6); } return w; };
   const placed = [];
@@ -2663,6 +2686,8 @@ function renderIntraday() {
             if (!fits(box)) continue;
             /* 代价：离点位越近越优先；右/左同距时优先右侧；短标签降级需额外代价 */
             let cost = Math.abs(dy) + dx * 0.7 + v * 30 + (dir < 0 ? 6 : 0);
+            /* 压住分时线强罚（逼标签去真正空白处，避免与分时线重合）；再叠压其他事件点罚 */
+            if (lineHitsBox(box.x1, box.x2, box.y1, box.y2)) cost += 42;
             /* 压住别的事件点要加罚，逼标签往真正的空白走 */
             for (let k = 0; k < marks.length; k++) {
               const o = marks[k];
@@ -3470,6 +3495,13 @@ function renderKline() {
     const x = stepX(i) - barW / 2;
     const up = b.c < b.o;
     const color = up ? '#00c896' : '#ff3b47';
+    /* 上下引线：日K 单点无 h/l → 取 o/c（引线等同于实体，无额外影线）；周/月/季用聚合的 h/l 画出真实上下影线 */
+    const hi = (b.h != null) ? b.h : Math.max(b.o, b.c);
+    const lo = (b.l != null) ? b.l : Math.min(b.o, b.c);
+    const yHi = y(hi), yLo = y(lo);
+    const cx = (x + barW / 2);
+    /* 引线（细线，先画在实体下层，确保影线在实体两端露出） */
+    svg += '<line x1="' + cx.toFixed(1) + '" y1="' + yHi.toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + yLo.toFixed(1) + '" stroke="' + color + '" stroke-width="1"/>';
     const yTop = y(Math.max(b.o, b.c));
     const yBot = y(Math.min(b.o, b.c));
     const bodyH = Math.max(2, yBot - yTop);
@@ -3529,7 +3561,7 @@ function renderTrend() {
     // X 轴标签：今天标「今」，其余按 labStep 抽稀标日期
     if ((i % labStep === 0) || (today && p.has)) {
       const lx = slot * i + slot / 2;
-      svg += '<text x="' + lx + '" y="' + (H - padB + 10) + '" text-anchor="middle" fill="' + (today && p.has ? '#ff3b47' : '#5a6478') + '" font-size="8">' + (today && p.has ? '今' : Number(p.d.slice(8))) + '</text>';
+      svg += '<text x="' + lx + '" y="' + (H - padB + 10) + '" text-anchor="middle" fill="' + (today && p.has ? '#ff3b47' : '#5a6478') + '" font-size="8">' + Number(p.d.slice(8)) + '</text>';
     }
   });
   svg += '</svg>';
@@ -3612,7 +3644,9 @@ function renderAchievementsPage() {
 function foodCatList() {
   let base = [];
   try { base = FoodStore.categories() || []; } catch (e) { base = []; }
-  const cleaned = (base || []).filter(c => c && c !== '全部' && c !== USUAL_CAT);
+  let cleaned = (base || []).filter(c => c && c !== '全部' && c !== USUAL_CAT);
+  // 始终保留「自建」分类：自定义食物 src=custom、cat=自建，按此分类即可检索到
+  if (cleaned.indexOf('自建') < 0) cleaned.push('自建');
   return [USUAL_CAT, '全部'].concat(cleaned);
 }
 function manualUsuals() { return (state.usuals || []).slice(); }
@@ -4587,6 +4621,7 @@ function switchTab(tab) {
     document.querySelector('.tabbar > div[data-tab="profile"]').classList.add('on');
   }
   document.getElementById('screen').scrollTop = 0;
+  if (tab === 'market') { try { renderMarketMap(); } catch (e) {} }   // 切到行情页时容器已可见，用真实宽度重绘云图，避免隐藏态留下的右侧黑条
 }
 /* 子页面左缘右滑返回手势（贴合手机操作习惯） */
 function bindBackGesture() {
