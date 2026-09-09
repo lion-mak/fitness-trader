@@ -1,0 +1,1 @@
+# 禁用 Jekyll 处理，保证 PWA 静态资源（含 data/ 食物库）原样发布到 GitHub Pages
