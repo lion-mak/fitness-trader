@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.25"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.26"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -724,7 +724,7 @@ body {
 
     <!-- ============ 榜单 ============ -->
     <section class="page" id="page-leaderboard" data-page-node-id="7wDQSdkjQwckSbAeEuC0Zg">
-      <div class="pagetitle"><div class="k">龙虎榜 · 交易数据榜</div><div class="t">你的真实交易记录</div></div>
+      <div class="pagetitle"><div class="k">龙虎榜 · 交易数据榜</div><div class="t">每笔交易都可能会上龙虎榜</div></div>
       <div style="display:flex;gap:8px;margin:6px 0 2px;">
         <span onclick="setLbRange('week')" id="lbt-week" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#1d2b4d;color:#fff;border:1px solid #3a4d7a;">本周</span>
         <span onclick="setLbRange('month')" id="lbt-month" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#16203a;color:#8b97ad;border:1px solid #23304d;">本月</span>
@@ -1102,19 +1102,19 @@ body {
   <!-- 底部 Tab · 固定在底部（不随 .screen 滚动） -->
   <div class="tabbar" data-page-node-id="8dnXLpt8jfjKGjUtambTxm">
     <div class="on" data-tab="market" onclick="switchTab('market')" data-page-node-id="x37snLkKqPcSGKbpXMqPBK">
-      <div class="ico" data-page-node-id="lAURc09bNwaqCEzbz17Fzy"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="3Ih5fq9QCuuYCS7qgRQc4d"><path d="M3 17 L9 11 L13 15 L21 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="Dl4Wg3FK35lpuVLyOSYXql"/></svg></div>行情
+      <div class="ico" data-page-node-id="lAURc09bNwaqCEzbz17Fzy"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5l5-5.5 3.5 3.5L21 6.5"/><circle cx="21" cy="6.5" r="1.7" fill="currentColor" stroke="none"/></svg></div>行情
     </div>
     <div data-tab="trade" onclick="switchTab('trade')" data-page-node-id="PM8pXPShG5irNGTwR8hDoT">
-      <div class="ico" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="gSKWndtZBEvy0pHXDAZaBI"><rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5" data-page-node-id="7QD7PPp78mEBGUoPCzRfi5"/></svg></div>交易
+      <div class="ico" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v17"/><path d="M16 3.5v17"/><rect x="5" y="8" width="6" height="6.5" rx="1.3"/><rect x="13" y="9.5" width="6" height="6.5" rx="1.3"/></svg></div>交易
     </div>
     <div data-tab="holdings" onclick="switchTab('holdings')" data-page-node-id="cONaClihcuBJkKQRgaG9QC">
-      <div class="ico" data-page-node-id="Cpbsi48ysqrvpykHXF9SLL"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="t1ZUAfdU4KRht6y4f74auK"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.5" data-page-node-id="yNcv0Gyp7aZHHxC6kNeqsI"/></svg></div>持仓
+      <div class="ico" data-page-node-id="Cpbsi48ysqrvpykHXF9SLL"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12.5" rx="2.5"/><path d="M9 7.5V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8v1.7"/><path d="M3 13h18"/></svg></div>持仓
     </div>
     <div data-tab="leaderboard" onclick="switchTab('leaderboard')" data-page-node-id="jJLPTbnEKemO0sS2SkJr5b">
-      <div class="ico" data-page-node-id="amyIU316UQlQJ1cCFJtlGc"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="jeICyYer3ZB7PJ21du7KHn"><path d="M4 20 H20" stroke="currentColor" stroke-width="2" data-page-node-id="0B9K0ViFNHMtVMEI5PAElc"/></svg></div>龙虎榜
+      <div class="ico" data-page-node-id="amyIU316UQlQJ1cCFJtlGc"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 5.5H4.2v1.8A3.2 3.2 0 0 0 7.4 10.5"/><path d="M17 5.5h2.8v1.8A3.2 3.2 0 0 1 16.6 10.5"/><path d="M12 13v3.2"/><path d="M8.6 20h6.8"/><path d="M9.4 16.5h5.2L18 20H6l2.6-3.5Z"/></svg></div>龙虎榜
     </div>
     <div data-tab="profile" onclick="switchTab('profile')" data-page-node-id="RDokw9CHtOr4ccDjhnByl0">
-      <div class="ico" data-page-node-id="tfebNQbRyZZJqfjtvFjeYK"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" data-page-node-id="nrj8Ef2jjf9Bjo6oGVRnNO"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5" data-page-node-id="fvqsDaDRa9TuskTstMWfyk"/><path d="M4 21 C4 16 8 14 12 14 C16 14 20 16 20 21" stroke="currentColor" stroke-width="1.5" fill="none" data-page-node-id="xODPnTMM8rrHjGiYIMU0HV"/></svg></div>我的
+      <div class="ico" data-page-node-id="tfebNQbRyZZJqfjtvFjeYK"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg></div>我的
     </div>
   </div>
 
