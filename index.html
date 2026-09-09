@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.24"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.25"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -3592,6 +3592,102 @@ function lbCard(title, sub, rows) {
   h += '</div>';
   return h;
 }
+
+/* ============ 板块(品类)龙虎榜 & 个人战绩墙 辅助 ============ */
+let __catNameMap = null;
+function catNameMap() {
+  if (__catNameMap) return __catNameMap;
+  var m = {};
+  try {
+    var all = FoodStore.search('', { limit: 99999 }) || [];
+    all.forEach(function(f){ if (f && f.name) m[f.name] = f.cat || '其他'; });
+  } catch (e) {}
+  __catNameMap = m;
+  return m;
+}
+function rangeBounds() {
+  var now = new Date();
+  var ymd = function(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  if (lbRange === 'week') {
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var day = d.getDay();
+    var diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    var pS = new Date(d); pS.setDate(pS.getDate() - 7);
+    var pE = new Date(d); pE.setDate(pE.getDate() - 1);
+    return { curStart: ymd(d), prevStart: ymd(pS), prevEnd: ymd(pE) };
+  }
+  var y = now.getFullYear(), mo = now.getMonth();
+  var curStart = y + '-' + String(mo+1).padStart(2,'0') + '-01';
+  var pm = (mo === 0 ? 11 : mo - 1), py = (mo === 0 ? y - 1 : y);
+  var prevStart = py + '-' + String(pm+1).padStart(2,'0') + '-01';
+  var lastDay = new Date(py, pm+1, 0).getDate();
+  var prevEnd = py + '-' + String(pm+1).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0');
+  return { curStart: curStart, prevStart: prevStart, prevEnd: prevEnd };
+}
+function sectorAgg(start, end) {
+  var map = {};
+  (state.diet || []).forEach(function(d){
+    if (d.date < start || d.date > end) return;
+    var cat = catNameMap()[d.name] || '其他';
+    map[cat] = (map[cat] || 0) + Math.round(d.kcal || 0);
+  });
+  return map;
+}
+function dayNetBmr() {
+  var bmr = (typeof calcBMR === 'function') ? calcBMR() : 0;
+  var din = {}, dout = {};
+  (state.diet || []).forEach(function(d){ din[d.date] = (din[d.date]||0) + Math.round(d.kcal||0); });
+  (state.exercise || []).forEach(function(e){ dout[e.date] = (dout[e.date]||0) + Math.round(e.kcal||0); });
+  var dates = {};
+  (state.diet||[]).forEach(function(d){ dates[d.date]=1; });
+  (state.exercise||[]).forEach(function(e){ dates[e.date]=1; });
+  return Object.keys(dates).map(function(dt){
+    var net = (din[dt]||0) - (dout[dt]||0) - bmr;
+    return { date: dt, net: net, up: (net <= (state.user.target||0)) && net < 0 };
+  }).sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+}
+function nextDayStr(s) {
+  var p = s.split('-');
+  var d = new Date(+p[0], +p[1]-1, +p[2]);
+  d.setDate(d.getDate() + 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function longestLimitUp() {
+  var arr = dayNetBmr();
+  var best = 0, cur = 0, bestEnd = null;
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i].up) {
+      if (i > 0 && nextDayStr(arr[i-1].date) === arr[i].date) cur++; else cur = 1;
+      if (cur > best) { best = cur; bestEnd = arr[i].date; }
+    } else cur = 0;
+  }
+  return { len: best, end: bestEnd };
+}
+function bestFatBurn() {
+  var dout = {};
+  (state.exercise||[]).forEach(function(e){ dout[e.date] = (dout[e.date]||0) + Math.round(e.kcal||0); });
+  var best = 0, date = null;
+  Object.keys(dout).forEach(function(dt){ if (dout[dt] > best) { best = dout[dt]; date = dt; } });
+  return { kcal: best, date: date };
+}
+function bestWeightDrop() {
+  var log = (state.weightLog||[]).slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  var best = 0, from = null, to = null, cDrop = 0, cFrom = null;
+  for (var i = 1; i < log.length; i++) {
+    if (log[i].weight < log[i-1].weight) {
+      if (cFrom == null) { cFrom = log[i-1].date; cDrop = 0; }
+      cDrop += (log[i-1].weight - log[i].weight);
+      if (cDrop > best) { best = cDrop; from = cFrom; to = log[i].date; }
+    } else { cFrom = null; cDrop = 0; }
+  }
+  return { drop: best, from: from, to: to };
+}
+function returnRate() {
+  var sw = state.user.startWeight || 0, w = state.user.weight || 0;
+  if (!sw) return 0;
+  return (sw - w) / sw * 100;
+}
 function renderLeaderboard(net) {
   const start = lbRangeStart();
   const rLabel = lbRange === 'week' ? '本周' : '本月';
@@ -3621,6 +3717,44 @@ function renderLeaderboard(net) {
     + '<div><div class="v" style="color:' + (totNet >= 0 ? '#ff8b96' : '#6ee7b7') + '">' + (totNet >= 0 ? '+' : '') + totNet + '<span>kcal</span></div><div class="l">累计净</div></div>'
     + '<div><div class="v">' + tradeDays + '<span>天</span></div><div class="l">交易天数</div></div>'
     + '</div></div>';
+
+  /* 板块(品类)龙虎榜 */
+  var rb = rangeBounds();
+  var curSec = sectorAgg(rb.curStart, todayStr());
+  var prevSec = sectorAgg(rb.prevStart, rb.prevEnd);
+  var secRows = Object.keys(curSec).map(function(cat){
+    var cur = curSec[cat] || 0;
+    var prev = prevSec[cat] || 0;
+    var pct = prev > 0 ? (cur - prev) / prev * 100 : (cur > 0 ? 100 : 0);
+    return { cat: cat, cur: cur, pct: pct };
+  }).filter(function(r){ return r.cur > 0; }).sort(function(a,b){ return b.pct - a.pct; });
+  html += lbCard('板块龙虎榜 · 食物品类', rLabel + '涨跌幅', secRows.slice(0, 8).map(function(r, i){
+    var up = r.pct >= 0;
+    return { rank: i+1, name: r.cat, sub: '做多 ' + r.cur + ' kcal', val: (up ? '+' : '') + r.pct.toFixed(1) + '%', cls: up ? '#ff8b96' : '#6ee7b7' };
+  }));
+  /* 个人战绩墙 */
+  var lu = longestLimitUp();
+  var bfb = bestFatBurn();
+  var bwd = bestWeightDrop();
+  var rr = returnRate();
+  var wall = [
+    { v: lu.len, u: '板', l: '最长连板', c: '#f5c451' },
+    { v: state.limitUpStreak || 0, u: '板', l: '当前连板', c: '#f5c451' },
+    { v: state.limitUpCount || 0, u: '天', l: '累计涨停', c: '#ff8b96' },
+    { v: (bfb.kcal || 0), u: 'kcal', l: '最佳燃脂日' + (bfb.date ? ('·' + bfb.date) : ''), c: '#6ee7b7' },
+    { v: (bwd.drop > 0 ? ('-' + bwd.drop.toFixed(1)) : '0'), u: 'kg', l: '最佳连跌体重段', c: '#00c896' },
+    { v: (rr >= 0 ? ('+' + rr.toFixed(1)) : rr.toFixed(1)), u: '%', l: '账户收益率', c: rr >= 0 ? '#6ee7b7' : '#ff8b96' },
+    { v: tradeDays, u: '天', l: '交易天数', c: '#8b97ad' },
+    { v: totNet, u: 'kcal', l: '累计净', c: totNet >= 0 ? '#ff8b96' : '#6ee7b7' }
+  ];
+  var wh = '<div class="card" style="margin-top:12px;">'
+    + '<div class="card-title"><span class="t">个人战绩墙 · 封神路线图</span><span class="m">全历史</span></div>'
+    + '<div class="profile-stat">';
+  wall.forEach(function(t){
+    wh += '<div><div class="v" style="color:' + t.c + '">' + t.v + '<span>' + t.u + '</span></div><div class="l">' + t.l + '</div></div>';
+  });
+  wh += '</div></div>';
+  html += wh;
   const el = document.getElementById('lb-content');
   if (el) el.innerHTML = html;
   const a = document.getElementById('lbt-week'), b = document.getElementById('lbt-month');
