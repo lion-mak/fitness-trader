@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.26"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.27"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -427,6 +427,10 @@ body {
 .mm-block { position:absolute; box-sizing:border-box; border:1px solid #070b14; border-radius:3px; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:4px 7px; cursor:pointer; }
 .mm-block .n { font-size:10px; font-weight:500; line-height:1.25; word-break:break-all; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .mm-block .v { font-size:9px; line-height:1.1; opacity:.85; font-weight:600; align-self:flex-end; }
+.mm-block .tip { font-size:10px; line-height:1.5; opacity:.6; font-weight:400; }
+/* 基础代谢底盘：每日固定常驻、不可点（非记录），斜纹+虚线边与真实成交块区分 */
+.mm-block.mm-bmr { cursor:default; border:1px solid rgba(0,200,150,.45); background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.13) 0 5px, rgba(255,255,255,0) 5px 10px); }
+.mm-legend .dot.mm-dot-bmr { background:repeating-linear-gradient(135deg, rgba(0,200,150,.95) 0 2px, rgba(0,200,150,.22) 2px 4px); }
 .mm-legend { display:flex; flex-wrap:wrap; align-items:center; gap:5px 12px; margin-top:9px; font-size:10px; color:var(--muted2); }
 .mm-legend .dot { width:6px; height:6px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:1px; }
 .mm-legend .dim { color:#4a5468; }
@@ -578,7 +582,8 @@ body {
         <div class="mm-legend">
           <span><i class="dot" style="background:#ff3b47;"></i>做多 · 吃入</span>
           <span><i class="dot" style="background:#00c896;"></i>做空 · 消耗</span>
-          <span class="dim">面积 ∝ 热量 · 色深 ∝ 数值 · 点块可改</span>
+          <span><i class="dot mm-dot-bmr"></i>基础代谢 · 每日固定</span>
+          <span class="dim">面积 ∝ 热量 · 色深 ∝ 数值 · 点记录块可改</span>
         </div>
       </div>
 
@@ -2222,7 +2227,10 @@ function treemapLayout(blocks, W, H) {
   if (!(total > 0)) return out;
   const items = blocks
     .map(function(b) { return { b: b, a: Math.max(1, b.kcal) / total * W * H }; })
-    .sort(function(p, q) { return q.a - p.a; });
+    .sort(function(p, q) {
+      if (!!p.b.pin !== !!q.b.pin) return p.b.pin ? -1 : 1;   /* pin 块(基础代谢)恒排最前 → 每天固定落左上角，形成视觉锚点 */
+      return q.a - p.a;
+    });
   function fill(x, y, w, h, list) {
     if (!list.length || w < 1.2 || h < 1.2) return;
     if (list.length === 1) { out.push({ x: x, y: y, w: w, h: h, b: list[0].b }); return; }
@@ -2257,12 +2265,17 @@ function renderMarketMap() {
   const el = document.getElementById('market-map');
   if (!el) return;
   const dd = marketMapData();
-  const blocks = dd.diet.concat(dd.ex);
+  const recBlocks = dd.diet.concat(dd.ex);   /* 仅真实成交：色深分档基准只看它们，否则 1500 的基代会把记录块全压成浅色、失去对比 */
+  const bmr = (typeof calcBMR === 'function') ? Math.round(calcBMR()) : 0;
+  /* 基础代谢 = 每日固定的「做空底盘」：哪怕一笔没记也常驻，让 摄入(红) vs 总消耗(绿:基代+运动) 的缺口一眼可见 */
+  const blocks = (bmr > 0 ? [{ id: 'bmr', type: 'bmr', name: '基础代谢', kcal: bmr, pin: true }] : []).concat(recBlocks);
+  const hasRec = recBlocks.length > 0;
+  const sumD = dd.diet.reduce(function(s, d) { return s + d.kcal; }, 0);
+  const sumE = dd.ex.reduce(function(s, e) { return s + e.kcal; }, 0);
   const sub = document.getElementById('mm-sub');
-  if (sub) sub.textContent = blocks.length
-    ? '做多 ' + dd.diet.length + ' 笔 +' + (dd.diet.reduce(function(s, d) { return s + d.kcal; }, 0))
-      + ' · 做空 ' + dd.ex.length + ' 笔 −' + (dd.ex.reduce(function(s, e) { return s + e.kcal; }, 0))
-    : '--';
+  if (sub) sub.textContent = hasRec
+    ? '做多 ' + dd.diet.length + ' 笔 +' + sumD + ' · 做空 ' + dd.ex.length + ' 笔 −' + sumE + ' · 基代 −' + bmr
+    : '今日暂无成交 · 基代 −' + bmr + ' 已计入';
   if (!blocks.length) {
     el.innerHTML = '<div class="mm-empty">今日暂无成交<br>去「交易」记一笔，云图会亮起来</div>';
     return;
@@ -2273,14 +2286,14 @@ function renderMarketMap() {
     return;
   }
   const W = Wraw, H = 212;
-  /* 色深分档基准 = 当日最大单笔：数值最大的块满红/满绿，小一些的依次变浅（文字颜色不随数值变化） */
-  const maxK = Math.max(1, Math.max.apply(null, blocks.map(function(x) { return +x.kcal || 0; })));
+  /* 色深分档基准 = 当日最大单笔（不含基代，见上）；数值最大的块满红/满绿，小一些的依次变浅（文字颜色不随数值变化） */
+  const maxK = Math.max(1, Math.max.apply(null, recBlocks.map(function(x) { return +x.kcal || 0; })));
   const rects = treemapLayout(blocks, W, H);
   let html = '';
   rects.forEach(function(r) {
-    const b = r.b, isLong = b.type === 'food';
+    const b = r.b, isBmr = b.type === 'bmr', isLong = b.type === 'food';
     const ratio = Math.min(1, (+b.kcal || 0) / maxK);
-    const alpha = (0.35 + 0.65 * ratio).toFixed(3);
+    const alpha = isBmr ? 0.42 : (0.35 + 0.65 * ratio).toFixed(3);   /* 基代固定中档色深 + 斜纹区分，不参与分档 */
     const col = isLong ? 'rgba(255,59,71,' + alpha + ')' : 'rgba(0,200,150,' + alpha + ')';
     const txtCol = isLong ? '#ffd7da' : '#c9f2e5';               /* 文字颜色统一 */
     /* 字号随块大小自适应：短边越大字越大；细长块按宽/2.2 折中防止字比行宽 */
@@ -2289,10 +2302,11 @@ function renderMarketMap() {
     const fsV = Math.max(9, fsN - 2);
     const mt = Math.max(1, Math.round(fsN * 0.18));              /* 名字距块顶留白，字越大留越多 */
     const showN = r.w > 42 && r.h > 20, showV = r.w > 38 && r.h > 14;
-    html += '<div class="mm-block" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
-      + 'px;width:' + Math.max(1, r.w).toFixed(1) + 'px;height:' + Math.max(1, r.h).toFixed(1) + 'px;background:' + col + ';"'
-      + ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">'
+    html += '<div class="mm-block' + (isBmr ? ' mm-bmr' : '') + '" style="left:' + r.x.toFixed(1) + 'px;top:' + r.y.toFixed(1)
+      + 'px;width:' + Math.max(1, r.w).toFixed(1) + 'px;height:' + Math.max(1, r.h).toFixed(1) + 'px;background-color:' + col + ';"'
+      + (isBmr ? '>' : ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">')
       + (showN ? '<span class="n" style="font-size:' + fsN + 'px;color:' + txtCol + ';margin-top:' + mt + 'px;">' + b.name + '</span>' : '')
+      + (isBmr && !hasRec && r.h > 62 ? '<span class="tip" style="color:' + txtCol + ';">去「交易」记一笔<br>云图会亮起来</span>' : '')
       + (showV ? '<span class="v" style="font-size:' + fsV + 'px;color:' + txtCol + ';">' + (isLong ? '+' : '−') + b.kcal
           + '<span style="font-size:' + Math.max(7, fsV - 3) + 'px;">kcal</span></span>' : '')
       + '</div>';
