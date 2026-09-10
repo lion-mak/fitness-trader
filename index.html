@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.27"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.28"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2272,6 +2272,7 @@ function renderMarketMap() {
   const hasRec = recBlocks.length > 0;
   const sumD = dd.diet.reduce(function(s, d) { return s + d.kcal; }, 0);
   const sumE = dd.ex.reduce(function(s, e) { return s + e.kcal; }, 0);
+  const bmrShare = (bmr + sumE) > 0 ? Math.round(bmr / (bmr + sumE) * 100) : 100;   /* 基代占总消耗的百分比 */
   const sub = document.getElementById('mm-sub');
   if (sub) sub.textContent = hasRec
     ? '做多 ' + dd.diet.length + ' 笔 +' + sumD + ' · 做空 ' + dd.ex.length + ' 笔 −' + sumE + ' · 基代 −' + bmr
@@ -2285,7 +2286,10 @@ function renderMarketMap() {
     requestAnimationFrame(function () { const e2 = document.getElementById('market-map'); if (e2 && e2.clientWidth > 1) renderMarketMap(); });
     return;
   }
-  const W = Wraw, H = 212;
+  const W = Wraw;
+  /* 高度随块数自适应：块越多越需要面积，实测 5~8 块时固定 212px 会有小块宽度 <42px 而显示不出名字 */
+  const H = blocks.length <= 4 ? 212 : (blocks.length <= 7 ? 248 : (blocks.length <= 12 ? 288 : 322));
+  el.style.height = H + 'px';
   /* 色深分档基准 = 当日最大单笔（不含基代，见上）；数值最大的块满红/满绿，小一些的依次变浅（文字颜色不随数值变化） */
   const maxK = Math.max(1, Math.max.apply(null, recBlocks.map(function(x) { return +x.kcal || 0; })));
   const rects = treemapLayout(blocks, W, H);
@@ -2307,6 +2311,7 @@ function renderMarketMap() {
       + (isBmr ? '>' : ' onclick="openRecordEdit(\'' + b.id + '\',\'' + b.type + '\')">')
       + (showN ? '<span class="n" style="font-size:' + fsN + 'px;color:' + txtCol + ';margin-top:' + mt + 'px;">' + b.name + '</span>' : '')
       + (isBmr && !hasRec && r.h > 62 ? '<span class="tip" style="color:' + txtCol + ';">去「交易」记一笔<br>云图会亮起来</span>' : '')
+      + (isBmr && hasRec && r.h > 78 && r.w > 116 ? '<span class="tip" style="color:' + txtCol + ';">占总消耗 ' + bmrShare + '%</span>' : '')
       + (showV ? '<span class="v" style="font-size:' + fsV + 'px;color:' + txtCol + ';">' + (isLong ? '+' : '−') + b.kcal
           + '<span style="font-size:' + Math.max(7, fsV - 3) + 'px;">kcal</span></span>' : '')
       + '</div>';
