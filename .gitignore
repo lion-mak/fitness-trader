@@ -12,3 +12,13 @@ node_modules/
 
 # 日志
 *.log
+_demo.html
+promo/raw_*.png
+promo/_edgeprofile*/
+# 状态迁移回归测试的中间产物（state_test.py 生成，无需入库）
+promo/_*.js
+# 宣传图/截图成品与可再生的中间数据（体积大，随时可用脚本重跑）
+promo/*.png
+promo/*.json
+# 内部商业/技术规划文档（含策略信息，不入公开仓库）
+健身交易员-*.md

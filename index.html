@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.29"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.30"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1726,10 +1726,11 @@ function defaultState() {
     usualsHidden: [],    // 被用户移出的自动常吃（不再自动回来）
     usualsGuideSeen: false,
     weightLog: [],       // 真实体重日志（仅记录真实输入，禁止任何模拟数据）：[{ date, weight }]
-    bodyLog: seedBodyLog()  // 身体成分逐次录入日志：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]，供成分详情页折线趋势图
+    bodyLog: []          // 身体成分逐次录入日志（仅真实录入，禁止模拟历史，口径同 diet/exercise/weightLog）：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]
   };
 }
-// demo 用户的身体成分时间序列种子：从「偏胖」平滑改善到当前示例值，使趋势图开箱即有数据
+// 示例序列生成器：⚠️ 仅用于宣传图/demo 注入，**真机首启绝不调用**（趋势史属于记录类数据，必须真实）
+// 注：返回值的六项指标仅由 start/cur 插值决定，**与日期无关** —— 迁移代码据此做「值指纹」识别，清理 v2.7.29 误注入的旧污染
 function seedBodyLog() {
   const today = todayStr();
   const N = 9;                       // 近 8 周、每周一次
@@ -1741,7 +1742,7 @@ function seedBodyLog() {
     const t = i / (N - 1);
     const e = 1 - Math.pow(1 - t, 1.8);   // ease-out：前期改善快、后期趋稳
     const date = addDaysStr(today, -(N - 1 - i) * 7);
-    const entry = { date };
+    const entry = { date, seed: 1 };   // seed 标记：示例数据，用户存档里出现即视为污染，迁移时清理
     keys.forEach(k => {
       const val = start[k] + (cur[k] - start[k]) * e;
       entry[k] = (k === 'visceralFat' || k === 'bodyAge') ? Math.round(val) : Math.round(val * 10) / 10;
@@ -1794,9 +1795,19 @@ function loadState() {
       if (!Array.isArray(merged.weightLog)) merged.weightLog = [];
       // 无历史记录时以当前真实体重作为唯一真实锚点（单点，不构成 K 线历史；非模拟数据）
       if (merged.weightLog.length === 0) merged.weightLog = [{ date: merged.lastDate || k, weight: merged.user.weight }];
-      // v2.7.29 身体成分趋势图：老存档补字段；demo 用户用示例序列填充（真实录入用户保持空，录入后攒点）
+      // v2.7.30 身体成分趋势图：清理 v2.7.29 误注入的示例序列，只保留真实录入
+      // 背景：v2.7.29 的 defaultState() 无差别注入 seedBodyLog()，且 Object.assign 已先填好该字段，
+      // 导致那条「demo 用户才填充」的守卫成为死代码 → 所有用户（含真实录入者）存档里都混入了 9 条伪造数据。
       if (!Array.isArray(merged.bodyLog)) merged.bodyLog = [];
-      if (merged.bodyLog.length === 0 && merged.body && merged.body.source === 'demo') merged.bodyLog = seedBodyLog();
+      {
+        // ① 带 seed 标记的示例点直接剔除
+        let clean = merged.bodyLog.filter(e => e && e.date && !e.seed);
+        // ② 无标记的历史污染点：用 seedBodyLog() 的值指纹识别（四项全等才算，真实数据撞车概率可忽略）
+        const sig = new Set(seedBodyLog().map(e => [e.bmi, e.bodyFat, e.muscleRate, e.waterRate].join('|')));
+        clean = clean.filter(e => !sig.has([e.bmi, e.bodyFat, e.muscleRate, e.waterRate].join('|')));
+        clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+        merged.bodyLog = clean;
+      }
       return merged;
     }
   } catch(e) {}
@@ -3254,15 +3265,32 @@ function bodyLogValue(entry, key, u) {
   if (key === 'fatWeight') return Math.round(u.weight * (entry.bodyFat || 0) / 100 * 2 * 10) / 10;
   return entry[key];
 }
+// 体重日志 → BMI 历史点：BMI = 体重/(身高m)²，用真实体重推算补齐 BMI 的既有历史（纯真实数据推算，非模拟）
+function weightLogBmiPoints() {
+  const h = (state.user.height || 0) / 100;
+  if (!(h > 0)) return [];
+  return (Array.isArray(state.weightLog) ? state.weightLog : [])
+    .filter(p => p && p.date && isFinite(p.weight))
+    .slice(-90)
+    .map(p => ({ date: p.date, bmi: Math.round(p.weight / (h * h) * 10) / 10, derived: 1 }));
+}
 function renderBodyTrend(m, u) {
-  const log = (state.bodyLog && state.bodyLog.length) ? state.bodyLog : [];
-  const vals = log
-    .map(e => ({ date: e.date, v: bodyLogValue(e, m.key, u) }))
+  const real = Array.isArray(state.bodyLog) ? state.bodyLog : [];
+  // BMI 额外并入体重推算点；真实录入点优先，同日不重复
+  let src = real, derivedN = 0;
+  if (m.key === 'bmi') {
+    const have = new Set(real.map(e => e.date));
+    const extra = weightLogBmiPoints().filter(p => !have.has(p.date));
+    derivedN = extra.length;
+    src = real.concat(extra).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  }
+  const vals = src
+    .map(e => ({ date: e.date, v: bodyLogValue(e, m.key, u), d: !!e.derived }))
     .filter(p => p.v != null && isFinite(p.v));
   const n = vals.length;
-  const header = `<div class="h"><div class="ico">📈</div><div class="t">趋势 · 近 ${n} 次记录</div></div>`;
+  const header = `<div class="h"><div class="ico">📈</div><div class="t">趋势 · ${n} 个数据点</div></div>`;
   if (n < 2) {
-    return header + `<div class="empty">录入身体成分后，这里会画出你的变化趋势<br>（同一指标多次测量才会连成线）</div>`;
+    return header + `<div class="empty">身体成分历史从本次版本开始记录，每录入一次攒一个点<br>（同一指标测到 2 次以上才会连成线）</div>`;
   }
   const a = m.axisFn ? m.axisFn(u) : (m.axis || { min: (m.levels ? m.levels[0].min : 0), max: (m.levels ? m.levels[m.levels.length - 1].max : 100) });
   const yMin = a.min, yMax = a.max, span = (yMax - yMin) || 1;
@@ -3288,6 +3316,8 @@ function renderBodyTrend(m, u) {
   const pts = vals.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ');
   const dots = vals.map((p, i) => {
     const last = i === n - 1;
+    // 推算点用空心小圈区分（真实录入点为实心），末点始终高亮为实心
+    if (p.d && !last) return `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(p.v).toFixed(1)}" r="2.2" fill="none" stroke="${curColor}" stroke-width="1.2" opacity="0.5"/>`;
     return `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(p.v).toFixed(1)}" r="${last ? 4 : 2.6}" fill="${curColor}"${last ? ' stroke="#fff" stroke-width="1.6"' : ''}/>`;
   }).join('');
   let xl = '';
@@ -3299,7 +3329,7 @@ function renderBodyTrend(m, u) {
   const lab = `<text x="${Math.min(W - padR - 2, lx).toFixed(1)}" y="${(ly - 8).toFixed(1)}" fill="#fff" font-size="11" text-anchor="end" font-weight="600">${lv}${m.unit}</text>`;
   const d0 = vals[0].v, dN = vals[n - 1].v;
   const dch = +(dN - d0).toFixed(m.tickDec || 1);
-  const deltaStr = `首次 ${d0} → 最新 ${dN}（${dN >= d0 ? '+' : ''}${dch}${m.unit}）`;
+  const deltaStr = `首次 ${d0} → 最新 ${dN}（${dN >= d0 ? '+' : ''}${dch}${m.unit}）${derivedN ? ' · 空心点＝按体重推算' : ''}`;
   const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bands}${grid}<polyline points="${pts}" fill="none" stroke="${curColor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xl}${lab}</svg>`;
   return header + `<div class="sub">${deltaStr}</div>` + svg;
 }
@@ -3336,6 +3366,8 @@ function saveBody() {
   const dk = todayStr();
   if (!Array.isArray(state.bodyLog)) state.bodyLog = [];
   const bodyRec = { date: dk, bmi:b.bmi, bodyFat:b.bodyFat, muscleRate:b.muscleRate, waterRate:b.waterRate, bodyAge:b.bodyAge, visceralFat:b.visceralFat };
+  // 真实录入时彻底剔除示例点（防止同日覆盖后示例值残留），保证趋势图只呈现真实数据
+  state.bodyLog = state.bodyLog.filter(e => e && e.date && !e.seed);
   const lastRec = state.bodyLog[state.bodyLog.length - 1];
   if (lastRec && lastRec.date === dk) Object.assign(lastRec, bodyRec);
   else state.bodyLog.push(bodyRec);
