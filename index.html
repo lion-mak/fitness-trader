@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.28"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.29"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -356,15 +356,13 @@ body {
 .bd-ai { background:#141b2d; border:1px solid var(--border); border-radius:16px; padding:16px; margin:14px 14px 0; color:var(--muted2); font-size:13px; line-height:1.7; }
 .bd-ai p { margin:0; }
 .bd-ai p + p { margin-top:12px; }
-.bd-expert { margin:14px 14px 0; }
-.bd-expert .h { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-.bd-expert .h .ico { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#e8f4ff,#c8e6ff); display:flex; align-items:center; justify-content:center; font-size:18px; }
-.bd-expert .h .t { font-size:15px; font-weight:500; }
-.bd-tip { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:10px; }
-.bd-tip .hd { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; }
-.bd-tip .hd .bulb { width:22px; height:22px; border-radius:50%; background:#0d2335; color:#88c8fa; display:flex; align-items:center; justify-content:center; font-size:12px; }
-.bd-tip .hd .star { margin-left:auto; color:var(--muted); font-size:16px; }
-.bd-tip .d { color:var(--muted2); font-size:12px; margin-top:6px; line-height:1.6; }
+.bd-trend { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; margin:14px 14px 0; }
+.bd-trend .h { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.bd-trend .h .ico { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#e6fff4,#c8f5e0); display:flex; align-items:center; justify-content:center; font-size:18px; }
+.bd-trend .h .t { font-size:15px; font-weight:500; }
+.bd-trend .sub { font-size:11px; color:var(--muted2); margin:-4px 0 8px; }
+.bd-trend svg { width:100%; display:block; }
+.bd-trend .empty { color:var(--muted); font-size:13px; text-align:center; padding:24px 0; line-height:1.7; }
 
 /* 食物分类 Tab */
 .food-cats { display:flex; gap:8px; padding:12px 0 0; overflow-x:auto; scrollbar-width:none; }
@@ -925,7 +923,7 @@ body {
       <div class="bd-tabs" id="bd-tabs" data-page-node-id="Q9mLG9QkSy5RacAGr8dW4S"></div>
       <div class="bd-card" id="bd-card" data-page-node-id="OGOYfVL8BYIYI5FH3JMKTp"></div>
       <div class="bd-ai" id="bd-ai" data-page-node-id="DpuvjrcL5K8s5wMMHBaCbC"></div>
-      <div class="bd-expert" id="bd-expert" data-page-node-id="LIkMXee3dwbrlEatGCQBBy"></div>
+      <div class="bd-trend" id="bd-trend" data-page-node-id="LIkMXee3dwbrlEatGCQBBy"></div>
     </section>
 
     <!-- ============ 涨停仪式 ============ -->
@@ -1727,8 +1725,30 @@ function defaultState() {
     foodFreq: {},        // 自动统计：{ 食物名: { days:[日期...], n:次数, last:日期, cat, kcal, unit, gram } }
     usualsHidden: [],    // 被用户移出的自动常吃（不再自动回来）
     usualsGuideSeen: false,
-    weightLog: []        // 真实体重日志（仅记录真实输入，禁止任何模拟数据）：[{ date, weight }]
+    weightLog: [],       // 真实体重日志（仅记录真实输入，禁止任何模拟数据）：[{ date, weight }]
+    bodyLog: seedBodyLog()  // 身体成分逐次录入日志：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]，供成分详情页折线趋势图
   };
+}
+// demo 用户的身体成分时间序列种子：从「偏胖」平滑改善到当前示例值，使趋势图开箱即有数据
+function seedBodyLog() {
+  const today = todayStr();
+  const N = 9;                       // 近 8 周、每周一次
+  const start = { bmi:25.1, bodyFat:24.1, muscleRate:39.4, waterRate:52.8, bodyAge:34, visceralFat:13 };
+  const cur   = { bmi:22.4, bodyFat:18.2, muscleRate:42.5, waterRate:55.8, bodyAge:28, visceralFat:8 };
+  const keys = ['bmi','bodyFat','muscleRate','waterRate','bodyAge','visceralFat'];
+  const log = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const e = 1 - Math.pow(1 - t, 1.8);   // ease-out：前期改善快、后期趋稳
+    const date = addDaysStr(today, -(N - 1 - i) * 7);
+    const entry = { date };
+    keys.forEach(k => {
+      const val = start[k] + (cur[k] - start[k]) * e;
+      entry[k] = (k === 'visceralFat' || k === 'bodyAge') ? Math.round(val) : Math.round(val * 10) / 10;
+    });
+    log.push(entry);
+  }
+  return log;
 }
 function loadState() {
   try {
@@ -1774,6 +1794,9 @@ function loadState() {
       if (!Array.isArray(merged.weightLog)) merged.weightLog = [];
       // 无历史记录时以当前真实体重作为唯一真实锚点（单点，不构成 K 线历史；非模拟数据）
       if (merged.weightLog.length === 0) merged.weightLog = [{ date: merged.lastDate || k, weight: merged.user.weight }];
+      // v2.7.29 身体成分趋势图：老存档补字段；demo 用户用示例序列填充（真实录入用户保持空，录入后攒点）
+      if (!Array.isArray(merged.bodyLog)) merged.bodyLog = [];
+      if (merged.bodyLog.length === 0 && merged.body && merged.body.source === 'demo') merged.bodyLog = seedBodyLog();
       return merged;
     }
   } catch(e) {}
@@ -3218,15 +3241,67 @@ function renderBodyDetail() {
     <p>${m.know ? m.know(v, u, b) : ''}</p>
   `;
 
-  document.getElementById('bd-expert').innerHTML = `
-    <div class="h"><div class="ico">👩‍⚕️</div><div class="t">专家建议</div></div>
-    ${m.tips.map(tip => `
-      <div class="bd-tip">
-        <div class="hd"><div class="bulb">💡</div><span>${tip.t}</span><span class="star">☆</span></div>
-        <div class="d">${tip.d}</div>
-      </div>
-    `).join('')}
-  `;
+  document.getElementById('bd-trend').innerHTML = renderBodyTrend(m, u);
+}
+
+// 身体成分详情页 · 折线趋势图（替代原「专家建议」模块）：看单指标随时间的细项变化
+function bodyLogValue(entry, key, u) {
+  if (key === 'bmr') {
+    const bf = entry.bodyFat || 0;
+    if (bf > 0) return Math.round(370 + 21.6 * (u.weight * (1 - bf / 100)));
+    return u.gender === 'female' ? 1200 : 1400;
+  }
+  if (key === 'fatWeight') return Math.round(u.weight * (entry.bodyFat || 0) / 100 * 2 * 10) / 10;
+  return entry[key];
+}
+function renderBodyTrend(m, u) {
+  const log = (state.bodyLog && state.bodyLog.length) ? state.bodyLog : [];
+  const vals = log
+    .map(e => ({ date: e.date, v: bodyLogValue(e, m.key, u) }))
+    .filter(p => p.v != null && isFinite(p.v));
+  const n = vals.length;
+  const header = `<div class="h"><div class="ico">📈</div><div class="t">趋势 · 近 ${n} 次记录</div></div>`;
+  if (n < 2) {
+    return header + `<div class="empty">录入身体成分后，这里会画出你的变化趋势<br>（同一指标多次测量才会连成线）</div>`;
+  }
+  const a = m.axisFn ? m.axisFn(u) : (m.axis || { min: (m.levels ? m.levels[0].min : 0), max: (m.levels ? m.levels[m.levels.length - 1].max : 100) });
+  const yMin = a.min, yMax = a.max, span = (yMax - yMin) || 1;
+  const W = 320, H = 190, padL = 10, padR = 10, padT = 18, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yOf = v => padT + (1 - (Math.min(yMax, Math.max(yMin, v)) - yMin) / span) * plotH;
+  const xOf = i => padL + (n === 1 ? plotW / 2 : i / (n - 1) * plotW);
+  const levels = resolveLevels(m, u);
+  // 参考等级色带（与子页分段色轴同一套配色），折线叠在其上
+  let bands = '';
+  levels.forEach(l => {
+    const lo = Math.max(l.min, yMin), hi = Math.max(lo, Math.min(l.max, yMax));
+    if (hi <= lo) return;
+    const yTop = yOf(hi), yBot = yOf(lo);
+    bands += `<rect x="${padL}" y="${yTop.toFixed(1)}" width="${plotW}" height="${(yBot - yTop).toFixed(1)}" fill="${l.color}" opacity="0.12"/>`;
+  });
+  const grid = `
+    <line x1="${padL}" y1="${yOf(yMax).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(yMax).toFixed(1)}" stroke="rgba(255,255,255,0.08)"/>
+    <line x1="${padL}" y1="${yOf(yMin).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(yMin).toFixed(1)}" stroke="rgba(255,255,255,0.08)"/>
+    <text x="${padL + 2}" y="${(yOf(yMax) + 10).toFixed(1)}" fill="#6b7690" font-size="9">${fmtTick(m, yMax)}</text>
+    <text x="${padL + 2}" y="${(yOf(yMin) - 3).toFixed(1)}" fill="#6b7690" font-size="9">${fmtTick(m, yMin)}</text>`;
+  const curColor = (findMetricLevel(m, bodyValue(m.key), u) || levels[levels.length - 1]).color;
+  const pts = vals.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ');
+  const dots = vals.map((p, i) => {
+    const last = i === n - 1;
+    return `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(p.v).toFixed(1)}" r="${last ? 4 : 2.6}" fill="${curColor}"${last ? ' stroke="#fff" stroke-width="1.6"' : ''}/>`;
+  }).join('');
+  let xl = '';
+  const idxs = n >= 3 ? [0, Math.floor((n - 1) / 2), n - 1] : [0, n - 1];
+  idxs.forEach(i => {
+    xl += `<text x="${xOf(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" fill="#6b7690" font-size="9" text-anchor="middle">${vals[i].date.slice(5).replace('-', '/')}</text>`;
+  });
+  const lv = vals[n - 1].v, lx = xOf(n - 1), ly = yOf(lv);
+  const lab = `<text x="${Math.min(W - padR - 2, lx).toFixed(1)}" y="${(ly - 8).toFixed(1)}" fill="#fff" font-size="11" text-anchor="end" font-weight="600">${lv}${m.unit}</text>`;
+  const d0 = vals[0].v, dN = vals[n - 1].v;
+  const dch = +(dN - d0).toFixed(m.tickDec || 1);
+  const deltaStr = `首次 ${d0} → 最新 ${dN}（${dN >= d0 ? '+' : ''}${dch}${m.unit}）`;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bands}${grid}<polyline points="${pts}" fill="none" stroke="${curColor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xl}${lab}</svg>`;
+  return header + `<div class="sub">${deltaStr}</div>` + svg;
 }
 
 function openBodyEdit() {
@@ -3257,6 +3332,13 @@ function saveBody() {
   b.source = ocrFilled ? 'sync' : 'manual';
   ocrFilled = false;
   b.syncedAt = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+  // 追加本次录入到身体成分日志（同一天则覆盖当天样本，便于趋势图反映最新值）
+  const dk = todayStr();
+  if (!Array.isArray(state.bodyLog)) state.bodyLog = [];
+  const bodyRec = { date: dk, bmi:b.bmi, bodyFat:b.bodyFat, muscleRate:b.muscleRate, waterRate:b.waterRate, bodyAge:b.bodyAge, visceralFat:b.visceralFat };
+  const lastRec = state.bodyLog[state.bodyLog.length - 1];
+  if (lastRec && lastRec.date === dk) Object.assign(lastRec, bodyRec);
+  else state.bodyLog.push(bodyRec);
   closeBodyEdit();
   render();
 }
