@@ -17,6 +17,9 @@ promo/raw_*.png
 promo/_edgeprofile*/
 # 状态迁移回归测试的中间产物（state_test.py 生成，无需入库）
 promo/_*.js
+# 端到端验收测试的临时页与浏览器 profile（e2e_test.py 生成）
+_e2e.html
+promo/_e2eprofile*/
 # 宣传图/截图成品与可再生的中间数据（体积大，随时可用脚本重跑）
 promo/*.png
 promo/*.json

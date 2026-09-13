@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.30"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.31"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -50,11 +50,6 @@ body {
 .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
 .card-title .t { font-size:13px; font-weight:500; }
 .card-title .m { color:var(--muted); font-size:11px; }
-.balance { margin:10px 14px 0; padding:16px; background:var(--panel); border-radius:18px; border:1px solid var(--border); display:flex; align-items:center; gap:18px; }
-.balance .rows { flex:1; }
-.balance .r { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-size:12px; }
-.balance .r:last-child { border-bottom:none; }
-.balance .r .k { color:var(--muted); }
 .net { margin:10px 14px 0; padding:13px 16px; border-radius:14px; display:flex; justify-content:space-between; align-items:center; }
 .net .lbl { font-size:11px; opacity:0.85; }
 .net .val { font-size:26px; font-weight:600; line-height:1.1; }
@@ -298,9 +293,6 @@ body {
 .stepper button { width:40px; height:40px; background:var(--panel); border:none; color:#fff; font-size:18px; cursor:pointer; }
 .stepper button:hover { background:var(--border); }
 .stepper .num { width:56px; text-align:center; font-size:16px; font-weight:500; }
-.meal-row { display:flex; gap:8px; margin-top:14px; }
-.meal { flex:1; padding:8px; text-align:center; border-radius:8px; background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:12px; cursor:pointer; }
-.meal.on { background:var(--red); border-color:var(--red); color:#fff; }
 .intensity-row { display:flex; gap:8px; margin-top:14px; }
 .intensity { flex:1; padding:10px; text-align:center; border-radius:8px; background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:12px; cursor:pointer; }
 .intensity.on { background:var(--green); border-color:var(--green); color:#0a1a15; }
@@ -408,6 +400,13 @@ body {
 .ma-legend { display:flex; align-items:center; gap:14px; margin-top:10px; font-size:10px; }
 .ma-legend .ma7 { color:var(--amber); }
 .ma-legend .ma30 { color:var(--blue); }
+/* 体重 K 线 · 悬浮数据标签（容器需 relative，标签绝对定位跟随光标） */
+#kline { position:relative; }
+.kline-tip { display:none; position:absolute; z-index:60; transform:translate(-50%,-104%); background:rgba(16,22,38,.97); border:1px solid rgba(255,184,0,.38); border-radius:8px; padding:7px 10px; pointer-events:none; white-space:nowrap; box-shadow:0 6px 20px rgba(0,0,0,.5); }
+.kline-tip.below { transform:translate(-50%,0); }
+.kline-tip .kt-d { font-size:11px; color:#9aa8be; margin-bottom:4px; }
+.kline-tip .kt-row { display:flex; justify-content:space-between; gap:16px; font-size:11px; color:#7c8aa5; line-height:1.65; }
+.kline-tip .kt-row b { color:#fff; font-weight:500; font-variant-numeric:tabular-nums; }
 /* 体重快速记录 */
 /* 记录今日体重 = 迷你胶囊按钮，与 MA7/MA30 图例同一行右对齐，省掉原来一整行独立按钮 */
 .kw-mini { margin-left:auto; display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border:1px dashed var(--border); border-radius:99px; background:rgba(90,200,250,.06); color:var(--blue); font-size:10px; line-height:1.6; cursor:pointer; white-space:nowrap; }
@@ -544,21 +543,7 @@ body {
         <div class="reset" onclick="resetAll()" data-page-node-id="tCHcd9OSjcCQGQXIyqhCPc">↺ 重置</div>
       </div>
 
-      <div class="balance" data-page-node-id="wWpR9XX1CvdOaDPVuKAIkU">
-        <svg width="104" height="104" viewBox="0 0 120 120" id="ring" data-page-node-id="n07r6sGHuARrMnnZJEpZev">
-          <circle cx="60" cy="60" r="48" stroke="#1f2638" stroke-width="12" fill="none" data-page-node-id="0G98GhBqS8TFdoO9rDPnr1"/>
-          <circle id="ring-fill" cx="60" cy="60" r="48" stroke="#2a3142" stroke-width="12" fill="none" stroke-linecap="round" transform="rotate(-90 60 60)" data-page-node-id="OnAlsjA8iYIMyB1qsNeXln"/>
-          <text id="ring-num" x="60" y="52" text-anchor="middle" fill="#fff" font-size="20" font-weight="500" data-page-node-id="7UNXbekApUgcmk3qHdK0TM">0</text>
-          <text id="ring-sub" x="60" y="70" text-anchor="middle" fill="#5a6478" font-size="9" data-page-node-id="cWOlZCUFlRFb4dBdivWp8h">摄入 / 预算</text>
-        </svg>
-        <div class="rows" data-page-node-id="ZHyFVOBzl1qqpiWDTQ03c7">
-          <div class="r" data-page-node-id="1oZWSviE7AvwN9b79LQTCr"><span class="k" data-page-node-id="4prV4OAk7tCEEWVmlH56p3">摄入</span><span id="m-intake" style="color:var(--red);" data-page-node-id="OGhBW5kdbD0dqJhDtpkhiZ">+0</span></div>
-          <div class="r" data-page-node-id="6HH5D5VA5V4zEKF8UT25GL"><span class="k" data-page-node-id="jvpZqSIyFxVhFNoL3ZUmCf">运动消耗</span><span id="m-burn" style="color:var(--green);" data-page-node-id="5IB9c45LJCOhjSm5jBQgTp">-0</span></div>
-          <div class="r" data-page-node-id="iv9v2DvRfmIEABzZjtHCHv"><span class="k" data-page-node-id="EquI5x5aV4dXFSC5ttoQXF">基础代谢</span><span id="m-bmr" style="color:var(--blue);" data-page-node-id="qeqIFJNlOYNq8R8dcyC5XS">-0</span></div>
-        </div>
-      </div>
-
-      <!-- 体重 K 线 -->
+      <!-- 体重 K 线（行情页首块） -->
       <div class="card" data-page-node-id="55LDeXTNDoQVJnEJu3EAHY">
         <div class="card-title" data-page-node-id="KLOsFIfybJxDojoyzE3zHz"><span class="t" data-page-node-id="ESuZKTSC5FpqMHGu5dOvjF">自营 · 体重 K 线</span><div class="kline-title-right"><span class="m" id="kline-weight" data-page-node-id="7eSa0rSoY3YJfTvMMPEbx2">-- kg</span><div class="kline-tabs" id="kline-tabs" data-page-node-id="JPKlineTabs"><div class="kline-tab on" data-p="d" onclick="switchKlinePeriod('d')">日K</div><div class="kline-tab" data-p="w" onclick="switchKlinePeriod('w')">周K</div><div class="kline-tab" data-p="m" onclick="switchKlinePeriod('m')">月K</div><div class="kline-tab" data-p="q" onclick="switchKlinePeriod('q')">季K</div></div></div></div>
         <div id="kline" data-page-node-id="Q0O5zqNz65Oq2qIeQRS3l9"></div>
@@ -1012,12 +997,6 @@ body {
         <div class="field" style="margin-top:12px;"><label>记录时间</label><input id="fs-time" type="time" step="60"></div>
         <div style="color:var(--muted);font-size:11px;margin-top:-4px;line-height:1.5;">默认此刻；忘记记的补录到真实时间，分时图按这个点落线</div>
 
-        <div class="meal-row" id="fs-meals" data-page-node-id="54P44fCVroJ9rd1LQlLmdk">
-          <div class="meal on" data-meal="早餐" data-page-node-id="cpl1FQdqU4D1y6nkbrkszo">早餐</div>
-          <div class="meal" data-meal="午餐" data-page-node-id="SgR0QSDFDjBNXKrYQF1nHF">午餐</div>
-          <div class="meal" data-meal="晚餐" data-page-node-id="4ldna9Or17V4NAnpde9b3b">晚餐</div>
-          <div class="meal" data-meal="加餐" data-page-node-id="PVyr9Cky9eDl82MXqyAeHc">加餐</div>
-        </div>
         <button class="confirm buy" onclick="addFood()" id="fs-confirm" data-page-node-id="NZ58CiH4R7HsiWhyKNkOVu">确认摄入 -- kcal</button>
       </div>
     </div>
@@ -2075,9 +2054,8 @@ function badgeIcon(type) {
 function render() {
   const t = totals();
   const u = state.user;
-  const C = 2 * Math.PI * 48;
-
   // 更新成就条件状态（解锁 + 发奖）
+  // 幂等：state.ach[id] 一旦置 true 即持久化，重复 render 不会二次发奖
   state.gapToday = t.net <= state.user.target && t.net < 0;
   if (t.net > 0) state.maxOverage = Math.max(state.maxOverage || 0, t.net); // 历史单日最大净超标（爆仓成就）
   const achQueue = [];
@@ -2105,19 +2083,8 @@ function render() {
   }
   const unlocked = ACHIEVEMENTS.filter(a => state.ach[a.id]).length;
 
-  // 环形图
-  let ratio = t.budget > 0 ? t.intake / t.budget : 0;
-  ratio = Math.min(Math.max(ratio, 0), 1);
-  const fill = document.getElementById('ring-fill');
-  fill.setAttribute('stroke-dasharray', C);
-  fill.setAttribute('stroke-dashoffset', C * (1 - ratio));
-  // 摄入环色：今天有摄入记录 → 红（摄入=做多）；完全没记录 → 中性灰
-  fill.setAttribute('stroke', t.intake > 0 ? '#ff3b47' : '#2a3142');
-  document.getElementById('ring-num').textContent = t.intake;
-  document.getElementById('ring-sub').textContent = '摄入 / ' + t.budget;
-  document.getElementById('m-intake').textContent = '+' + t.intake;
-  document.getElementById('m-burn').textContent = '-' + t.burn;
-  document.getElementById('m-bmr').textContent = '-' + t.bmr;
+  // 顶部摄入圆环模块已移除（2026-09 需求）：不再操作 ring-* / m-intake / m-burn / m-bmr
+  // （摄入/消耗/基代数据改由「大盘云图」「分时图」「持仓」呈现）
 
   // 交易页今日板块（显示当前数据归属日期）
   const dEl = document.getElementById('sector-date');
@@ -2202,11 +2169,12 @@ function render() {
   renderBodyViz();
   renderBmrBox();
 
-  // 涨停触发
-  if (t.net <= u.target && !state.celebFired && (todayDiet().length || todayExercise().length)) {
-    const ky = todayStr(), yy = dayOffset(-1);
-    if (state.lastLimitUpDate === yy) state.limitUpStreak = (state.limitUpStreak || 0) + 1;
-    else state.limitUpStreak = 1;
+  // 涨停触发：**每日最多发放一次**
+  // 幂等锚点改用 lastLimitUpDate（日期）而不是布尔 flag —— 布尔 flag 曾被记录流程反复重置，
+  // 造成「每记一笔就重复 +200 币 + 重复弹涨停动画」（记 8 笔 = 8×200），并把连板计数反复清回 1。
+  const ky = todayStr();
+  if (t.net <= u.target && state.lastLimitUpDate !== ky && (todayDiet().length || todayExercise().length)) {
+    state.limitUpStreak = (state.lastLimitUpDate === dayOffset(-1)) ? (state.limitUpStreak || 0) + 1 : 1;
     state.lastLimitUpDate = ky;
     state.celebFired = true;
     state.limitUpCount++;
@@ -3531,6 +3499,83 @@ function aggregateWeight(log, period){
   });
 }
 
+/* 体重 K 线 · 悬浮数据标签（鼠标悬停 / 手指拖动 → 显示该根K线的日期与开收高低、MA 数值）
+   口径对齐「历史成交」的交互，但命中方式改为「按最近的柱吸附」：
+   日K 数据多时槽宽仅 3px，用 elementFromPoint 命中窄柱在触屏上不可用，故改为按指针 X 换算最近索引 */
+let klineGeom = null;
+const KLINE_PERIOD_NAME = { d: '日K', w: '周K', m: '月K', q: '季K' };
+function klineDateText(dateStr, period) {
+  const s = String(dateStr || '');
+  const tag = KLINE_PERIOD_NAME[period] || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const wd = ['周日','周一','周二','周三','周四','周五','周六'][new Date(s + 'T00:00:00').getDay()];
+  return s + ' ' + wd + (period && period !== 'd' ? ' · ' + tag : '');
+}
+function bindKlineTip(chart) {
+  if (!chart || chart.dataset.klineTipBound) return;   // 容器监听只绑一次（innerHTML 重绘不影响容器自身）
+  chart.dataset.klineTipBound = '1';
+  const show = function(cx, cy) {
+    const tip = document.getElementById('kline-tip');
+    const cross = document.getElementById('kline-cross');
+    const dot = document.getElementById('kline-dot');
+    const g = klineGeom;
+    if (!tip || !g) return;
+    const svgEl = chart.querySelector('svg');
+    if (!svgEl) return;
+    const sr = svgEl.getBoundingClientRect();
+    const cr = chart.getBoundingClientRect();
+    if (!sr.width || !g.slotW) return;
+    const scale = sr.width / g.W;
+    // 指针 X → viewBox X → 最近的数据索引（触屏手指粗也能精确取到值）
+    const vx = (cx - sr.left) / scale;
+    let idx = Math.round((vx - g.PAD_L - g.slotW / 2) / g.slotW);
+    idx = Math.max(0, Math.min(g.bars.length - 1, idx));
+    const b = g.bars[idx];
+    if (!b) return;
+    const sx = g.PAD_L + idx * g.slotW + g.slotW / 2;
+    const pyv = g.y(b.c);
+    if (cross) { cross.setAttribute('x1', sx); cross.setAttribute('x2', sx); cross.style.display = ''; }
+    if (dot) { dot.setAttribute('cx', sx); dot.setAttribute('cy', pyv); dot.style.display = ''; }
+    const up = b.c < b.o;                                  // 体重降=涨（绿），升=跌（红）
+    const hi = (b.h != null) ? b.h : Math.max(b.o, b.c);
+    const lo = (b.l != null) ? b.l : Math.min(b.o, b.c);
+    const chg = +(b.c - b.o).toFixed(1);
+    const m7 = g.ma7[idx], m30 = g.ma30[idx];
+    const col = up ? '#5ee0c0' : '#ff8a93';
+    tip.innerHTML =
+        '<div class="kt-d">' + klineDateText(b.date, g.period) + '</div>'
+      + '<div class="kt-row"><span>收</span><b style="color:' + col + '">' + b.c.toFixed(1) + ' kg</b></div>'
+      + '<div class="kt-row"><span>开</span><b>' + b.o.toFixed(1) + '</b></div>'
+      + '<div class="kt-row"><span>高 / 低</span><b>' + hi.toFixed(1) + ' / ' + lo.toFixed(1) + '</b></div>'
+      + '<div class="kt-row"><span>较上期</span><b style="color:' + col + '">' + (chg > 0 ? '+' : '') + chg + ' kg</b></div>'
+      + '<div class="kt-row"><span>MA7</span><b style="color:#ffb800">' + (m7 == null ? '--' : m7.toFixed(2)) + '</b></div>'
+      + '<div class="kt-row"><span>MA30</span><b style="color:#5ac8fa">' + (m30 == null ? '--' : m30.toFixed(2)) + '</b></div>';
+    // 先显示再量宽度，避免 offsetWidth 为 0 导致首次定位跳动
+    tip.style.display = 'block';
+    const half = tip.offsetWidth / 2;
+    const px = (sr.left - cr.left) + sx * scale;
+    const py = (sr.top - cr.top) + pyv * scale;
+    tip.style.left = Math.max(half + 2, Math.min(cr.width - half - 2, px)) + 'px';
+    const flip = py < 140;                                 // 贴近顶部则翻到光标下方
+    tip.classList.toggle('below', flip);
+    tip.style.top = (flip ? py + 14 : py) + 'px';
+  };
+  const hide = function() {
+    const tip = document.getElementById('kline-tip');
+    const cross = document.getElementById('kline-cross');
+    const dot = document.getElementById('kline-dot');
+    if (tip) tip.style.display = 'none';
+    if (cross) cross.style.display = 'none';
+    if (dot) dot.style.display = 'none';
+  };
+  chart.addEventListener('pointermove', function(e) { show(e.clientX, e.clientY); });
+  chart.addEventListener('pointerdown', function(e) { show(e.clientX, e.clientY); });
+  chart.addEventListener('pointerleave', hide);
+  chart.addEventListener('pointercancel', hide);
+  chart.addEventListener('touchstart', function(e) { const p = e.touches[0]; if (p) show(p.clientX, p.clientY); }, { passive: true });
+  chart.addEventListener('touchmove', function(e) { const p = e.touches[0]; if (p) { e.preventDefault(); show(p.clientX, p.clientY); } }, { passive: false });
+  chart.addEventListener('touchend', hide);
+}
 function renderKline() {
   const u = state.user;
   const log = state.weightLog || [];
@@ -3543,6 +3588,9 @@ function renderKline() {
     document.getElementById('kline').innerHTML =
       '<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#5a6478;'
       + 'font-size:12px;text-align:center;line-height:1.7;">' + msg + '</div>';
+    const l7n = document.getElementById('ma7-lab'), l30n = document.getElementById('ma30-lab');
+    if (l7n) l7n.textContent = '● MA7 --';
+    if (l30n) l30n.textContent = '● MA30 --';
     return;
   }
   const period = state.klinePeriod || 'd';
@@ -3557,6 +3605,12 @@ function renderKline() {
   const closes = bars.map(b => b.c);
   const ma = (p) => closes.map((_, i) => i >= p-1 ? +(closes.slice(i-p+1, i+1).reduce((s,x)=>s+x,0)/p).toFixed(2) : null);
   const ma7 = ma(7), ma30 = ma(30);
+  // MA 图例：显示最新一根的均线数值（数据不足该周期则显示 --）
+  const lastMA = arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; };
+  const m7v = lastMA(ma7), m30v = lastMA(ma30);
+  const l7el = document.getElementById('ma7-lab'), l30el = document.getElementById('ma30-lab');
+  if (l7el) l7el.textContent = '● MA7 ' + (m7v == null ? '--' : m7v.toFixed(2));
+  if (l30el) l30el.textContent = '● MA30 ' + (m30v == null ? '--' : m30v.toFixed(2));
   let min, max;
   if (period === 'd') {
     min = Math.min.apply(null, closes); max = Math.max.apply(null, closes);
@@ -3614,8 +3668,15 @@ function renderKline() {
     svg += '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + bodyH.toFixed(1) + '" fill="' + color + '"/>';
   });
   svg += '<line x1="' + PAD_L + '" y1="' + (H - PAD_B) + '" x2="' + (W - PAD_R) + '" y2="' + (H - PAD_B) + '" stroke="#2a3348" stroke-width="1"/>';
+  // 十字光标（仅悬浮时显示）
+  svg += '<line id="kline-cross" x1="' + PAD_L + '" y1="' + PAD_T + '" x2="' + PAD_L + '" y2="' + (H - PAD_B) + '" stroke="#7c8aa5" stroke-width="0.7" stroke-dasharray="3 3" style="display:none"/>';
+  svg += '<circle id="kline-dot" cx="0" cy="0" r="2.8" fill="#fff" stroke="#0a0e1a" stroke-width="1" style="display:none"/>';
   svg += '</svg>';
-  document.getElementById('kline').innerHTML = svg;
+  const klineEl = document.getElementById('kline');
+  klineEl.innerHTML = svg + '<div class="kline-tip" id="kline-tip"></div>';
+  // 缓存本次渲染几何，供悬浮标签把指针坐标换算成数据索引（不依赖窄命中区）
+  klineGeom = { W: W, H: H, PAD_L: PAD_L, PAD_T: PAD_T, PAD_B: PAD_B, slotW: slotW, period: period, bars: bars, ma7: ma7, ma30: ma30, y: y };
+  bindKlineTip(klineEl);
 }
 
 function renderTrend() {
@@ -4127,7 +4188,7 @@ function usualItemHTML(u) {
 }
 
 /* ============ 饮食交互 ============ */
-let curFood = null, curQty = 1, curMeal = '早餐', curFoodCat = '全部', curFoodMode = '份', curPickMode = false;
+let curFood = null, curQty = 1, curFoodCat = '全部', curFoodMode = '份', curPickMode = false;
 
 function estimateGramPerUnit(unit, name) {
   if (unit.includes('g')) return parseInt(unit) || 100;
@@ -4256,13 +4317,22 @@ function gramsPerUnit(food) {
   if (food && food.gram) return food.gram;
   return estimateGramPerUnit(food ? food.unit : '份', food ? food.name : '');
 }
-let fsTimeTouched = false;                       /* 用户是否手动改过时间（改过就不再被餐次建议覆盖） */
-const MEAL_SUGGEST_HM = { '早餐': '08:00', '午餐': '12:00', '晚餐': '18:30', '加餐': '15:00' };
+/* 餐次改为按记录时间自动推断（原早餐/午餐/晚餐/加餐选择模块已按需求移除），
+   仍写入 meal 字段，保证「今日成交」列表与既有存档显示口径不变 */
+function mealFromHM(hm) {
+  const m = String(hm || '').match(/(\d{1,2}):(\d{2})/);
+  const h = m ? parseInt(m[1], 10) : new Date().getHours();
+  if (h < 5) return '加餐';
+  if (h < 11) return '早餐';
+  if (h < 15) return '午餐';
+  if (h < 21) return '晚餐';
+  return '加餐';
+}
 function openFoodSheet(encName) {
   const name = decodeURIComponent(encName);
   curFood = FoodStore.byName(name);
   if (!curFood) return;
-  curQty = 1; curMeal = '早餐'; curFoodMode = '份';
+  curQty = 1; curFoodMode = '份';
   document.getElementById('food-search-sheet').classList.remove('show');
   // 名称后要拼接来源徽标（HTML），必须用 innerHTML，用 textContent 会把标签当纯文本显示
   document.getElementById('fs-name').innerHTML = curFood.name + srcBadge(curFood.src);
@@ -4270,9 +4340,7 @@ function openFoodSheet(encName) {
   document.getElementById('fs-qty').textContent = curQty;
   document.getElementById('fs-gram').value = gramsPerUnit(curFood);
   document.getElementById('fs-kcal-manual').value = '';
-  fsTimeTouched = false;
   document.getElementById('fs-time').value = nowHM();
-  document.querySelectorAll('#fs-meals .meal').forEach(m => m.classList.toggle('on', m.dataset.meal === curMeal));
   switchFoodMode('份');
   renderFsUsual();
   updateFoodConfirm();
@@ -4291,17 +4359,6 @@ function switchFoodMode(mode) {
   updateFoodConfirm();
 }
 function stepQty(d) { curQty = Math.max(0.5, +(curQty + d).toFixed(1)); document.getElementById('fs-qty').textContent = curQty; updateFoodConfirm(); }
-document.querySelectorAll('#fs-meals .meal').forEach(m => {
-  m.addEventListener('click', function() {
-    curMeal = this.dataset.meal;
-    document.querySelectorAll('#fs-meals .meal').forEach(x => x.classList.remove('on'));
-    this.classList.add('on');
-    // 选餐次时给出该餐的建议时间（补录场景），用户手动改过时间则不覆盖
-    const tEl = document.getElementById('fs-time');
-    if (tEl && !fsTimeTouched && MEAL_SUGGEST_HM[curMeal]) tEl.value = MEAL_SUGGEST_HM[curMeal];
-  });
-});
-document.getElementById('fs-time').addEventListener('input', function() { fsTimeTouched = true; });
 document.getElementById('fs-gram').addEventListener('input', updateFoodConfirm);
 document.getElementById('fs-kcal-manual').addEventListener('input', updateFoodConfirm);
 function curFoodGrams() {
@@ -4337,13 +4394,12 @@ function addFood() {
   const kcal = manual != null ? manual : Math.round(nut.kcal);
   let qtyText = curFoodMode === '克' ? g + 'g' : curQty + curFood.unit;
   state.diet.push({ id:'f'+Date.now(), date: todayStr(), name:curFood.name, unit:curFood.unit, qty:curQty, kcal:kcal,
-    p:Math.round(nut.p), f:Math.round(nut.f), c:Math.round(nut.c), meal:curMeal,
+    p:Math.round(nut.p), f:Math.round(nut.f), c:Math.round(nut.c), meal:mealFromHM(pickHM('fs-time')),
     time: pickHM('fs-time'), ts: tsFromHM(pickHM('fs-time')), mode:curFoodMode,
     gram: curFoodMode==='克'?g:null, displayQty:qtyText, src:curFood.src, manualKcal: manual != null });
   bumpFoodFreq(curFood);   // 供「我的常吃」自动收录统计
   awardRecordCoins('food');
   bumpStreak();
-  state.celebFired = false;
   closeFoodSheet(); render();
 }
 function toggleCustomFood() {
@@ -4490,7 +4546,6 @@ function addExercise() {
     avgHr: curAvgHr, method: r.method, manualKcal: manual != null, time: pickHM('es-time'), ts: tsFromHM(pickHM('es-time')) });
   awardRecordCoins('ex');
   bumpStreak();
-  state.celebFired = false;
   closeExSheet(); render();
 }
 function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }
@@ -4560,7 +4615,6 @@ function saveQuickWeight() {
   if (!isFinite(v) || v < 20 || v > 300) { try { toast('请输入 20~300 之间的体重（kg）'); } catch(e) {} return; }
   state.user.weight = Math.round(v * 10) / 10;
   recordWeight();
-  state.celebFired = false;
   closeQuickWeight();
   render();
   try { toastInfo('✓ 已记录今日体重 ' + state.user.weight + ' kg'); } catch(e) {}
@@ -4602,7 +4656,6 @@ function saveProfile() {
   state.user.activity = document.getElementById('f-act').value || 'sedentary';
   state.user.target = parseInt(document.getElementById('f-target').value) || -500;
   recordWeight();   // 每次保存档案即写入一条真实体重日志
-  state.celebFired = false;
   render(); switchTab('market');
   var note = '基础代谢 BMR 重算为 ' + calcBMR() + ' kcal/天（公式：' + (NutritionEngine.bmr(getUserProfile()).primaryName) + '）';
   alert('身体档案已上传，' + note);
@@ -4700,7 +4753,7 @@ function renderCoins() {
   document.getElementById('c-earn').innerHTML = [
     { t:'记录饮食', v:'+' + COIN_PER_FOOD, d:'每笔，即时到账' },
     { t:'记录运动', v:'+' + COIN_PER_EX, d:'每次，即时到账' },
-    { t:'触发涨停', v:'+' + COIN_LIMITUP, d:'每日缺口达标，一次性' },
+    { t:'触发涨停', v:'+' + COIN_LIMITUP, d:'每日缺口达标后自动发放 · 每天限一次' },
     { t:'每日记录上限', v:String(COIN_DAILY_CAP), d:'涨停奖励不占此额度' },
     { t:'成就奖励', v:'+20~500', d:'解锁 30 项成就按档送币' }
   ].map(function(r) { return '<div class="rule"><span class="n">' + r.t + '</span><span class="v">' + r.v + '</span><span class="d">' + r.d + '</span></div>'; }).join('');
