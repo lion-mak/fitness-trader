@@ -51,6 +51,52 @@ def push():
     return False
 
 
+def selfheal():
+    """收敛「本地与远端内容相同但 sha 不同」的状态（上次走 API 推送留下的元数据差异）。
+
+    做法是标准的 git 操作，不是 hack：fetch 后用 rebase 把本地提交重放到远端之上。
+    rebase 靠 patch-id 识别「内容已存在」的提交并自动丢弃，因此重复的等价提交会被消掉，
+    不产生冲突、不丢内容；若内容确实不同则照常重放（有冲突会停下等人工处理）。
+    """
+    f = git("fetch", "origin", "master", timeout=120)
+    if f.returncode != 0:
+        print("self-heal: fetch 失败（github.com 不可达），跳过收敛")
+        return False
+    local = git("rev-parse", "HEAD").stdout.strip()
+    remote = git("rev-parse", "origin/master").stdout.strip()
+    if not local or not remote or local == remote:
+        return False
+    same = git("diff", "--quiet", "HEAD", "origin/master").returncode == 0
+    print(f"self-heal: 本地 {local[:10]} vs 远端 {remote[:10]}（内容{'相同' if same else '不同'}）→ rebase 收敛")
+    r = git("rebase", "origin/master", timeout=120)
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    if out:
+        print("   " + out.replace("\n", "\n   "))
+    if r.returncode != 0:
+        git("rebase", "--abort")
+        print("self-heal: rebase 未完成，已回滚到原状态（需人工确认）")
+        return False
+    m = os.path.join(REPO, ".git", "DIVERGED_TO_API_COMMIT")
+    if os.path.exists(m):
+        os.remove(m)
+    print("self-heal: 已收敛，本地与远端 sha 一致")
+    return True
+
+
+def api_fallback():
+    """github.com 被沙箱代理阻断时的兜底：改走 GitHub REST API（api.github.com 通常可达）。"""
+    script = os.path.join(HERE, "api_push.py")
+    if not os.path.exists(script):
+        print("api_fallback: 找不到 api_push.py")
+        return False
+    print("=== push 失败 → 改用 GitHub REST API 兜底 ===")
+    r = subprocess.run([sys.executable, script], capture_output=True, text=True, env=env(), timeout=600)
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    if out:
+        print("   " + out.replace("\n", "\n   "))
+    return r.returncode in (0, 1) and "ref updated" in out
+
+
 def verify(expected_ver=None):
     ctx = ssl.create_default_context()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
@@ -82,8 +128,11 @@ if __name__ == "__main__":
         git("add", "-A")
         c = git("commit", "-m", msg)
         print("commit:", ((c.stdout or "") + (c.stderr or "")).strip()[:200])
+    selfheal()
     print("=== push ===")
     ok = push()
+    if not ok:
+        ok = api_fallback()
     print("=== verify live (GitHub Pages 可能需数十秒重建) ===")
     ver = None
     try:

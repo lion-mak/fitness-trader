@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.31"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.32"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -47,6 +47,18 @@ body {
 .pagetitle .k { color:var(--muted); font-size:11px; }
 .pagetitle .t { font-size:22px; font-weight:600; margin-top:2px; }
 .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; margin:12px 14px 0; }
+/* 交易大厅 */
+.tf-card { padding:0; overflow:hidden; }
+.tf-title { padding:12px 16px; cursor:pointer; user-select:none; }
+.tf-stage { position:relative; width:100%; aspect-ratio:4/3; background:#0c1418; overflow:hidden; }
+.tf-bg { width:100%; height:100%; display:block; object-fit:cover; image-rendering:pixelated; }
+.tf-canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; image-rendering:pixelated; }
+.tf-celebrate { position:absolute; top:8%; left:50%; transform:translateX(-50%); background:#e24b4a; color:#fff; font:500 16px/1 var(--font-mono); padding:6px 18px; border-radius:4px; letter-spacing:4px; box-shadow:0 0 24px rgba(226,75,74,0.7); display:none; z-index:3; }
+.tf-ticker { position:absolute; bottom:3%; left:0; right:0; overflow:hidden; height:20px; background:rgba(0,0,0,0.65); border-top:1px solid #1f3a2e; border-bottom:1px solid #1f3a2e; }
+.tf-ticker span { display:inline-block; white-space:nowrap; color:#97c459; font:500 11px/20px var(--font-mono); letter-spacing:2px; padding-left:100%; animation:tf-scroll 28s linear infinite; }
+@keyframes tf-scroll { 0%{transform:translateX(0);} 100%{transform:translateX(-100%);} }
+.tf-collapsed .tf-stage { display:none; }
+.tf-collapsed .tf-title { border-bottom:none; }
 .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
 .card-title .t { font-size:13px; font-weight:500; }
 .card-title .m { color:var(--muted); font-size:11px; }
@@ -541,6 +553,20 @@ body {
           <div class="lt" data-page-node-id="AV1bS6M80E6gI8KPKUKz3H"><span id="hdr-id" data-page-node-id="fQTFXLcg3cmTTN5jGdpzBO">FT_8848</span><small data-page-node-id="kRVpbsYemfNe7eGHVsivxQ">健交所 · Workout000001</small></div>
         </div>
         <div class="reset" onclick="resetAll()" data-page-node-id="tCHcd9OSjcCQGQXIyqhCPc">↺ 重置</div>
+      </div>
+
+      <!-- 交易大厅（行情页首块，可折叠） -->
+      <div class="card tf-card" id="tf-card">
+        <div class="card-title tf-title" onclick="tfToggle()">
+          <span class="t">交易大厅 · 实时演你的操作</span>
+          <span class="m" id="tf-toggle-icon">▾</span>
+        </div>
+        <div class="tf-stage" id="tf-stage">
+          <img class="tf-bg" src="./assets/trading-floor-empty.png" alt="" draggable="false">
+          <canvas class="tf-canvas" id="tf-canvas"></canvas>
+          <div class="tf-celebrate" id="tf-celebrate">涨停</div>
+          <div class="tf-ticker"><span id="tf-ticker-text">健交所 · 健身交易员 · 交易大厅 · 实时演你的操作 · 做多=饮食 · 做空=运动 · 涨停=缺口达标</span></div>
+        </div>
       </div>
 
       <!-- 体重 K 线（行情页首块） -->
@@ -4370,6 +4396,151 @@ function foodManualKcal() {
   if (v === '' || v == null) return null;
   return Math.max(0, Math.round(parseFloat(v) || 0));
 }
+
+/* ===========================================================
+   交易大厅 · 动画引擎
+   - 背景：assets/trading-floor-empty.png（空场版）
+   - canvas 叠动画：4只像素交易员（做多/中立/观察/做空）+ 大屏微闪 + 涨停礼花
+   - 联动：记饮食→做多交易员挥拳；记运动→做空交易员挥拳；涨停→全员举手+金币雨
+   =========================================================== */
+const TF = {
+  canvas:null, ctx:null, stage:null,
+  W:400, H:300,
+  t:0,
+  traders:[
+    { role:'long',  color:'#639922', shade:'#3b6d11', x:0.18, y:0.82, flash:0, punch:0 },
+    { role:'neut',  color:'#378add', shade:'#185fa5', x:0.38, y:0.68, flash:0, punch:0 },
+    { role:'watch', color:'#ba7517', shade:'#854f0b', x:0.62, y:0.68, flash:0, punch:0 },
+    { role:'short', color:'#a32d2d', shade:'#791f1f', x:0.82, y:0.82, flash:0, punch:0 },
+  ],
+  coins:[],
+  celebrating:0,
+  running:false,
+  rafId:null,
+};
+function tfInit(){
+  TF.stage = document.getElementById('tf-stage');
+  TF.canvas = document.getElementById('tf-canvas');
+  if(!TF.canvas) return;
+  TF.ctx = TF.canvas.getContext('2d');
+  tfResize();
+  window.addEventListener('resize', tfResize);
+  TF.running = true;
+  tfLoop();
+}
+function tfResize(){
+  if(!TF.stage || !TF.canvas) return;
+  const r = TF.stage.getBoundingClientRect();
+  if(r.width < 10) return;
+  TF.canvas.width = TF.W;
+  TF.canvas.height = TF.H;
+  TF.canvas.style.width = r.width + 'px';
+  TF.canvas.style.height = r.height + 'px';
+}
+function tfDrawTrader(td){
+  const c = TF.ctx;
+  const x = Math.round(td.x * TF.W);
+  const y = Math.round(td.y * TF.H);
+  // 闪光层
+  if(td.flash > 0){
+    c.fillStyle = td.flash > 18 ? (td.flash % 4 < 2 ? td.color : '#fff') : 'rgba(255,255,255,0.3)';
+    c.fillRect(x - 16, y - 28, 32, 44);
+    td.flash--;
+  }
+  const upArms = TF.celebrating > 0;
+  const bob = Math.floor(TF.t / 6) % 2;
+  // 腿
+  c.fillStyle = '#222'; c.fillRect(x-5, y+8, 3, 6); c.fillRect(x+2, y+8, 3, 6);
+  // 身体
+  c.fillStyle = td.color; c.fillRect(x-6, y-4, 12, 12);
+  c.fillStyle = td.shade; c.fillRect(x+2, y-4, 4, 12);
+  // 手臂
+  if(upArms){
+    c.fillStyle = td.color;
+    c.fillRect(x-10, y-14, 2, 8);
+    c.fillRect(x+8, y-14, 2, 8);
+  } else if(td.punch > 0){
+    c.fillStyle = td.color;
+    c.fillRect(x-10, y-10 + (td.punch % 2), 2, 8);
+    td.punch--;
+  } else {
+    c.fillStyle = td.color;
+    const ty = y - 2 + bob;
+    c.fillRect(x-10, ty, 2, 8);
+    c.fillRect(x+8, ty, 2, 8);
+  }
+  // 头
+  c.fillStyle = '#f0c8a0'; c.fillRect(x-4, y-16, 8, 8);
+  c.fillStyle = '#2c2c2a'; c.fillRect(x-4, y-16, 8, 2);
+  c.fillStyle = '#2c2c2a'; c.fillRect(x-2, y-11, 1, 2); c.fillRect(x+1, y-11, 1, 2);
+}
+function tfDrawCoins(){
+  const c = TF.ctx;
+  for(let i = TF.coins.length - 1; i >= 0; i--){
+    const k = TF.coins[i];
+    k.y += k.vy; k.vy += 0.12;
+    if(k.y > TF.H + 10){ TF.coins.splice(i, 1); continue; }
+    c.fillStyle = '#ef9f27'; c.fillRect(k.x|0, k.y|0, 3, 3);
+    c.fillStyle = '#fac775'; c.fillRect((k.x|0)+1, k.y|0, 1, 1);
+  }
+}
+function tfDraw(){
+  const c = TF.ctx;
+  c.clearRect(0, 0, TF.W, TF.H);
+  // 大屏微闪
+  if(TF.t % 90 < 4){
+    c.fillStyle = 'rgba(255,255,255,0.04)';
+    c.fillRect(0, 0, TF.W, TF.H * 0.42);
+  }
+  TF.traders.forEach(td => tfDrawTrader(td));
+  tfDrawCoins();
+  if(TF.celebrating > 0) TF.celebrating--;
+}
+function tfLoop(){
+  if(!TF.running) return;
+  TF.t++;
+  tfDraw();
+  TF.rafId = requestAnimationFrame(tfLoop);
+}
+function tfTrigger(role){
+  const td = TF.traders.find(t => t.role === role);
+  if(td){ td.flash = 32; td.punch = 14; }
+}
+function tfCelebrate(){
+  TF.celebrating = 80;
+  for(let i = 0; i < 36; i++){
+    TF.coins.push({ x: Math.random() * TF.W, y: -8 - Math.random() * 40, vy: 1 + Math.random() * 2.5 });
+  }
+  const ban = document.getElementById('tf-celebrate');
+  if(ban){
+    ban.style.display = 'block';
+    clearTimeout(tfCelebrate._t);
+    tfCelebrate._t = setTimeout(() => { if(ban) ban.style.display = 'none'; }, 3200);
+  }
+}
+function tfToggle(){
+  const card = document.getElementById('tf-card');
+  if(!card) return;
+  card.classList.toggle('tf-collapsed');
+  const icon = document.getElementById('tf-toggle-icon');
+  if(icon) icon.textContent = card.classList.contains('tf-collapsed') ? '▸' : '▾';
+  try{ localStorage.setItem('jianpan_tf_collapsed', card.classList.contains('tf-collapsed') ? '1' : '0'); }catch(e){}
+}
+// 初始化：DOM 就绪后启动引擎，并恢复折叠状态
+function tfBootstrap(){
+  const collapsed = (function(){ try { return localStorage.getItem('jianpan_tf_collapsed') === '1'; } catch(e){ return false; } })();
+  if(collapsed){
+    const card = document.getElementById('tf-card');
+    if(card){ card.classList.add('tf-collapsed'); const i = document.getElementById('tf-toggle-icon'); if(i) i.textContent = '▸'; }
+  }
+  tfInit();
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', tfBootstrap);
+} else {
+  setTimeout(tfBootstrap, 50);
+}
+
 function calcFoodKcal() {
   if (!curFood) return 0;
   return NutritionEngine.food(curFood, curFoodGrams()).kcal;
@@ -4400,6 +4571,7 @@ function addFood() {
   bumpFoodFreq(curFood);   // 供「我的常吃」自动收录统计
   awardRecordCoins('food');
   bumpStreak();
+  try{ tfTrigger('long'); }catch(e){}
   closeFoodSheet(); render();
 }
 function toggleCustomFood() {
@@ -4546,6 +4718,7 @@ function addExercise() {
     avgHr: curAvgHr, method: r.method, manualKcal: manual != null, time: pickHM('es-time'), ts: tsFromHM(pickHM('es-time')) });
   awardRecordCoins('ex');
   bumpStreak();
+  try{ tfTrigger('short'); }catch(e){}
   closeExSheet(); render();
 }
 function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }

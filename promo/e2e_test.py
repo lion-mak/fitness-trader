@@ -33,6 +33,12 @@ window.addEventListener('load', function () {
     var mk = document.getElementById('page-market');
     var firstCard = mk ? mk.querySelector('.card') : null;
     out.firstCardHasKline = !!(firstCard && firstCard.querySelector('#kline'));
+    // v2.7.32 新增交易大厅为首块，第二块才是体重K线
+    out.firstCardIsTradingFloor = !!(firstCard && firstCard.id === 'tf-card');
+    out.tradingFloorHasCanvas = !!document.getElementById('tf-canvas');
+    out.tradingFloorHasBgImg = !!document.querySelector('.tf-bg');
+    var cards = mk ? mk.querySelectorAll('.card') : [];
+    out.secondCardIsKline = cards.length >= 2 && !!cards[1].querySelector('#kline');
 
     var today = todayStr();
     // 全部成就置为已解锁：避免成就奖励混入，把发币观测隔离到「涨停」与「记录」两项
@@ -173,7 +179,10 @@ def run():
     chk('摄入圆环模块已移除', r['ringGone'])
     chk('餐次模块已移除（DOM）', r['mealGone'])
     chk('餐次模块已移除（CSS）', r['mealCssGone'])
-    chk('行情页首块是体重K线', r['firstCardHasKline'])
+    chk('行情页首块是交易大厅（v2.7.32 新增）', r['firstCardIsTradingFloor'])
+    chk('行情页第二块是体重K线', r['secondCardIsKline'])
+    chk('交易大厅 canvas 存在', r['tradingFloorHasCanvas'])
+    chk('交易大厅背景图存在', r['tradingFloorHasBgImg'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])
