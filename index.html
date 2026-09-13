@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.33"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.34"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -52,7 +52,27 @@ body {
 .tf-title { padding:12px 16px; cursor:pointer; user-select:none; }
 .tf-stage { position:relative; width:100%; aspect-ratio:3/2; background:#0c1418; overflow:hidden; }
 .tf-bg { width:100%; height:100%; display:block; object-fit:cover; image-rendering:pixelated; }
-.tf-canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; image-rendering:pixelated; }
+/* 灯光/屏闪特效层（纯 CSS，叠加在底图上，不破坏精致底图） */
+.tf-fx { position:absolute; inset:0; pointer-events:none; z-index:2; }
+/* 大屏整体辉光（顶部大屏区），蓝青呼吸 */
+.tf-screen-glow { position:absolute; top:6%; left:3%; right:3%; height:32%; background:radial-gradient(120% 140% at 50% 40%, rgba(90,190,255,0.20), rgba(90,190,255,0.05) 55%, transparent 75%); mix-blend-mode:screen; animation:tfScreenBreath 4.2s ease-in-out infinite; }
+/* 大屏刷新闪（偶尔整片亮一下，模拟数据刷新） */
+.tf-screen-flash { position:absolute; top:6%; left:3%; right:3%; height:32%; background:linear-gradient(180deg, rgba(255,255,255,0.10), rgba(180,230,255,0.04)); mix-blend-mode:screen; opacity:0; animation:tfScreenRefresh 6.5s linear infinite; }
+/* 记饮食/运动时大屏闪一下对应色 */
+.tf-screen-flash.flash-long  { background:linear-gradient(180deg, rgba(140,240,120,0.40), rgba(140,240,120,0.10)); animation:tfFlashOnce .9s ease-out; }
+.tf-screen-flash.flash-short { background:linear-gradient(180deg, rgba(255,110,110,0.40), rgba(255,110,110,0.10)); animation:tfFlashOnce .9s ease-out; }
+/* 缓慢扫描光带（像灯光/大屏扫过） */
+.tf-scan { position:absolute; left:0; right:0; height:22%; top:-22%; background:linear-gradient(180deg, transparent, rgba(150,210,255,0.10) 45%, rgba(150,210,255,0.16) 55%, transparent); mix-blend-mode:screen; animation:tfScan 7s linear infinite; }
+/* 整体暖色氛围辉光（大厅灯光呼吸） */
+.tf-ambient { position:absolute; inset:0; background:radial-gradient(110% 90% at 50% 18%, rgba(255,196,120,0.10), transparent 60%); mix-blend-mode:screen; animation:tfAmbient 5.5s ease-in-out infinite; }
+/* 涨停全屏光晕脉冲 */
+.tf-stage.celebrating::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(80% 70% at 50% 45%, rgba(255,200,90,0.28), transparent 70%); mix-blend-mode:screen; animation:tfCheer 1.6s ease-out; }
+@keyframes tfScreenBreath { 0%,100%{opacity:.55} 50%{opacity:1} }
+@keyframes tfScreenRefresh { 0%,92%{opacity:0} 94%{opacity:.9} 96%{opacity:0} 100%{opacity:0} }
+@keyframes tfFlashOnce { 0%{opacity:1} 100%{opacity:0} }
+@keyframes tfScan { 0%{top:-22%} 100%{top:100%} }
+@keyframes tfAmbient { 0%,100%{opacity:.55} 50%{opacity:1} }
+@keyframes tfCheer { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0} }
 .tf-celebrate { position:absolute; top:8%; left:50%; transform:translateX(-50%); background:#e24b4a; color:#fff; font:500 16px/1 var(--font-mono); padding:6px 18px; border-radius:4px; letter-spacing:4px; box-shadow:0 0 24px rgba(226,75,74,0.7); display:none; z-index:3; }
 .tf-collapsed .tf-stage { display:none; }
 .tf-collapsed .tf-title { border-bottom:none; }
@@ -560,7 +580,12 @@ body {
         </div>
         <div class="tf-stage" id="tf-stage">
           <img class="tf-bg" src="./assets/trading-floor-full.png" alt="" draggable="false">
-          <canvas class="tf-canvas" id="tf-canvas"></canvas>
+          <div class="tf-fx" aria-hidden="true">
+            <div class="tf-ambient"></div>
+            <div class="tf-screen-glow"></div>
+            <div class="tf-screen-flash" id="tf-screen-flash"></div>
+            <div class="tf-scan"></div>
+          </div>
           <div class="tf-celebrate" id="tf-celebrate">涨停</div>
         </div>
       </div>
@@ -4393,228 +4418,25 @@ function foodManualKcal() {
   return Math.max(0, Math.round(parseFloat(v) || 0));
 }
 
+
 /* ===========================================================
-   交易大厅 · 动画引擎
+   交易大厅 · 灯光/屏闪特效（纯 CSS，无 canvas 小人）
    - 背景：assets/trading-floor-full.png（带交易员的完整像素大厅）
-   - canvas 叠局部动效：大屏 K线/折线滚动 + 工位屏幕扫描 + 喝水蒸汽 + 站立活动光晕 + 涨停金币雨
-   - 联动：记饮食→大屏闪绿；记运动→大屏闪红；涨停→站立活动光晕脉冲+金币雨
+   - 叠加层：大屏辉光呼吸 + 大屏刷新闪 + 扫描光带 + 整体灯光呼吸
+   - 联动：记饮食→大屏绿闪；记运动→大屏红闪；涨停→全屏光晕脉冲+banner
    =========================================================== */
-const TF = {
-  canvas:null, ctx:null, stage:null,
-  W:480, H:320,
-  t:0,
-  coins:[],
-  celebrating:0,
-  flashColor:null,
-  flash:0,
-  cheerPulse:0,
-  steam:[],
-  scanY:0,
-  running:false,
-  rafId:null,
-  // 大屏 4 个面板的归一化坐标（按 1536x1024 底图实际面板位置标定）
-  panels:[
-    { x0:0.04, x1:0.34, y0:0.07, y1:0.36, kind:'candle' }, // 左 K线
-    { x0:0.34, x1:0.56, y0:0.07, y1:0.36, kind:'area'   }, // 中 面积/折线
-    { x0:0.56, x1:0.78, y0:0.07, y1:0.36, kind:'candle' }, // 右 K线
-    { x0:0.78, x1:0.97, y0:0.07, y1:0.36, kind:'ticker' }, // 数据网格
-  ],
-  bigBars:[],
-};
-function tfInit(){
-  TF.stage = document.getElementById('tf-stage');
-  TF.canvas = document.getElementById('tf-canvas');
-  if(!TF.canvas) return;
-  TF.ctx = TF.canvas.getContext('2d');
-  tfResize();
-  window.addEventListener('resize', tfResize);
-  // 大屏蜡烛/折线初始化数据
-  TF.bigBars = TF.panels.map(p => {
-    const n = p.kind === 'ticker' ? 0 : (p.kind === 'area' ? 18 : 14);
-    const bars = [];
-    for(let i = 0; i < n; i++) bars.push({ v: 0.3 + Math.random()*0.5 });
-    return { panel: p, bars };
-  });
-  // 暴露到 window，方便调试与回归断言（E2E 检查大屏面板/动画状态）
-  window.TF = TF;
-  window.tfTrigger = tfTrigger;
-  window.tfCelebrate = tfCelebrate;
-  TF.running = true;
-  tfLoop();
-}
-function tfResize(){
-  if(!TF.stage || !TF.canvas) return;
-  const r = TF.stage.getBoundingClientRect();
-  if(r.width < 10) return;
-  TF.canvas.width = TF.W;
-  TF.canvas.height = TF.H;
-  TF.canvas.style.width = r.width + 'px';
-  TF.canvas.style.height = r.height + 'px';
-}
-function tfDrawBigScreen(){
-  const c = TF.ctx;
-  TF.bigBars.forEach(pb => {
-    const p = pb.panel;
-    const x0 = p.x0 * TF.W, x1 = p.x1 * TF.W;
-    const y0 = p.y0 * TF.H, y1 = p.y1 * TF.H;
-    const w = x1 - x0, h = y1 - y0;
-    if(p.kind === 'candle'){
-      const n = pb.bars.length;
-      const bw = Math.max(2, (w - 4) / n);
-      pb.bars.forEach((b, i) => {
-        // 滚动跳动：每根独立节奏，幅度小但持续
-        if(TF.t % 6 === i % 6) b.v += (Math.random() - 0.5) * 0.10;
-        b.v = Math.max(0.15, Math.min(0.95, b.v));
-        const up = (i + Math.floor(TF.t/40)) % 3 !== 0;
-        const bh = b.v * (h - 4);
-        const bx = x0 + 2 + i * bw + bw * 0.15;
-        const by = y0 + (h - bh)/2 + 2;
-        c.fillStyle = up ? 'rgba(120,210,90,0.22)' : 'rgba(230,80,80,0.22)';
-        c.fillRect(bx, by, bw * 0.7, bh);
-      });
-    } else if(p.kind === 'area'){
-      const n = pb.bars.length;
-      const step = (w - 4) / (n - 1);
-      pb.bars.forEach((b, i) => {
-        if(TF.t % 5 === i % 5) b.v += (Math.random() - 0.5) * 0.10;
-        b.v = Math.max(0.2, Math.min(0.9, b.v));
-      });
-      // 面积填充
-      c.beginPath();
-      c.moveTo(x0 + 2, y0 + h);
-      pb.bars.forEach((b, i) => {
-        c.lineTo(x0 + 2 + i * step, y0 + 2 + (1 - b.v) * (h - 4));
-      });
-      c.lineTo(x0 + w - 2, y0 + h);
-      c.closePath();
-      const grd = c.createLinearGradient(0, y0, 0, y0 + h);
-      grd.addColorStop(0, 'rgba(100,200,250,0.28)');
-      grd.addColorStop(1, 'rgba(100,200,250,0)');
-      c.fillStyle = grd;
-      c.fill();
-      // 折线
-      c.beginPath();
-      pb.bars.forEach((b, i) => {
-        const x = x0 + 2 + i * step;
-        const y = y0 + 2 + (1 - b.v) * (h - 4);
-        if(i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-      });
-      c.strokeStyle = 'rgba(100,200,250,0.65)';
-      c.lineWidth = 1;
-      c.stroke();
-    }
-  });
-  // 大屏整体微闪（让屏幕像在刷新）
-  if(TF.t % 110 < 4){
-    c.fillStyle = 'rgba(255,255,255,0.035)';
-    c.fillRect(0, 0, TF.W, TF.H * 0.42);
-  }
-  // 操作反馈 flash（记饮食/运动时大屏闪一下对应颜色）
-  if(TF.flash > 0 && TF.flashColor){
-    c.fillStyle = TF.flashColor;
-    c.globalAlpha = (TF.flash / 18) * 0.22;
-    c.fillRect(0, 0, TF.W, TF.H * 0.42);
-    c.globalAlpha = 1;
-    TF.flash--;
-  }
-}
-function tfDrawScan(){
-  const c = TF.ctx;
-  TF.scanY = (TF.scanY + 0.7);
-  if(TF.scanY > TF.H * 0.32) TF.scanY = 0;
-  // 工位屏幕区域的两道横向扫描线（操作电脑的"屏动"感）
-  c.fillStyle = 'rgba(120,210,90,0.10)';
-  c.fillRect(0, TF.H * 0.55 + TF.scanY, TF.W, 1);
-  c.fillStyle = 'rgba(100,200,250,0.06)';
-  c.fillRect(0, TF.H * 0.78 - TF.scanY, TF.W, 1);
-  // 工位小屏随机闪烁（模拟操作/数据跳动）
-  if(TF.t % 7 === 0){
-    c.fillStyle = 'rgba(255,255,255,0.12)';
-    const x = (Math.floor(TF.t / 7) * 53) % TF.W;
-    const y = TF.H * 0.58 + ((x * 17) % 70);
-    c.fillRect(x, y, 5, 3);
-  }
-}
-function tfDrawSteam(){
-  const c = TF.ctx;
-  // 喝水位置：中蓝衫面前杯子（约 x=0.42, y=0.66 的归一化坐标）
-  const sx = 0.42 * TF.W;
-  const sy = 0.66 * TF.H;
-  if(TF.t % 5 === 0){
-    TF.steam.push({ x: sx + (Math.random() - 0.5) * 4, y: sy - 6, vy: -0.35 - Math.random() * 0.3, life: 1 });
-  }
-  for(let i = TF.steam.length - 1; i >= 0; i--){
-    const s = TF.steam[i];
-    s.y += s.vy;
-    s.life -= 0.013;
-    if(s.life <= 0 || s.y < sy - 30){ TF.steam.splice(i, 1); continue; }
-    c.fillStyle = 'rgba(255,255,255,' + (s.life * 0.55).toFixed(2) + ')';
-    c.fillRect(s.x|0, s.y|0, 1, 1);
-    c.fillRect((s.x + 1)|0, (s.y - 1)|0, 1, 1);
-  }
-  if(TF.steam.length > 50) TF.steam.splice(0, TF.steam.length - 50);
-}
-function tfDrawCheerPulse(){
-  if(TF.cheerPulse <= 0) return;
-  const c = TF.ctx;
-  // 站立活动的人位置（琥珀衫举手）：约 x=0.66, y=0.45
-  const cx = 0.66 * TF.W;
-  const cy = 0.45 * TF.H;
-  const t = (80 - TF.cheerPulse) / 80;
-  for(let k = 0; k < 2; k++){
-    const r = 8 + (t + k * 0.3) * 22;
-    if(r > 32) continue;
-    c.beginPath();
-    c.arc(cx, cy, r, 0, Math.PI * 2);
-    c.strokeStyle = 'rgba(255,200,90,' + ((1 - t) * 0.55).toFixed(2) + ')';
-    c.lineWidth = 1.5;
-    c.stroke();
-  }
-  TF.cheerPulse--;
-}
-function tfDrawCoins(){
-  const c = TF.ctx;
-  for(let i = TF.coins.length - 1; i >= 0; i--){
-    const k = TF.coins[i];
-    k.y += k.vy; k.vy += 0.10;
-    if(k.y > TF.H + 10){ TF.coins.splice(i, 1); continue; }
-    c.fillStyle = '#ef9f27'; c.fillRect(k.x|0, k.y|0, 3, 3);
-    c.fillStyle = '#fac775'; c.fillRect((k.x + 1)|0, k.y|0, 1, 1);
-  }
-}
-function tfDraw(){
-  const c = TF.ctx;
-  c.clearRect(0, 0, TF.W, TF.H);
-  tfDrawBigScreen();   // 大屏 K线/折线滚动
-  tfDrawScan();        // 工位屏幕扫描+闪烁
-  tfDrawSteam();       // 喝水蒸汽
-  tfDrawCheerPulse();  // 站立活动光晕
-  tfDrawCoins();       // 涨停金币雨
-  if(TF.celebrating > 0) TF.celebrating--;
-}
-function tfLoop(){
-  if(!TF.running) return;
-  TF.t++;
-  tfDraw();
-  TF.rafId = requestAnimationFrame(tfLoop);
-}
-function tfTrigger(role){
-  // 操作反馈：大屏闪对应颜色（绿=做多饮食 / 红=做空运动）
-  TF.flash = 14;
-  TF.flashColor = role === 'long' ? '#7ed957' : (role === 'short' ? '#ff6b6b' : '#aacfff');
+function tfFlash(role){
+  const el = document.getElementById('tf-screen-flash');
+  if(!el) return;
+  el.classList.remove('flash-long','flash-short');
+  void el.offsetWidth;
+  el.classList.add(role === 'short' ? 'flash-short' : 'flash-long');
 }
 function tfCelebrate(){
-  TF.celebrating = 80;
-  TF.cheerPulse = 80;
-  for(let i = 0; i < 36; i++){
-    TF.coins.push({ x: Math.random() * TF.W, y: -8 - Math.random() * 40, vy: 1 + Math.random() * 2.5 });
-  }
   const ban = document.getElementById('tf-celebrate');
-  if(ban){
-    ban.style.display = 'block';
-    clearTimeout(tfCelebrate._t);
-    tfCelebrate._t = setTimeout(() => { if(ban) ban.style.display = 'none'; }, 3200);
-  }
+  const stage = document.getElementById('tf-stage');
+  if(ban){ ban.style.display = 'block'; clearTimeout(tfCelebrate._t); tfCelebrate._t = setTimeout(() => { if(ban) ban.style.display = 'none'; }, 3200); }
+  if(stage){ stage.classList.add('celebrating'); clearTimeout(tfCelebrate._c); tfCelebrate._c = setTimeout(() => { if(stage) stage.classList.remove('celebrating'); }, 1600); }
 }
 function tfToggle(){
   const card = document.getElementById('tf-card');
@@ -4624,20 +4446,17 @@ function tfToggle(){
   if(icon) icon.textContent = card.classList.contains('tf-collapsed') ? '▸' : '▾';
   try{ localStorage.setItem('jianpan_tf_collapsed', card.classList.contains('tf-collapsed') ? '1' : '0'); }catch(e){}
 }
-// 初始化：DOM 就绪后启动引擎，并恢复折叠状态
-function tfBootstrap(){
+// 初始化：DOM 就绪后恢复折叠状态（特效纯 CSS，无需 JS 引擎）
+(function tfBootstrap(){
   const collapsed = (function(){ try { return localStorage.getItem('jianpan_tf_collapsed') === '1'; } catch(e){ return false; } })();
   if(collapsed){
     const card = document.getElementById('tf-card');
     if(card){ card.classList.add('tf-collapsed'); const i = document.getElementById('tf-toggle-icon'); if(i) i.textContent = '▸'; }
   }
-  tfInit();
-}
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', tfBootstrap);
-} else {
-  setTimeout(tfBootstrap, 50);
-}
+  window.tfFlash = tfFlash;
+  window.tfCelebrate = tfCelebrate;
+})();
+
 
 function calcFoodKcal() {
   if (!curFood) return 0;
@@ -4669,7 +4488,7 @@ function addFood() {
   bumpFoodFreq(curFood);   // 供「我的常吃」自动收录统计
   awardRecordCoins('food');
   bumpStreak();
-  try{ tfTrigger('long'); }catch(e){}
+  try{ tfFlash('long'); }catch(e){}
   closeFoodSheet(); render();
 }
 function toggleCustomFood() {
@@ -4816,7 +4635,7 @@ function addExercise() {
     avgHr: curAvgHr, method: r.method, manualKcal: manual != null, time: pickHM('es-time'), ts: tsFromHM(pickHM('es-time')) });
   awardRecordCoins('ex');
   bumpStreak();
-  try{ tfTrigger('short'); }catch(e){}
+  try{ tfFlash('short'); }catch(e){}
   closeExSheet(); render();
 }
 function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }
