@@ -33,7 +33,7 @@ def git(*args, check=True):
     env = dict(os.environ)
     env['PATH'] = GITROOT + os.pathsep + env.get('PATH', '')
     env['GIT_EXEC_PATH'] = GITROOT
-    p = subprocess.run([GIT, '-C', ROOT] + list(args), capture_output=True, env=env)
+    p = subprocess.run([GIT, '-C', ROOT, '-c', 'core.quotePath=false'] + list(args), capture_output=True, env=env)
     out = p.stdout.decode('utf-8', 'replace')
     if check and p.returncode != 0:
         raise RuntimeError('git %s failed: %s' % (' '.join(args), p.stderr.decode('utf-8', 'replace')))
@@ -80,6 +80,37 @@ def api(tok, method, path, payload=None):
     raise RuntimeError('api retries exhausted: ' + path)
 
 
+def find_local_proxy(tok, base_tree_sha):
+    """当远端 HEAD 与本地 HEAD^ 不一致时（本地比远端多了若干 commit，例如 API 推送后
+    又本地提交了 tooling），从 HEAD 往回找一个内容（路径→blob sha）与远端 tree 完全一致的
+    本地提交作为「代理」——以它为 diff 基点重建 tree，新 tree 即可与本地 HEAD tree sha 一致。"""
+    try:
+        st, rt = api(tok, 'GET', '/repos/%s/git/trees/%s?recursive=1' % (REPO, base_tree_sha))
+    except Exception as e:
+        print('   拉取远端递归 tree 失败：', e)
+        return None
+    remote_entries = {e['path']: e['sha'] for e in rt.get('tree', []) if e.get('type') == 'blob'}
+    cur = 'HEAD'
+    for _ in range(40):
+        try:
+            ls = git('ls-tree', '-r', cur).strip()
+        except Exception:
+            break
+        local_entries = {}
+        for line in ls.splitlines():
+            parts = line.split(None, 3)
+            if len(parts) < 4:
+                continue
+            local_entries[parts[3]] = parts[2]
+        if local_entries == remote_entries:
+            return git('rev-parse', cur).strip()
+        try:
+            cur = git('rev-parse', cur + '^').strip()
+        except Exception:
+            break
+    return None
+
+
 def main():
     tok = token()
     head = git('rev-parse', 'HEAD').strip()
@@ -100,8 +131,15 @@ def main():
         return 0
     if remote_head != parent:
         print('⚠️ 远端 HEAD 与本地父提交不一致：远端 %s / 本地父 %s' % (remote_head, parent))
-        print('   为避免覆盖他人提交，已中止。')
-        return 2
+        print('   尝试找本地代理提交（内容与远端 tree 一致）...')
+        st, bc = api(tok, 'GET', '/repos/%s/git/commits/%s' % (REPO, remote_head))
+        base_tree_sha_div = bc['tree']['sha']
+        proxy = find_local_proxy(tok, base_tree_sha_div)
+        if not proxy:
+            print('   无法定位本地代理，已中止（不会污染远端）。')
+            return 2
+        print('   local proxy =', proxy)
+        parent = proxy
 
     st, base_commit = api(tok, 'GET', '/repos/%s/git/commits/%s' % (REPO, remote_head))
     base_tree = base_commit['tree']['sha']
@@ -114,7 +152,7 @@ def main():
 
     entries = []
     for path in changed:
-        raw = subprocess.run([GIT, '-C', ROOT, 'show', '%s:%s' % (head, path)],
+        raw = subprocess.run([GIT, '-C', ROOT, '-c', 'core.quotePath=false', 'show', '%s:%s' % (head, path)],
                              capture_output=True,
                              env=dict(os.environ, PATH=GITROOT + os.pathsep + os.environ.get('PATH', ''),
                                       GIT_EXEC_PATH=GITROOT))

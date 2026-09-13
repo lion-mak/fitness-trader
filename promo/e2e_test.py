@@ -37,6 +37,11 @@ window.addEventListener('load', function () {
     out.firstCardIsTradingFloor = !!(firstCard && firstCard.id === 'tf-card');
     out.tradingFloorHasCanvas = !!document.getElementById('tf-canvas');
     out.tradingFloorHasBgImg = !!document.querySelector('.tf-bg');
+    var bgImg = document.querySelector('.tf-bg');
+    out.tradingFloorUsesFull = !!(bgImg && /trading-floor-full/.test(bgImg.getAttribute('src') || ''));
+    out.tradingFloorNoTicker = !document.querySelector('.tf-ticker');
+    out.tradingFloorNoTraders = !(window.TF && Array.isArray(window.TF.traders));
+    out.tradingFloorHasPanels = !!(window.TF && Array.isArray(window.TF.panels) && window.TF.panels.length >= 3);
     var cards = mk ? mk.querySelectorAll('.card') : [];
     out.secondCardIsKline = cards.length >= 2 && !!cards[1].querySelector('#kline');
 
@@ -183,6 +188,10 @@ def run():
     chk('行情页第二块是体重K线', r['secondCardIsKline'])
     chk('交易大厅 canvas 存在', r['tradingFloorHasCanvas'])
     chk('交易大厅背景图存在', r['tradingFloorHasBgImg'])
+    chk('交易大厅底图是 trading-floor-full.png（v2.7.33 换图）', r['tradingFloorUsesFull'])
+    chk('交易大厅已去除底部跑马灯', r['tradingFloorNoTicker'])
+    chk('交易大厅已删除手绘块小人 TF.traders', r['tradingFloorNoTraders'])
+    chk('交易大厅已注入大屏 4 面板 TF.panels', r['tradingFloorHasPanels'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])

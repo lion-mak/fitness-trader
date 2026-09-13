@@ -4,14 +4,14 @@
    （原型为单文件内联 HTML，应用壳只需缓存 index.html + 图标）
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-2.7.32';
+const CACHE_VERSION = 'jianpan-2.7.33';
 const APP_SHELL = [
   './',
   './index.html',
   './assets/icon.png',
   './assets/body_male.png',
   './assets/body_female.png',
-  './assets/trading-floor-empty.png',
+  './assets/trading-floor-full.png',
   './js/nutrition-engine.js',
   './js/food-store.js',
   './data/foods.json',
