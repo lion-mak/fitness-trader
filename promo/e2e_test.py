@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""v2.7.31 端到端验收：用 Edge 无头加载真实 App，注入状态后断言 5 项改动。
+"""端到端验收（v2.7.38 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
 
 覆盖：
   · 摄入圆环模块 / 餐次模块 已移除（DOM 中不存在，且 render() 能跑完不抛错）
-  · 行情页首块 = 体重K线
+  · 行情页结构：首块 = 体重K线，第二块 = 运动网格图（v2.7.38）
+  · 交易大厅已迁入持仓页首块（v2.7.38），底图 trading-floor-full.png，无 canvas 引擎
+  · 运动网格图：154 格 / 少·多 图例 / 月份标签 均已渲染（v2.7.38）
   · 涨停币每日只发一次（重复记录不再叠加 +200）
   · MA 图例带数值
   · 体重K线悬浮数据标签能由指针坐标取到正确那根K线的日期
@@ -32,18 +34,23 @@ window.addEventListener('load', function () {
     out.mealCssGone = !/\.meal-row\s*\{/.test(document.head.innerHTML);
     var mk = document.getElementById('page-market');
     var firstCard = mk ? mk.querySelector('.card') : null;
+    var cards = mk ? mk.querySelectorAll('.card') : [];
+    // v2.7.38：交易大厅迁到持仓页；行情页首块 = 体重K线，第二块 = 运动网格图
     out.firstCardHasKline = !!(firstCard && firstCard.querySelector('#kline'));
-    // v2.7.32 新增交易大厅为首块，第二块才是体重K线
-    out.firstCardIsTradingFloor = !!(firstCard && firstCard.id === 'tf-card');
-    out.tradingFloorHasCanvas = !!document.getElementById('tf-canvas');
+    out.secondCardIsHeat = cards.length >= 2 && cards[1].id === 'ex-heat-card';
     out.tradingFloorHasBgImg = !!document.querySelector('.tf-bg');
     var bgImg = document.querySelector('.tf-bg');
     out.tradingFloorUsesFull = !!(bgImg && /trading-floor-full/.test(bgImg.getAttribute('src') || ''));
     out.tradingFloorNoTicker = !document.querySelector('.tf-ticker');
-    out.tradingFloorNoTraders = !(window.TF && Array.isArray(window.TF.traders));
-    out.tradingFloorHasPanels = !!(window.TF && Array.isArray(window.TF.panels) && window.TF.panels.length >= 3);
-    var cards = mk ? mk.querySelectorAll('.card') : [];
-    out.secondCardIsKline = cards.length >= 2 && !!cards[1].querySelector('#kline');
+    out.tradingFloorNoCanvas = !document.getElementById('tf-canvas');
+    var hold = document.getElementById('page-holdings');
+    var tf = document.getElementById('tf-card');
+    out.tfInsideHoldings = !!(hold && tf && hold.contains(tf));
+    out.tfIsFirstHoldingsCard = !!(hold && hold.querySelector('.card') === tf);
+    var heat = document.getElementById('ex-heat');
+    out.heatHasCells = !!(heat && heat.querySelectorAll('.ex-heat-cell').length >= 140);
+    out.heatHasLegend = !!(heat && heat.querySelector('.ex-heat-legend'));
+    out.heatHasMonths = !!(heat && heat.querySelectorAll('.ex-heat-months span').length >= 3);
 
     var today = todayStr();
     // 全部成就置为已解锁：避免成就奖励混入，把发币观测隔离到「涨停」与「记录」两项
@@ -53,11 +60,15 @@ window.addEventListener('load', function () {
     state.weightLog = wl;
     state.user.target = 0;
     state.coins = 0; state.limitUpCount = 0;
-    state.lastLimitUpDate = null; state.celebFired = false;
+    state.lastLimitUpDate = null; state.celebFired = false; state.settledDate = null;
     state.diet = [{ id: 't1', date: today, name: '测试', kcal: 300, meal: '午餐', time: '12:00' }];
     state.exercise = [];
     document.getElementById('celeb').classList.remove('show');
     render();
+    // v2.7.36：涨停改「收盘结算」触发，记一笔不再自动判定
+    out.coinsBeforeSettle = state.coins;
+    out.celebBeforeSettle = document.getElementById('celeb').classList.contains('show');
+    settleDay(today);
     out.coins1 = state.coins;
     out.limitUp1 = state.limitUpCount;
     out.celebShown = document.getElementById('celeb').classList.contains('show');
@@ -69,6 +80,7 @@ window.addEventListener('load', function () {
       bumpStreak();
       render();
     }
+    settleDay(today);   // 同日重复收盘 → settledDate 幂等，不再发涨停币
     out.coins4 = state.coins;
     out.limitUp4 = state.limitUpCount;
     out.celebShownAgain = document.getElementById('celeb').classList.contains('show');
@@ -150,8 +162,8 @@ def run():
           '静态 · celebFired 重置处仅剩跨天/重置用途 -> ' + str(n_celeb_reset))
     if n_celeb_reset > 3:
         ok = False
-    has_guard = 'state.lastLimitUpDate !== ky' in html
-    print(('PASS  ' if has_guard else 'FAIL  ') + '静态 · 涨停幂等锚点已改用 lastLimitUpDate')
+    has_guard = ('state.settledDate === dateStr' in html) and ('state.settledDate = dateStr' in html)
+    print(('PASS  ' if has_guard else 'FAIL  ') + '静态 · 收盘幂等锚点 settledDate 已就位')
     if not has_guard:
         ok = False
 
@@ -184,14 +196,17 @@ def run():
     chk('摄入圆环模块已移除', r['ringGone'])
     chk('餐次模块已移除（DOM）', r['mealGone'])
     chk('餐次模块已移除（CSS）', r['mealCssGone'])
-    chk('行情页首块是交易大厅（v2.7.32 新增）', r['firstCardIsTradingFloor'])
-    chk('行情页第二块是体重K线', r['secondCardIsKline'])
-    chk('交易大厅 canvas 存在', r['tradingFloorHasCanvas'])
+    chk('行情页首块是体重K线', r['firstCardHasKline'])
+    chk('行情页第二块是运动网格图（v2.7.38 新增）', r['secondCardIsHeat'])
+    chk('交易大厅已迁入持仓页（v2.7.38）', r['tfInsideHoldings'])
+    chk('交易大厅是持仓页首块', r['tfIsFirstHoldingsCard'])
     chk('交易大厅背景图存在', r['tradingFloorHasBgImg'])
     chk('交易大厅底图是 trading-floor-full.png（v2.7.33 换图）', r['tradingFloorUsesFull'])
     chk('交易大厅已去除底部跑马灯', r['tradingFloorNoTicker'])
-    chk('交易大厅已删除手绘块小人 TF.traders', r['tradingFloorNoTraders'])
-    chk('交易大厅已注入大屏 4 面板 TF.panels', r['tradingFloorHasPanels'])
+    chk('交易大厅已无 canvas 引擎（v2.7.34 改纯 CSS 特效）', r['tradingFloorNoCanvas'])
+    chk('运动网格图渲染出 154 个格子', r['heatHasCells'])
+    chk('运动网格图带 少/多 图例', r['heatHasLegend'])
+    chk('运动网格图带月份标签', r['heatHasMonths'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])
@@ -204,13 +219,16 @@ def run():
     chk('12:30 推断午餐', r['mealAutoLunch'] == '午餐', r['mealAutoLunch'])
     chk('22:10 推断加餐', r['mealAutoSnack'] == '加餐', r['mealAutoSnack'])
     chk('07:05 推断早餐', r['mealAutoBreakfast'] == '早餐', r['mealAutoBreakfast'])
-    # 5：发币节奏
-    chk('首次达标发放涨停 200 币', r['coins1'] == 200, r['coins1'])
-    chk('首次达标弹涨停动画一次', r['celebShown'] is True, r['celebShown'])
+    # 5：发币节奏（v2.7.36 起涨停由「收盘结算」触发，不再是记一笔即发）
+    chk('记一笔不自动涨停（v2.7.36 新口径）',
+        r['coinsBeforeSettle'] == 0 and r['celebBeforeSettle'] is False,
+        str(r['coinsBeforeSettle']) + ' / celeb=' + str(r['celebBeforeSettle']))
+    chk('收盘结算达标发放涨停 200 币', r['coins1'] == 200, r['coins1'])
+    chk('收盘结算弹涨停动画一次', r['celebShown'] is True, r['celebShown'])
     chk('涨停计数 = 1', r['limitUp1'] == 1, r['limitUp1'])
     chk('再记 3 笔不再叠加涨停币（总 215 = 200+3×5）', r['coins4'] == 215, r['coins4'])
-    chk('涨停计数仍为 1（未重复计数）', r['limitUp4'] == 1, r['limitUp4'])
-    chk('后续记录不再弹涨停动画', r['celebShownAgain'] is False, r['celebShownAgain'])
+    chk('同日重复收盘不重复计数（settledDate 幂等）', r['limitUp4'] == 1, r['limitUp4'])
+    chk('后续不再弹涨停动画', r['celebShownAgain'] is False, r['celebShownAgain'])
     # 1：K线悬浮标签
     chk('K线 SVG 已渲染', r['svgExists'] and r['svgW'] > 100, r['svgW'])
     chk('指针移动显示数据标签', r['tipShown'] is True, r['tipShown'])
