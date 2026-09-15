@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.37"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.38"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -73,6 +73,22 @@ body {
 .tf-celebrate { position:absolute; top:8%; left:50%; transform:translateX(-50%); background:#e24b4a; color:#fff; font:500 16px/1 var(--font-mono); padding:6px 18px; border-radius:4px; letter-spacing:4px; box-shadow:0 0 24px rgba(226,75,74,0.7); display:none; z-index:3; }
 .tf-collapsed .tf-stage { display:none; }
 .tf-collapsed .tf-title { border-bottom:none; }
+
+/* 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） */
+.ex-heat { margin-top:2px; }
+.ex-heat-months { position:relative; color:var(--muted); font-size:10px; }
+.ex-heat-months span { position:absolute; top:0; white-space:nowrap; }
+.ex-heat-row { display:flex; align-items:flex-start; gap:6px; margin-top:5px; }
+.ex-heat-days { display:grid; align-items:center; color:var(--muted); font-size:10px; line-height:1; }
+.ex-heat-days span { display:flex; align-items:center; }
+.ex-heat-grid { display:grid; grid-auto-flow:column; }
+.ex-heat-cell { display:block; border-radius:2px; background:#1a2030; }
+.ex-heat-cell.is-future { background:transparent !important; }
+.ex-heat-cell.is-today { box-shadow:inset 0 0 0 1.5px var(--green); }
+.ex-heat-foot { display:flex; justify-content:space-between; align-items:center; margin-top:10px; color:var(--muted); font-size:11px; }
+.ex-heat-legend { display:flex; align-items:center; gap:3px; }
+.ex-heat-legend i { display:block; width:10px; height:10px; border-radius:2px; }
+.ex-heat-legend span { margin:0 3px; }
 .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
 .card-title .t { font-size:13px; font-weight:500; }
 .card-title .m { color:var(--muted); font-size:11px; }
@@ -576,23 +592,6 @@ body {
         <div class="reset" onclick="resetAll()" data-page-node-id="tCHcd9OSjcCQGQXIyqhCPc">↺ 重置</div>
       </div>
 
-      <!-- 交易大厅（行情页首块，可折叠） -->
-      <div class="card tf-card" id="tf-card">
-        <div class="card-title tf-title" onclick="tfToggle()">
-          <span class="t">交易大厅</span>
-          <span class="m" id="tf-toggle-icon">▾</span>
-        </div>
-        <div class="tf-stage" id="tf-stage">
-          <img class="tf-bg" src="./assets/trading-floor-full.png" alt="" draggable="false">
-          <div class="tf-fx" aria-hidden="true">
-            <div class="tf-ambient"></div>
-            <div class="tf-screen-glow"></div>
-            <div class="tf-screen-flash" id="tf-screen-flash"></div>
-          </div>
-          <div class="tf-celebrate" id="tf-celebrate">涨停</div>
-        </div>
-      </div>
-
       <!-- 体重 K 线（行情页首块） -->
       <div class="card" data-page-node-id="55LDeXTNDoQVJnEJu3EAHY">
         <div class="card-title" data-page-node-id="KLOsFIfybJxDojoyzE3zHz"><span class="t" data-page-node-id="ESuZKTSC5FpqMHGu5dOvjF">自营 · 体重 K 线</span><div class="kline-title-right"><span class="m" id="kline-weight" data-page-node-id="7eSa0rSoY3YJfTvMMPEbx2">-- kg</span><div class="kline-tabs" id="kline-tabs" data-page-node-id="JPKlineTabs"><div class="kline-tab on" data-p="d" onclick="switchKlinePeriod('d')">日K</div><div class="kline-tab" data-p="w" onclick="switchKlinePeriod('w')">周K</div><div class="kline-tab" data-p="m" onclick="switchKlinePeriod('m')">月K</div><div class="kline-tab" data-p="q" onclick="switchKlinePeriod('q')">季K</div></div></div></div>
@@ -603,6 +602,12 @@ body {
           <button class="kw-save" onclick="saveQuickWeight()">保存</button>
           <button class="kw-cancel" onclick="closeQuickWeight()">取消</button>
         </div>
+      </div>
+
+      <!-- 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗，基准取全量单日峰值） -->
+      <div class="card" id="ex-heat-card">
+        <div class="card-title"><span class="t">自营 · 运动网格</span><span class="m" id="ex-heat-sub">--</span></div>
+        <div class="ex-heat" id="ex-heat"></div>
       </div>
 
       <!-- 板块云图：今日每笔成交 = 一个板块块（矩形树图，同花顺热力图式） -->
@@ -693,6 +698,23 @@ body {
     <!-- ============ 持仓 ============ -->
     <section class="page" id="page-holdings" data-page-node-id="sZh2FcuAb7qaEDE2zUmr4J">
       <div class="pagetitle" data-page-node-id="RKQMWHNb4iSkWUITLy2SoB"><div class="k" data-page-node-id="C07VbMAXvlke6lQhpuZZGX">PORTFOLIO · 持仓</div><div class="t" data-page-node-id="ntzicCnoj0L58A2KNwf0DE">我的仓位</div></div>
+
+      <!-- 交易大厅（持仓页首块，可折叠） -->
+      <div class="card tf-card" id="tf-card">
+        <div class="card-title tf-title" onclick="tfToggle()">
+          <span class="t">交易大厅</span>
+          <span class="m" id="tf-toggle-icon">▾</span>
+        </div>
+        <div class="tf-stage" id="tf-stage">
+          <img class="tf-bg" src="./assets/trading-floor-full.png" alt="" draggable="false">
+          <div class="tf-fx" aria-hidden="true">
+            <div class="tf-ambient"></div>
+            <div class="tf-screen-glow"></div>
+            <div class="tf-screen-flash" id="tf-screen-flash"></div>
+          </div>
+          <div class="tf-celebrate" id="tf-celebrate">涨停</div>
+        </div>
+      </div>
 
       <div class="metric-grid" data-page-node-id="O04vCZVjzPYUmJVp6F0E4y">
         <div class="metric" data-page-node-id="GVbrDXUSyXEexvTsmDBx5v">
@@ -2153,6 +2175,9 @@ function render() {
   // 体重 K 线
   renderKline();
 
+  // 运动网格图（全量运动消耗 · 绿色深浅映射）
+  renderExHeat();
+
   // 成交列表
   const all = [...todayDiet().map(d=>({...d,type:'food'})), ...todayExercise().map(e=>({...e,type:'ex'}))]
     .sort((a,b)=>(b.time||0)-(a.time||0));
@@ -2222,6 +2247,105 @@ function render() {
   // 涨停改为「收盘结算」触发：见 settleDay()，render 不再自动判定（避免记一笔就查达标）
   saveState();
 }
+
+/* ============ 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） ============ */
+/* 色阶基准：用户「全量运动记录」的单日峰值 —— 消耗越多颜色越深（浅绿 → 深绿） */
+var EX_HEAT = {
+  weeks: 22,          // 展示窗口：近 22 周（约 5 个月），列密度对齐参考图
+  gap: 3, labw: 16, labgap: 6,
+  empty: '#1a2030',   // 无运动：暗底块
+  lv: ['', '#8fe3c4', '#3ecfa0', '#00a97c', '#05704f']   // 浅绿 → 深绿
+};
+function exHeatLevel(v, maxDay) {
+  if (!v || v <= 0) return 0;
+  if (!maxDay || maxDay <= 0) return 1;
+  var r = v / maxDay;
+  if (r <= 0.25) return 1;
+  if (r <= 0.50) return 2;
+  if (r <= 0.75) return 3;
+  return 4;
+}
+function renderExHeat() {
+  var host = document.getElementById('ex-heat');
+  if (!host) return;
+
+  // 1) 全量按日聚合运动消耗（kcal）→ 色阶基准 = 历史单日峰值
+  var byDate = {}, maxDay = 0, total = 0;
+  (state.exercise || []).forEach(function (e) {
+    var k = e.date || todayStr();
+    var v = Math.round(e.kcal || 0);
+    if (v > 0) { byDate[k] = (byDate[k] || 0) + v; total += v; }
+  });
+  Object.keys(byDate).forEach(function (k) { if (byDate[k] > maxDay) maxDay = byDate[k]; });
+
+  // 2) 时间窗：本周一往前推 (weeks-1) 周；周一为行首（对齐参考图 一/三/五/日 行标）
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var tkey = todayStr(today);
+  var dow = (today.getDay() + 6) % 7;                       // 0 = 周一
+  var thisMon = new Date(today); thisMon.setDate(today.getDate() - dow);
+  var W = EX_HEAT.weeks;
+  var startMon = new Date(thisMon); startMon.setDate(thisMon.getDate() - (W - 1) * 7);
+  function shift(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+  // 3) 尺寸自适应（持仓页可能 display:none → 用视口反推，保证首帧即正确）
+  var vw = Math.min(window.innerWidth || 375, 480);
+  var avail = host.clientWidth > 0 ? host.clientWidth : (vw - 56);   // 卡片左右 margin+padding 共 56
+  var gap = EX_HEAT.gap, labw = EX_HEAT.labw, labgap = EX_HEAT.labgap;
+  var cell = Math.floor((avail - labw - labgap - (W - 1) * gap) / W);
+  if (cell < 7) cell = 7;
+  if (cell > 18) cell = 18;
+
+  // 4) 月份标签（每月首个自然周标注一次）
+  var months = '', prevM = -1;
+  for (var c = 0; c < W; c++) {
+    var m = shift(startMon, c * 7).getMonth() + 1;
+    if (m !== prevM) {
+      months += '<span style="left:' + (labw + labgap + c * (cell + gap)) + 'px">' + m + '月</span>';
+      prevM = m;
+    }
+  }
+
+  // 5) 网格：列优先，每列 7 天（周一 → 周日）
+  var cells = '';
+  for (var c2 = 0; c2 < W; c2++) {
+    for (var r = 0; r < 7; r++) {
+      var k2 = todayStr(shift(startMon, c2 * 7 + r));
+      var future = k2 > tkey;
+      var v2 = future ? 0 : (byDate[k2] || 0);
+      var bg = future ? 'transparent' : (EX_HEAT.lv[exHeatLevel(v2, maxDay)] || EX_HEAT.empty);
+      cells += '<i class="ex-heat-cell' + (k2 === tkey ? ' is-today' : '') + (future ? ' is-future' : '') + '"'
+             + ' style="background:' + bg + '"'
+             + ' title="' + (future ? '' : (k2 + ' · ' + (v2 > 0 ? v2 + ' kcal' : '无运动'))) + '"></i>';
+    }
+  }
+
+  // 6) 行标签（一/三/五/日，其余留空）
+  var dl = ['一', '', '三', '', '五', '', '日'], days = '';
+  for (var i = 0; i < 7; i++) days += '<span>' + dl[i] + '</span>';
+
+  // 7) 图例色块
+  var sw = '';
+  EX_HEAT.lv.slice(1).forEach(function (c3) { sw += '<i style="background:' + c3 + '"></i>'; });
+
+  host.innerHTML =
+    '<div class="ex-heat-months" style="height:15px">' + months + '</div>' +
+    '<div class="ex-heat-row">' +
+      '<div class="ex-heat-days" style="width:' + labw + 'px;grid-template-rows:repeat(7,' + cell + 'px);gap:' + gap + 'px">' + days + '</div>' +
+      '<div class="ex-heat-grid" style="grid-template-rows:repeat(7,' + cell + 'px);grid-auto-columns:' + cell + 'px;gap:' + gap + 'px">' + cells + '</div>' +
+    '</div>' +
+    '<div class="ex-heat-foot">' +
+      '<span>近 5 个月运动数据</span>' +
+      '<div class="ex-heat-legend"><span>少</span>' + sw + '<span>多</span></div>' +
+    '</div>';
+
+  // 8) 副标题：全量基准（单日峰值 = 最深绿分界线）
+  var sub = document.getElementById('ex-heat-sub');
+  if (sub) sub.textContent = maxDay > 0 ? ('峰值 ' + maxDay + ' kcal · 累计 ' + total + ' kcal') : '暂无运动记录';
+}
+window.addEventListener('resize', function () {
+  if (window.__exHeatRz) clearTimeout(window.__exHeatRz);
+  window.__exHeatRz = setTimeout(renderExHeat, 180);
+});
 
 /* ============ 历史成交 · 摄入/消耗可视化 ============ */
 let historyRange = 'all';   // 默认「全部」：从第一条记录开始的完整逐日视图（首个数据在最左）
