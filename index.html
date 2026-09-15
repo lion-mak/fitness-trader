@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.35"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.36"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -65,6 +65,11 @@ body {
 .tf-scan { position:absolute; left:0; right:0; height:22%; top:-22%; background:linear-gradient(180deg, transparent, rgba(150,210,255,0.10) 45%, rgba(150,210,255,0.16) 55%, transparent); mix-blend-mode:screen; animation:tfScan 7s linear infinite; }
 /* 整体暖色氛围辉光（大厅灯光呼吸） */
 .tf-ambient { position:absolute; inset:0; background:radial-gradient(110% 90% at 50% 18%, rgba(255,196,120,0.10), transparent 60%); mix-blend-mode:screen; animation:tfAmbient 5.5s ease-in-out infinite; }
+/* 收盘控制条 */
+  .tf-settle{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;margin-top:6px;background:rgba(255,184,0,.06);border-top:1px solid rgba(255,184,0,.18);}
+  .tf-settle-label{font-size:13px;color:#c9b07a;}
+  .tf-settle-btn{margin:0;width:auto;padding:7px 16px;font-size:13px;}
+  .tf-settle-btn:disabled{opacity:.5;}
 /* 涨停全屏光晕脉冲 */
 .tf-stage.celebrating::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(80% 70% at 50% 45%, rgba(255,200,90,0.28), transparent 70%); mix-blend-mode:screen; animation:tfCheer 1.6s ease-out; }
 @keyframes tfScreenBreath { 0%,100%{opacity:.55} 50%{opacity:1} }
@@ -590,6 +595,10 @@ body {
           </div>
           <div class="tf-celebrate" id="tf-celebrate">涨停</div>
         </div>
+        <div class="tf-settle" id="tf-settle">
+          <span class="tf-settle-label" id="tf-settle-label">今日交易中</span>
+          <button class="confirm buy tf-settle-btn" onclick="settleDay(todayStr())" id="tf-settle-btn">今日收盘</button>
+        </div>
       </div>
 
       <!-- 体重 K 线（行情页首块） -->
@@ -855,12 +864,7 @@ body {
         <div class="gap-note">打开 App 时若检测到新版本会自动刷新；点「检查更新」可手动确认。</div>
       </div>
 
-      <!-- 临时调试入口（测试用，上线前删） -->
-      <div class="card" style="margin-top:14px;" id="debug-card">
-        <div class="card-title"><span class="t">调试</span><span class="m">测试专用</span></div>
-        <button class="confirm buy" onclick="debugAddCoins()" style="margin-top:8px;width:100%;">+10000 健康币</button>
-        <div class="gap-note">测试用临时入口，正式版会移除。</div>
-      </div>
+
     </section>
 
     <!-- ============ 成就殿堂 ============ -->
@@ -1741,6 +1745,7 @@ function defaultState() {
     coinToday: 0, coinDate: todayStr(),
     cards: {}, totalDraws: 0, collectRewards: {},
     celebFired: false,
+    settledDate: null,
     lastDate: todayStr(),
     ach: {},                // 成就解锁记录 { 成就id: true }
     coinsEarnedTotal: 0,    // 累计获得健康币（记录/涨停/返币/里程碑/成就）
@@ -1797,6 +1802,7 @@ function loadState() {
       // 跨天：重置当日一次性标记
       if (merged.lastDate !== k) {
         merged.celebFired = false; merged.gapToday = false; merged.lastDate = k;
+        if (typeof merged.settledDate !== 'string') merged.settledDate = null;
       }
       // v2.1 新字段兜底（老存档没有这些键）
       if (!Array.isArray(merged.usuals)) merged.usuals = [];
@@ -2220,21 +2226,10 @@ function render() {
   renderBodyViz();
   renderBmrBox();
 
-  // 涨停触发：**每日最多发放一次**
-  // 幂等锚点改用 lastLimitUpDate（日期）而不是布尔 flag —— 布尔 flag 曾被记录流程反复重置，
-  // 造成「每记一笔就重复 +200 币 + 重复弹涨停动画」（记 8 笔 = 8×200），并把连板计数反复清回 1。
-  const ky = todayStr();
-  if (t.net <= u.target && state.lastLimitUpDate !== ky && (todayDiet().length || todayExercise().length)) {
-    state.limitUpStreak = (state.lastLimitUpDate === dayOffset(-1)) ? (state.limitUpStreak || 0) + 1 : 1;
-    state.lastLimitUpDate = ky;
-    state.celebFired = true;
-    state.limitUpCount++;
-    state.coins += COIN_LIMITUP;
-    state.coinsEarnedTotal += COIN_LIMITUP;
-    state.exp += EXP_LIMITUP;
-    document.getElementById('celeb-net').innerHTML = t.net + '<small>kcal</small>';
-    document.getElementById('celeb').classList.add('show');
-  }
+  // 收盘状态（纯 UI，不发币；发币在 settleDay）
+  (function(){ var sb=document.getElementById('tf-settle-btn'), sl=document.getElementById('tf-settle-label'); if(!sb||!sl) return; if(state.settledDate===todayStr()){ sb.disabled=true; sb.textContent='今日已收盘'; sl.textContent='今日已收盘 \u2713'; } else { sb.disabled=false; sb.textContent='今日收盘'; sl.textContent='今日交易中'; } })();
+
+  // 涨停改为「收盘结算」触发：见 settleDay()，render 不再自动判定（避免记一笔就查达标）
   saveState();
 }
 
@@ -4998,11 +4993,25 @@ function cardCellHTML(c, own) {
     '</div>';
 }
 function showGacha() { renderGacha(); switchTab('gacha'); }
-function debugAddCoins() {
-  state.coins += 10000;
-  saveState();
-  toast('已加 10000 健康币（测试）');
-  render();
+function dayBefore(k){ var d=new Date(k+'T00:00:00'); d.setDate(d.getDate()-1); return todayStr(d); }
+function settleDay(dateStr) {
+  if (state.settledDate === dateStr) return;            // 已收盘，幂等
+  var net = dailyNet(dateStr);
+  var hasRec = state.diet.some(function(d){return (d.date||todayStr())===dateStr;}) || state.exercise.some(function(e){return (e.date||todayStr())===dateStr;});
+  if (net <= state.user.target && state.lastLimitUpDate !== dateStr && hasRec) {
+    state.limitUpStreak = (state.lastLimitUpDate === dayBefore(dateStr)) ? (state.limitUpStreak||0)+1 : 1;
+    state.lastLimitUpDate = dateStr;
+    state.celebFired = true;
+    state.limitUpCount++;
+    state.coins += COIN_LIMITUP;
+    state.coinsEarnedTotal += COIN_LIMITUP;
+    state.exp += EXP_LIMITUP;
+    var ce=document.getElementById('celeb-net'); if(ce) ce.innerHTML = net + '<small>kcal</small>';
+    var cb=document.getElementById('celeb'); if(cb) cb.classList.add('show');
+    if (typeof tfCelebrate === 'function') tfCelebrate();
+  }
+  state.settledDate = dateStr;
+  saveState(); render();
 }
 function renderGacha() {
   const owned = Object.keys(state.cards).length;
@@ -5184,9 +5193,11 @@ setInterval(function() { renderIntraday(); }, 60000);
 /* 跨天自动刷新：App 在后台过夜后切回前台时，按新的一天重算 */
 function checkDayRollover() {
   if (state.lastDate !== todayStr()) {
+    var y = state.lastDate;                     // 跨天前的「昨天」
     state.lastDate = todayStr();
     state.celebFired = false; state.gapToday = false;
     state.coinToday = 0; state.coinDate = todayStr();
+    if (y && y !== todayStr()) settleDay(y);    // 自动结算昨天（兜底，用户没手动收盘也结算）
     saveState(); render();
   }
 }
