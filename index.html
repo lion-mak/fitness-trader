@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.34"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.35"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -310,12 +310,14 @@ body {
 .tabbar .ico { width:22px; height:22px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
 
 /* 弹层 */
-.sheet-mask { position:absolute; inset:0; background:rgba(0,0,0,0.6); z-index:50; display:none; align-items:flex-end; }
+.sheet-mask { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:50; display:none; align-items:flex-end; }
 .sheet-mask.show { display:flex; }
-.sheet { width:100%; background:var(--panel-hi); border-radius:24px 24px 0 0; padding:20px 20px 28px; border-top:1px solid var(--border); animation:up .25s ease; position:relative; }
+.sheet { width:100%; max-height:90vh; overflow-y:auto; -webkit-overflow-scrolling:touch; background:var(--panel-hi); border-radius:24px 24px 0 0; padding:20px 20px calc(28px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); animation:up .25s ease; position:relative; }
 @keyframes up { from { transform:translateY(100%); } to { transform:translateY(0); } }
 .sheet h3 { font-size:16px; font-weight:500; }
 .sheet .close { position:absolute; top:18px; right:20px; color:var(--muted); font-size:20px; cursor:pointer; }
+.body-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin-top:14px; }
+.body-grid .field { margin-top:0; }
 .qty-row { display:flex; align-items:center; justify-content:space-between; margin-top:16px; }
 .qty-row .lbl { font-size:13px; color:var(--muted2); }
 .stepper { display:flex; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
@@ -1081,12 +1083,14 @@ body {
         <h3 data-page-node-id="0OEDHIfzQsb74JW1EWRUsR">手动录入 · 身体成分</h3>
         <div style="color:var(--muted);font-size:12px;margin-top:4px;" data-page-node-id="TbiZ9c7hw7jvH6dC5fycZb">填写身体数据，保存后状态自动判定（基础代谢 / 脂肪重量由系统计算）</div>
         <div id="ocr-status" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:#0d3a32;color:#00c896;font-size:11px;line-height:1.5;"></div>
+        <div class="body-grid">
         <div class="field" data-page-node-id="e7Mi0lGgQmt67j3d9XTFiQ"><label data-page-node-id="JwRmatYok5g8JFo5HrEP0u">BMI</label><input id="bi-bmi" type="number" step="0.1" placeholder="如 22.4" data-page-node-id="bzXAH8a4hAzYrGyO8J46Me"></div>
         <div class="field" data-page-node-id="u7WGdcyUei0qn4UVzbE46a"><label data-page-node-id="xbemLmT9S8neEczaBAHIHo">体脂率（%）</label><input id="bi-fat" type="number" step="0.1" placeholder="如 18.2" data-page-node-id="GoCYOVrAaWh9ATh1Y1FXKQ"></div>
         <div class="field" data-page-node-id="7ieVtTn96RXQDb4ec9BkTs"><label data-page-node-id="XtBKWIP0RywFUlFSVwtRv1">肌肉率（%）</label><input id="bi-muscle" type="number" step="0.1" placeholder="如 42.5" data-page-node-id="06ez4XHecWtW94Cpp5T5Mz"></div>
         <div class="field" data-page-node-id="8SBYYnVRM9DvwkbiDzVeiH"><label data-page-node-id="1optVvqpEDnFrnyTymzn3V">水分率（%）</label><input id="bi-water" type="number" step="0.1" placeholder="如 55.8" data-page-node-id="qERF3FVXhVRi52EEBhWPBC"></div>
         <div class="field" data-page-node-id="vwbSRnsoVpGYD3MBGcQEw3"><label data-page-node-id="dp6fPu8jJbNG5H8ODEf7Hi">身体年龄（岁）</label><input id="bi-bodyage" type="number" step="1" placeholder="如 28" data-page-node-id="2aTOXnMgMgs3zXK4kdCd3i"></div>
         <div class="field" data-page-node-id="8kwEWWIGYkUlZO9TRtMDhp"><label data-page-node-id="owlMmqWGHxF1wEdnLMrOZW">内脏脂肪（级 1-30）</label><input id="bi-visceral" type="number" step="1" placeholder="如 8" data-page-node-id="FKUdbOy6bH0y87Hjx0Gowp"></div>
+        </div>
         <button class="confirm sell" onclick="saveBody()" data-page-node-id="Z1NrRs7apI1ejzt6Eo8lPU">保存并重算</button>
       </div>
     </div>
@@ -5223,6 +5227,7 @@ setInterval(checkDayRollover, 60000);
   }
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function(){ __swCheck(); __autoProbe(); });
+    window.addEventListener('load', function(){ document.querySelectorAll('.sheet-mask').forEach(function(m){ m.addEventListener('click', function(e){ if(e.target===m) m.classList.remove('show'); }); }); });
     document.addEventListener('visibilitychange', function() { if (!document.hidden) __swCheck(); });
     window.addEventListener('focus', __swCheck);
     /* 新 SW 接管控制即自动刷新，确保已加载的旧页面换成新版本（避免 SW 命中旧缓存文档、误报「已是最新」） */
