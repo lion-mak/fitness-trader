@@ -5,7 +5,7 @@
   · 摄入圆环模块 / 餐次模块 已移除（DOM 中不存在，且 render() 能跑完不抛错）
   · 行情页结构：首块 = 体重K线，第二块 = 运动网格图（v2.7.38）
   · 交易大厅已迁入持仓页首块（v2.7.38），底图 trading-floor-full.png，无 canvas 引擎
-  · 运动网格图：154 格 / 少·多 图例 / 月份标签 均已渲染（v2.7.38）
+  · 运动网格图：近 1 年 371 格 / 横向可滚动 / 少·多 图例 / 月份标签（v2.7.39）
   · 涨停币每日只发一次（重复记录不再叠加 +200）
   · MA 图例带数值
   · 体重K线悬浮数据标签能由指针坐标取到正确那根K线的日期
@@ -48,9 +48,15 @@ window.addEventListener('load', function () {
     out.tfInsideHoldings = !!(hold && tf && hold.contains(tf));
     out.tfIsFirstHoldingsCard = !!(hold && hold.querySelector('.card') === tf);
     var heat = document.getElementById('ex-heat');
-    out.heatHasCells = !!(heat && heat.querySelectorAll('.ex-heat-cell').length >= 140);
+    out.heatHasCells = !!(heat && heat.querySelectorAll('.ex-heat-cell').length >= 365);
     out.heatHasLegend = !!(heat && heat.querySelector('.ex-heat-legend'));
     out.heatHasMonths = !!(heat && heat.querySelectorAll('.ex-heat-months span').length >= 3);
+    var hsc = heat ? heat.querySelector('.ex-heat-scroll') : null;
+    var hinner = heat ? heat.querySelector('.ex-heat-inner') : null;
+    out.heatScrollable = !!hsc;
+    out.heatInnerWide = !!(hinner && parseFloat(hinner.style.width) > 500);
+    out.heatFootHint = !!(heat && /左右滑动/.test(heat.textContent || ''));
+    out.heatStickyLabels = !!(heat && getComputedStyle(heat.querySelector('.ex-heat-days')).position === 'sticky');
 
     var today = todayStr();
     // 全部成就置为已解锁：避免成就奖励混入，把发币观测隔离到「涨停」与「记录」两项
@@ -204,9 +210,13 @@ def run():
     chk('交易大厅底图是 trading-floor-full.png（v2.7.33 换图）', r['tradingFloorUsesFull'])
     chk('交易大厅已去除底部跑马灯', r['tradingFloorNoTicker'])
     chk('交易大厅已无 canvas 引擎（v2.7.34 改纯 CSS 特效）', r['tradingFloorNoCanvas'])
-    chk('运动网格图渲染出 154 个格子', r['heatHasCells'])
+    chk('运动网格图渲染出近一年 371 个格子（v2.7.39）', r['heatHasCells'])
     chk('运动网格图带 少/多 图例', r['heatHasLegend'])
     chk('运动网格图带月份标签', r['heatHasMonths'])
+    chk('运动网格图有横向滚动容器', r['heatScrollable'])
+    chk('网格内容宽度 > 一屏（可横向滚动）', r['heatInnerWide'])
+    chk('网格底部带「左右滑动」提示', r['heatFootHint'])
+    chk('星期行标 sticky 固定在左侧', r['heatStickyLabels'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])

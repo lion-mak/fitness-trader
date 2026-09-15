@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.38"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.39"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -76,10 +76,14 @@ body {
 
 /* 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） */
 .ex-heat { margin-top:2px; }
+/* 横向滚动视窗：数据窗口近 1 年（53 周），一屏约 5 个月（v2.7.39） */
+.ex-heat-scroll { overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.ex-heat-scroll::-webkit-scrollbar { display:none; }
+.ex-heat-inner { position:relative; }
 .ex-heat-months { position:relative; color:var(--muted); font-size:10px; }
 .ex-heat-months span { position:absolute; top:0; white-space:nowrap; }
-.ex-heat-row { display:flex; align-items:flex-start; gap:6px; margin-top:5px; }
-.ex-heat-days { display:grid; align-items:center; color:var(--muted); font-size:10px; line-height:1; }
+.ex-heat-row { display:flex; align-items:flex-start; margin-top:5px; }
+.ex-heat-days { position:sticky; left:0; z-index:2; background:var(--panel); box-shadow:8px 0 8px -8px rgba(0,0,0,0.7); display:grid; align-items:center; color:var(--muted); font-size:10px; line-height:1; }
 .ex-heat-days span { display:flex; align-items:center; }
 .ex-heat-grid { display:grid; grid-auto-flow:column; }
 .ex-heat-cell { display:block; border-radius:2px; background:#1a2030; }
@@ -2249,27 +2253,51 @@ function render() {
 }
 
 /* ============ 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） ============ */
-/* 色阶基准：用户「全量运动记录」的单日峰值 —— 消耗越多颜色越深（浅绿 → 深绿） */
+/* 数据窗口近 1 年（53 周），横向可滚动，一屏约 5 个月；
+   色阶基准 = 窗口内有运动日子的分位数 P50/P75/P90（消耗越多越深绿） */
 var EX_HEAT = {
-  weeks: 22,          // 展示窗口：近 22 周（约 5 个月），列密度对齐参考图
+  weeks: 53,          // 数据窗口：近 53 周（≈1 年），横向滚动查看
+  viewWeeks: 22,      // 一屏可视窗口：约 5 个月（决定格子尺寸）
   gap: 3, labw: 16, labgap: 6,
   empty: '#1a2030',   // 无运动：暗底块
-  lv: ['', '#8fe3c4', '#3ecfa0', '#00a97c', '#05704f']   // 浅绿 → 深绿
+  lv: ['', '#8fe3c4', '#3ecfa0', '#00a97c', '#05704f'],  // 浅绿 → 深绿
+  autoEnd: true       // 首帧自动滚到最右（最新）
 };
-function exHeatLevel(v, maxDay) {
+/* 色阶边界：取窗口内有运动日子的 P50/P75/P90（浅色占多数、深色留给高消耗，
+   避免个别超高值把所有日常记录压成最浅一档）。样本 <8 天时返回 null，退化为按峰值等比切分。 */
+function exHeatBreaks(vals) {
+  var a = vals.slice().sort(function (x, y) { return x - y; });
+  if (a.length < 8) return null;
+  function q(p) {
+    var idx = (a.length - 1) * p, lo = Math.floor(idx), hi = Math.ceil(idx);
+    return lo === hi ? a[lo] : a[lo] + (a[hi] - a[lo]) * (idx - lo);
+  }
+  var b = [q(0.50), q(0.75), q(0.90)];
+  if (b[0] < 1) b[0] = 1;
+  if (b[1] <= b[0]) b[1] = b[0] + 1;
+  if (b[2] <= b[1]) b[2] = b[1] + 1;
+  return b;
+}
+function exHeatLevel(v, breaks, maxDay) {
   if (!v || v <= 0) return 0;
-  if (!maxDay || maxDay <= 0) return 1;
-  var r = v / maxDay;
-  if (r <= 0.25) return 1;
-  if (r <= 0.50) return 2;
-  if (r <= 0.75) return 3;
+  if (!breaks) {                       // 样本太少：按峰值等比兜底
+    if (!maxDay || maxDay <= 0) return 1;
+    var r = v / maxDay;
+    if (r <= 0.25) return 1;
+    if (r <= 0.50) return 2;
+    if (r <= 0.75) return 3;
+    return 4;
+  }
+  if (v <= breaks[0]) return 1;
+  if (v <= breaks[1]) return 2;
+  if (v <= breaks[2]) return 3;
   return 4;
 }
 function renderExHeat() {
   var host = document.getElementById('ex-heat');
   if (!host) return;
 
-  // 1) 全量按日聚合运动消耗（kcal）→ 色阶基准 = 历史单日峰值
+  // 1) 全量按日聚合运动消耗（kcal）→ maxDay 用于副标题与样本兜底，色阶走分位数
   var byDate = {}, maxDay = 0, total = 0;
   (state.exercise || []).forEach(function (e) {
     var k = e.date || todayStr();
@@ -2278,7 +2306,7 @@ function renderExHeat() {
   });
   Object.keys(byDate).forEach(function (k) { if (byDate[k] > maxDay) maxDay = byDate[k]; });
 
-  // 2) 时间窗：本周一往前推 (weeks-1) 周；周一为行首（对齐参考图 一/三/五/日 行标）
+  // 2) 时间窗：本周一为最后一列，往前推 (weeks-1) 周（周一为行首，对齐 一/三/五/日 行标）
   var today = new Date(); today.setHours(0, 0, 0, 0);
   var tkey = todayStr(today);
   var dow = (today.getDay() + 6) % 7;                       // 0 = 周一
@@ -2287,15 +2315,30 @@ function renderExHeat() {
   var startMon = new Date(thisMon); startMon.setDate(thisMon.getDate() - (W - 1) * 7);
   function shift(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
-  // 3) 尺寸自适应（持仓页可能 display:none → 用视口反推，保证首帧即正确）
+  // 3) 逐格取值（列优先，周一 → 周日），并收集有运动的日子做色阶基准
+  var grid = [], vals = [];
+  for (var c0 = 0; c0 < W; c0++) {
+    for (var r0 = 0; r0 < 7; r0++) {
+      var k0 = todayStr(shift(startMon, c0 * 7 + r0));
+      var fut = k0 > tkey;
+      var v0 = (!fut && byDate[k0]) ? byDate[k0] : 0;
+      if (v0 > 0) vals.push(v0);
+      grid.push({ k: k0, v: v0, future: fut });
+    }
+  }
+  var breaks = exHeatBreaks(vals);
+
+  // 4) 尺寸自适应：格子按「一屏约 5 个月」反推（总列数为 53 周，超出部分横向滚动）
   var vw = Math.min(window.innerWidth || 375, 480);
   var avail = host.clientWidth > 0 ? host.clientWidth : (vw - 56);   // 卡片左右 margin+padding 共 56
   var gap = EX_HEAT.gap, labw = EX_HEAT.labw, labgap = EX_HEAT.labgap;
-  var cell = Math.floor((avail - labw - labgap - (W - 1) * gap) / W);
+  var VW = EX_HEAT.viewWeeks;
+  var cell = Math.floor((avail - labw - labgap - (VW - 1) * gap) / VW);
   if (cell < 7) cell = 7;
   if (cell > 18) cell = 18;
+  var trackW = W * cell + (W - 1) * gap;
 
-  // 4) 月份标签（每月首个自然周标注一次）
+  // 5) 月份标签（每月首个自然周标注一次，随内容横向滚动）
   var months = '', prevM = -1;
   for (var c = 0; c < W; c++) {
     var m = shift(startMon, c * 7).getMonth() + 1;
@@ -2305,42 +2348,69 @@ function renderExHeat() {
     }
   }
 
-  // 5) 网格：列优先，每列 7 天（周一 → 周日）
+  // 6) 网格格子
   var cells = '';
-  for (var c2 = 0; c2 < W; c2++) {
-    for (var r = 0; r < 7; r++) {
-      var k2 = todayStr(shift(startMon, c2 * 7 + r));
-      var future = k2 > tkey;
-      var v2 = future ? 0 : (byDate[k2] || 0);
-      var bg = future ? 'transparent' : (EX_HEAT.lv[exHeatLevel(v2, maxDay)] || EX_HEAT.empty);
-      cells += '<i class="ex-heat-cell' + (k2 === tkey ? ' is-today' : '') + (future ? ' is-future' : '') + '"'
-             + ' style="background:' + bg + '"'
-             + ' title="' + (future ? '' : (k2 + ' · ' + (v2 > 0 ? v2 + ' kcal' : '无运动'))) + '"></i>';
-    }
-  }
+  grid.forEach(function (g) {
+    var bg = g.future ? 'transparent' : (EX_HEAT.lv[exHeatLevel(g.v, breaks, maxDay)] || EX_HEAT.empty);
+    cells += '<i class="ex-heat-cell' + (g.k === tkey ? ' is-today' : '') + (g.future ? ' is-future' : '') + '"'
+           + ' style="background:' + bg + '"'
+           + ' title="' + (g.future ? '' : (g.k + ' · ' + (g.v > 0 ? g.v + ' kcal' : '无运动'))) + '"></i>';
+  });
 
-  // 6) 行标签（一/三/五/日，其余留空）
+  // 7) 行标签（一/三/五/日，其余留空）
   var dl = ['一', '', '三', '', '五', '', '日'], days = '';
   for (var i = 0; i < 7; i++) days += '<span>' + dl[i] + '</span>';
 
-  // 7) 图例色块
+  // 8) 图例色块
   var sw = '';
   EX_HEAT.lv.slice(1).forEach(function (c3) { sw += '<i style="background:' + c3 + '"></i>'; });
 
+  // 9) 重建前记录滚动位置：贴右（看最新）则保持贴右，否则原地保持，避免每次记录弹回
+  var scOld = document.getElementById('ex-heat-scroll');
+  var prevLeft = scOld ? scOld.scrollLeft : -1;
+  var keepEnd = scOld ? (scOld.scrollLeft + scOld.clientWidth >= scOld.scrollWidth - 6) : EX_HEAT.autoEnd;
+
   host.innerHTML =
-    '<div class="ex-heat-months" style="height:15px">' + months + '</div>' +
-    '<div class="ex-heat-row">' +
-      '<div class="ex-heat-days" style="width:' + labw + 'px;grid-template-rows:repeat(7,' + cell + 'px);gap:' + gap + 'px">' + days + '</div>' +
-      '<div class="ex-heat-grid" style="grid-template-rows:repeat(7,' + cell + 'px);grid-auto-columns:' + cell + 'px;gap:' + gap + 'px">' + cells + '</div>' +
+    '<div class="ex-heat-scroll" id="ex-heat-scroll">' +
+      '<div class="ex-heat-inner" style="width:' + (labw + labgap + trackW) + 'px">' +
+        '<div class="ex-heat-months" style="height:15px">' + months + '</div>' +
+        '<div class="ex-heat-row">' +
+          '<div class="ex-heat-days" style="width:' + (labw + labgap) + 'px;grid-template-rows:repeat(7,' + cell + 'px);gap:' + gap + 'px">' + days + '</div>' +
+          '<div class="ex-heat-grid" style="grid-template-rows:repeat(7,' + cell + 'px);grid-auto-columns:' + cell + 'px;gap:' + gap + 'px">' + cells + '</div>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
     '<div class="ex-heat-foot">' +
-      '<span>近 5 个月运动数据</span>' +
+      '<span>近 1 年运动数据 · 左右滑动</span>' +
       '<div class="ex-heat-legend"><span>少</span>' + sw + '<span>多</span></div>' +
     '</div>';
 
-  // 8) 副标题：全量基准（单日峰值 = 最深绿分界线）
+  // 10) 恢复/初始化横向滚动位置（默认贴最右 = 最新）
+  var sc = document.getElementById('ex-heat-scroll');
+  if (sc) {
+    if (sc.clientWidth > 0) {
+      var maxLeft = Math.max(0, sc.scrollWidth - sc.clientWidth);
+      sc.scrollLeft = keepEnd ? maxLeft : Math.min(prevLeft > 0 ? prevLeft : maxLeft, maxLeft);
+      EX_HEAT.needEnd = false;
+    } else {
+      EX_HEAT.needEnd = keepEnd;   // 非当前页（display:none）测不到宽度，切页时再贴右
+    }
+  }
+
+  // 11) 副标题：色阶基准（分位数中位 / 峰值）
   var sub = document.getElementById('ex-heat-sub');
-  if (sub) sub.textContent = maxDay > 0 ? ('峰值 ' + maxDay + ' kcal · 累计 ' + total + ' kcal') : '暂无运动记录';
+  if (sub) {
+    if (maxDay <= 0) sub.textContent = '暂无运动记录';
+    else if (breaks) sub.textContent = '中位 ' + Math.round(breaks[0]) + ' / 峰值 ' + maxDay + ' kcal';
+    else sub.textContent = '峰值 ' + maxDay + ' kcal · 累计 ' + total + ' kcal';
+  }
+}
+/* 切回行情页时把网格贴到最右（修正隐藏态测不到宽度的情况） */
+function exHeatScrollToEnd() {
+  var sc = document.getElementById('ex-heat-scroll');
+  if (!sc || !EX_HEAT.needEnd || sc.clientWidth <= 0) return;
+  sc.scrollLeft = Math.max(0, sc.scrollWidth - sc.clientWidth);
+  EX_HEAT.needEnd = false;
 }
 window.addEventListener('resize', function () {
   if (window.__exHeatRz) clearTimeout(window.__exHeatRz);
@@ -5211,7 +5281,10 @@ function switchTab(tab) {
     document.querySelector('.tabbar > div[data-tab="profile"]').classList.add('on');
   }
   document.getElementById('screen').scrollTop = 0;
-  if (tab === 'market') { try { renderMarketMap(); } catch (e) {} }   // 切到行情页时容器已可见，用真实宽度重绘云图，避免隐藏态留下的右侧黑条
+  if (tab === 'market') {
+    try { renderMarketMap(); } catch (e) {}          // 容器已可见，用真实宽度重绘云图，避免隐藏态留下的右侧黑条
+    try { exHeatScrollToEnd(); } catch (e) {}        // 运动网格图默认贴最右（最新）
+  }
 }
 /* 子页面左缘右滑返回手势（贴合手机操作习惯） */
 function bindBackGesture() {
