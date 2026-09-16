@@ -73,21 +73,29 @@ window.addEventListener('load', function () {
     out.heatLevelGone = (typeof exHeatLevel === 'undefined');
     var lgi = heat ? heat.querySelector('.ex-heat-legend i') : null;
     out.heatLegendGradient = !!(lgi && (lgi.getAttribute('style') || '').indexOf('linear-gradient') >= 0);
-    // v2.7.40：龙虎榜仅保留前 4 个榜单
-    var lbc = document.getElementById('lb-content');
-    var lbTxt = lbc ? (lbc.textContent || '') : '';
-    out.lbCardCount = lbc ? lbc.children.length : -1;
-    out.lbKeepsFour = /热菜榜/.test(lbTxt) && /劳模榜/.test(lbTxt) && /大胃王日/.test(lbTxt) && /燃脂日/.test(lbTxt);
-    out.lbNoRemoved = !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(lbTxt);
-    // v2.7.42：前两个榜单随周/月切换；后两个仅月榜
-    out.lbWeekFirstTwo = false; out.lbMonthOnlyLastTwo = false;
+    // v2.7.43：周视图仅前两张；月视图四张且标题为 x月、明细 xx号(周x)
+    // 注入本月数据（state 在后续涨停测试才赋值，此处先造数验证月榜明细格式）
+    var lbToday = todayStr();
+    state.diet = [{ id: 'lb-d', date: lbToday, name: '炸鸡', kcal: 1200, meal: '晚餐', time: '20:00' }];
+    state.exercise = [{ id: 'lb-e', date: lbToday, name: '跑步', kcal: 400, time: '07:00' }];
+    out.lbWeekCardCount = -1; out.lbMonthCardCount = -1;
+    out.lbWeekFirstTwo = false; out.lbMonthFour = false; out.lbKeepsFour = false; out.lbDayFormat = false; out.lbNoRemoved = true;
     if (typeof setLbRange === 'function') {
       setLbRange('week');
-      var cwk = document.getElementById('lb-content');
-      var wm = function(i){ var el = cwk && cwk.children[i] && cwk.children[i].querySelector('.m'); return el ? el.textContent : ''; };
-      out.lbWeekFirstTwo = (wm(0) === '本周' && wm(1) === '本周');
-      out.lbMonthOnlyLastTwo = (wm(2) === '本月' && wm(3) === '本月');
+      var cw = document.getElementById('lb-content');
+      out.lbWeekCardCount = cw ? cw.children.length : -1;
+      var wm = function(c, i){ var el = c && c.children[i] && c.children[i].querySelector('.m'); return el ? el.textContent : ''; };
+      out.lbWeekFirstTwo = (wm(cw, 0) === '本周' && wm(cw, 1) === '本周' && !cw.children[2]);
+      out.lbNoRemoved = !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(cw.textContent || '');
       setLbRange('month');
+      var cm = document.getElementById('lb-content');
+      out.lbMonthCardCount = cm ? cm.children.length : -1;
+      var curMonth = (new Date().getMonth() + 1) + '月';
+      out.lbMonthFour = (out.lbMonthCardCount === 4 && wm(cm, 0) === curMonth && wm(cm, 1) === curMonth && wm(cm, 2) === curMonth && wm(cm, 3) === curMonth);
+      out.lbKeepsFour = /热菜榜/.test(cm.textContent) && /劳模榜/.test(cm.textContent) && /大胃王日/.test(cm.textContent) && /燃脂日/.test(cm.textContent);
+      out.lbNoRemoved = out.lbNoRemoved && !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(cm.textContent || '');
+      var dayTxt = cm.children[2] ? (cm.children[2].textContent || '') : '';
+      out.lbDayFormat = /号（周[一二三四五六日]）/.test(dayTxt);
     }
 
     var today = todayStr();
@@ -252,11 +260,13 @@ def run():
     chk('平滑色阶：亮度随消耗单调不增（v2.7.41）', r['heatColorMonotonic'])
     chk('旧的分档函数 exHeatLevel 已移除', r['heatLevelGone'])
     chk('图例改为连续渐变条', r['heatLegendGradient'])
-    chk('龙虎榜仅 4 个榜单卡片（v2.7.40 裁剪）', r['lbCardCount'] == 4, r['lbCardCount'])
+    chk('龙虎榜本周模式仅显示前两张（v2.7.43）', r['lbWeekCardCount'] == 2, r['lbWeekCardCount'])
+    chk('龙虎榜本周模式前两张标「本周」且无月榜', r['lbWeekFirstTwo'])
+    chk('龙虎榜本月模式显示四张（v2.7.43）', r['lbMonthCardCount'] == 4, r['lbMonthCardCount'])
+    chk('龙虎榜本月四张标题均为 x月（v2.7.43）', r['lbMonthFour'])
     chk('龙虎榜保留 热菜/劳模/大胃王日/燃脂日', r['lbKeepsFour'])
     chk('龙虎榜已无 净流入/连板战绩/板块榜/战绩墙', r['lbNoRemoved'])
-    chk('龙虎榜前两张随周切换显示「本周」（v2.7.42）', r['lbWeekFirstTwo'])
-    chk('龙虎榜后两张仅月榜显示「本月」（v2.7.42）', r['lbMonthOnlyLastTwo'])
+    chk('龙虎榜月榜明细显示「xx号（周x）」', r['lbDayFormat'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])
