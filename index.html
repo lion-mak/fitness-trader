@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.41"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.42"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -3988,15 +3988,16 @@ function setLbRange(r) {
   sty(a, r === 'week'); sty(b, r === 'month');
   renderLeaderboard();
 }
-function lbRangeStart() {
+function rangeStartFor(r) {
   const now = new Date();
-  if (lbRange === 'month') return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
+  if (r === 'month') return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const day = d.getDay();
   const diff = (day === 0 ? -6 : 1 - day);
   d.setDate(d.getDate() + diff);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function lbRangeStart() { return rangeStartFor(lbRange); }
 function topFoods(start) {
   const map = {};
   (state.diet || []).forEach(function(d) { if (d.date >= start) map[d.name] = (map[d.name] || 0) + Math.round(d.kcal || 0); });
@@ -4032,18 +4033,19 @@ function lbCard(title, sub, rows) {
 }
 
 function renderLeaderboard() {
-  const start = lbRangeStart();
+  const start = lbRangeStart();                         // 前两个榜单：随周/月切换
+  const monthStart = rangeStartFor('month');            // 后两个榜单：仅月榜
   const rLabel = lbRange === 'week' ? '本周' : '本月';
   const foods = topFoods(start);
   const exs = topEx(start);
   const days = dayAgg();
-  const topIn = days.slice().sort(function(a, b) { return b.in - a.in; }).slice(0, 5);
-  const topOut = days.slice().sort(function(a, b) { return b.out - a.out; }).slice(0, 5);
+  const topIn = days.filter(function(d) { return d.date >= monthStart; }).sort(function(a, b) { return b.in - a.in; }).slice(0, 5);
+  const topOut = days.filter(function(d) { return d.date >= monthStart; }).sort(function(a, b) { return b.out - a.out; }).slice(0, 5);
   let html = '';
   html += lbCard('热菜榜 · 吃最多的食物', rLabel, foods.map(function(f, i) { return { rank: i + 1, name: f.name, sub: rLabel + '累吃', val: f.k + ' kcal', cls: '#ff8b96' }; }));
   html += lbCard('劳模榜 · 最常做的运动', rLabel, exs.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计', val: e.c + ' 次', cls: '#6ee7b7' }; }));
-  html += lbCard('大胃王日 · 吃热量最高 5 天', '全历史', topIn.map(function(d, i) { return { rank: i + 1, name: d.date, val: d.in + ' kcal', cls: '#ff8b96' }; }));
-  html += lbCard('燃脂日 · 消耗最高 5 天', '全历史', topOut.map(function(d, i) { return { rank: i + 1, name: d.date, val: d.out + ' kcal', cls: '#6ee7b7' }; }));
+  html += lbCard('大胃王日 · 吃热量最高 5 天', '本月', topIn.map(function(d, i) { return { rank: i + 1, name: d.date, val: d.in + ' kcal', cls: '#ff8b96' }; }));
+  html += lbCard('燃脂日 · 消耗最高 5 天', '本月', topOut.map(function(d, i) { return { rank: i + 1, name: d.date, val: d.out + ' kcal', cls: '#6ee7b7' }; }));
   const el = document.getElementById('lb-content');
   if (el) el.innerHTML = html;
   const a = document.getElementById('lbt-week'), b = document.getElementById('lbt-month');
