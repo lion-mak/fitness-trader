@@ -57,6 +57,12 @@ window.addEventListener('load', function () {
     out.heatInnerWide = !!(hinner && parseFloat(hinner.style.width) > 500);
     out.heatFootHint = !!(heat && /左右滑动/.test(heat.textContent || ''));
     out.heatStickyLabels = !!(heat && getComputedStyle(heat.querySelector('.ex-heat-days')).position === 'sticky');
+    // v2.7.40：龙虎榜仅保留前 4 个榜单
+    var lbc = document.getElementById('lb-content');
+    var lbTxt = lbc ? (lbc.textContent || '') : '';
+    out.lbCardCount = lbc ? lbc.children.length : -1;
+    out.lbKeepsFour = /热菜榜/.test(lbTxt) && /劳模榜/.test(lbTxt) && /大胃王日/.test(lbTxt) && /燃脂日/.test(lbTxt);
+    out.lbNoRemoved = !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(lbTxt);
 
     var today = todayStr();
     // 全部成就置为已解锁：避免成就奖励混入，把发币观测隔离到「涨停」与「记录」两项
@@ -217,6 +223,9 @@ def run():
     chk('网格内容宽度 > 一屏（可横向滚动）', r['heatInnerWide'])
     chk('网格底部带「左右滑动」提示', r['heatFootHint'])
     chk('星期行标 sticky 固定在左侧', r['heatStickyLabels'])
+    chk('龙虎榜仅 4 个榜单卡片（v2.7.40 裁剪）', r['lbCardCount'] == 4, r['lbCardCount'])
+    chk('龙虎榜保留 热菜/劳模/大胃王日/燃脂日', r['lbKeepsFour'])
+    chk('龙虎榜已无 净流入/连板战绩/板块榜/战绩墙', r['lbNoRemoved'])
     # 2：MA 数值
     chk('MA7 图例带数值', r['ma7'].startswith('● MA7 ') and r['ma7'].split()[1] not in ('', '--'),
         r['ma7'])
