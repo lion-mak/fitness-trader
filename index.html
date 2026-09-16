@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.40"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.41"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2260,11 +2260,11 @@ var EX_HEAT = {
   viewWeeks: 22,      // 一屏可视窗口：约 5 个月（决定格子尺寸）
   gap: 3, labw: 16, labgap: 6,
   empty: '#1a2030',   // 无运动：暗底块
-  lv: ['', '#8fe3c4', '#3ecfa0', '#00a97c', '#05704f'],  // 浅绿 → 深绿
+  lv: ['', '#8fe3c4', '#3ecfa0', '#00a97c', '#05704f'],  // 色锚点：浅绿 → 深绿（v2.7.41 起段内插值）
   autoEnd: true       // 首帧自动滚到最右（最新）
 };
-/* 色阶边界：取窗口内有运动日子的 P50/P75/P90（浅色占多数、深色留给高消耗，
-   避免个别超高值把所有日常记录压成最浅一档）。样本 <8 天时返回 null，退化为按峰值等比切分。 */
+/* 色阶锚点：取窗口内有运动日子的 P50/P75/P90（浅色占多数、深色留给高消耗，
+   避免个别超高值把所有日常记录压成最浅一档）。样本 <8 天时返回 null，退化为按峰值等比。 */
 function exHeatBreaks(vals) {
   var a = vals.slice().sort(function (x, y) { return x - y; });
   if (a.length < 8) return null;
@@ -2278,20 +2278,35 @@ function exHeatBreaks(vals) {
   if (b[2] <= b[1]) b[2] = b[1] + 1;
   return b;
 }
-function exHeatLevel(v, breaks, maxDay) {
-  if (!v || v <= 0) return 0;
-  if (!breaks) {                       // 样本太少：按峰值等比兜底
-    if (!maxDay || maxDay <= 0) return 1;
-    var r = v / maxDay;
-    if (r <= 0.25) return 1;
-    if (r <= 0.50) return 2;
-    if (r <= 0.75) return 3;
-    return 4;
+function exHeatRgb(h) {
+  var n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+/* 两色线性插值（t=0 取 a，t=1 取 b） */
+function exHeatMix(a, b, t) {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  var A = exHeatRgb(a), B = exHeatRgb(b);
+  return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' + Math.round(A[1] + (B[1] - A[1]) * t) + ',' + Math.round(A[2] + (B[2] - A[2]) * t) + ')';
+}
+/* 平滑色阶（v2.7.41）：P50/P75/P90 作 4 个色锚点，段内线性插值 → 消耗越多颜色严格越深，
+   不会出现「600 浅一档、624 深一档」这种相近值跨档跳变；色深分布仍由分位数控制。 */
+function exHeatColor(v, breaks, maxDay) {
+  var L = EX_HEAT.lv;
+  if (!v || v <= 0) return EX_HEAT.empty;
+  if (!breaks) {                       // 样本太少：按峰值等比插值兜底
+    if (!maxDay || maxDay <= 0) return L[4];
+    var r = Math.min(1, v / maxDay);
+    if (r <= 0.25) return exHeatMix(L[1], L[2], r / 0.25);
+    if (r <= 0.50) return exHeatMix(L[2], L[3], (r - 0.25) / 0.25);
+    if (r <= 0.75) return exHeatMix(L[3], L[4], (r - 0.50) / 0.25);
+    return L[4];
   }
-  if (v <= breaks[0]) return 1;
-  if (v <= breaks[1]) return 2;
-  if (v <= breaks[2]) return 3;
-  return 4;
+  var b0 = breaks[0], b1 = breaks[1], b2 = breaks[2];
+  if (v <= b0) return exHeatMix(L[1], L[2], b0 > 0 ? v / b0 : 1);
+  if (v <= b1) return exHeatMix(L[2], L[3], (v - b0) / Math.max(1, b1 - b0));
+  if (v <= b2) return exHeatMix(L[3], L[4], (v - b1) / Math.max(1, b2 - b1));
+  return L[4];
 }
 function renderExHeat() {
   var host = document.getElementById('ex-heat');
@@ -2351,7 +2366,7 @@ function renderExHeat() {
   // 6) 网格格子
   var cells = '';
   grid.forEach(function (g) {
-    var bg = g.future ? 'transparent' : (EX_HEAT.lv[exHeatLevel(g.v, breaks, maxDay)] || EX_HEAT.empty);
+    var bg = g.future ? 'transparent' : exHeatColor(g.v, breaks, maxDay);
     cells += '<i class="ex-heat-cell' + (g.k === tkey ? ' is-today' : '') + (g.future ? ' is-future' : '') + '"'
            + ' style="background:' + bg + '"'
            + ' title="' + (g.future ? '' : (g.k + ' · ' + (g.v > 0 ? g.v + ' kcal' : '无运动'))) + '"></i>';
@@ -2361,9 +2376,8 @@ function renderExHeat() {
   var dl = ['一', '', '三', '', '五', '', '日'], days = '';
   for (var i = 0; i < 7; i++) days += '<span>' + dl[i] + '</span>';
 
-  // 8) 图例色块
-  var sw = '';
-  EX_HEAT.lv.slice(1).forEach(function (c3) { sw += '<i style="background:' + c3 + '"></i>'; });
+  // 8) 图例：连续渐变条（浅 → 深）
+  var sw = '<i style="width:66px;background:linear-gradient(90deg,' + EX_HEAT.lv.slice(1).join(',') + ')"></i>';
 
   // 9) 重建前记录滚动位置：贴右（看最新）则保持贴右，否则原地保持，避免每次记录弹回
   var scOld = document.getElementById('ex-heat-scroll');

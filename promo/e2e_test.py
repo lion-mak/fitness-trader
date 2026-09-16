@@ -57,6 +57,22 @@ window.addEventListener('load', function () {
     out.heatInnerWide = !!(hinner && parseFloat(hinner.style.width) > 500);
     out.heatFootHint = !!(heat && /左右滑动/.test(heat.textContent || ''));
     out.heatStickyLabels = !!(heat && getComputedStyle(heat.querySelector('.ex-heat-days')).position === 'sticky');
+    // v2.7.41：平滑色阶 —— 亮度随消耗单调不增（不会相近值跨档）
+    var mono = true, prevLum = null;
+    try {
+      for (var vv = 20; vv <= 1500; vv += 20) {
+        var col = exHeatColor(vv, [300, 450, 600], 1500);
+        var lum;
+        if (col.charAt(0) === '#') { var n1 = parseInt(col.slice(1), 16); lum = 0.299 * ((n1 >> 16) & 255) + 0.587 * ((n1 >> 8) & 255) + 0.114 * (n1 & 255); }
+        else { var ps = col.replace('rgb(', '').replace(')', '').split(','); lum = 0.299 * (+ps[0]) + 0.587 * (+ps[1]) + 0.114 * (+ps[2]); }
+        if (prevLum !== null && lum > prevLum + 0.5) mono = false;
+        prevLum = lum;
+      }
+    } catch (e) { mono = false; }
+    out.heatColorMonotonic = mono;
+    out.heatLevelGone = (typeof exHeatLevel === 'undefined');
+    var lgi = heat ? heat.querySelector('.ex-heat-legend i') : null;
+    out.heatLegendGradient = !!(lgi && (lgi.getAttribute('style') || '').indexOf('linear-gradient') >= 0);
     // v2.7.40：龙虎榜仅保留前 4 个榜单
     var lbc = document.getElementById('lb-content');
     var lbTxt = lbc ? (lbc.textContent || '') : '';
@@ -223,6 +239,9 @@ def run():
     chk('网格内容宽度 > 一屏（可横向滚动）', r['heatInnerWide'])
     chk('网格底部带「左右滑动」提示', r['heatFootHint'])
     chk('星期行标 sticky 固定在左侧', r['heatStickyLabels'])
+    chk('平滑色阶：亮度随消耗单调不增（v2.7.41）', r['heatColorMonotonic'])
+    chk('旧的分档函数 exHeatLevel 已移除', r['heatLevelGone'])
+    chk('图例改为连续渐变条', r['heatLegendGradient'])
     chk('龙虎榜仅 4 个榜单卡片（v2.7.40 裁剪）', r['lbCardCount'] == 4, r['lbCardCount'])
     chk('龙虎榜保留 热菜/劳模/大胃王日/燃脂日', r['lbKeepsFour'])
     chk('龙虎榜已无 净流入/连板战绩/板块榜/战绩墙', r['lbNoRemoved'])
