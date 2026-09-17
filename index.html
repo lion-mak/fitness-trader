@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.47"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.48"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -587,6 +587,9 @@ body {
 .acct-num.up{color:#ff3b47;}
 .acct-num.down{color:#00c896;}
 .acct-num.flat{color:#9aa8be;}
+.acct-cap{font-size:11px;color:var(--muted);margin-top:5px;letter-spacing:.5px;}
+.acct-bar{height:4px;border-radius:2px;background:#1b2233;margin-top:12px;overflow:hidden;}
+.acct-bar-fill{height:100%;width:0;border-radius:2px;background:#ff3b47;transition:width .45s ease;}
 .acct-delta{font-size:11px;color:var(--muted);text-align:right;line-height:1.6;}
 .acct-grid{display:flex;gap:8px;margin-top:14px;}
 .acct-cell{flex:1;min-width:0;background:#161d2b;border-radius:8px;padding:9px 10px;}
@@ -753,13 +756,17 @@ body {
       <div class="card" id="acct-card" style="margin-top:12px;">
         <div class="card-title"><span class="t">账户总览</span><span class="m" id="acct-state">--</span></div>
         <div class="acct-hero">
-          <div class="acct-num flat" id="acct-rate">--</div>
+          <div>
+            <div class="acct-num flat" id="acct-rate">--</div>
+            <div class="acct-cap" id="acct-cap">止盈进度</div>
+          </div>
           <div class="acct-delta" id="acct-delta">--</div>
         </div>
+        <div class="acct-bar"><div class="acct-bar-fill" id="acct-bar"></div></div>
         <div class="acct-grid">
           <div class="acct-cell"><div class="l">持仓成本</div><div class="v" id="acct-cost">--</div></div>
           <div class="acct-cell"><div class="l">当前市值</div><div class="v" id="acct-now">--</div></div>
-          <div class="acct-cell"><div class="l">累计浮盈</div><div class="v" id="acct-profit">--</div></div>
+          <div class="acct-cell"><div class="l">止盈目标</div><div class="v" id="acct-target">--</div></div>
         </div>
       </div>
 
@@ -4072,15 +4079,27 @@ function renderTrend() {
 
 
 /* ============================================================
- * 账户总览（v2.7.47）
+ * 账户总览（v2.7.47 新增 / v2.7.48 改为「有上限」的盈利模型）
  *
  * 为什么要有它：体重K线是「价格」，用户每天想看的却是「我的收益」。
  *   K线给的是「我轻了」，账户给的是「我在赢」——前者是数据，后者是成就感。
+ *
+ * ⚠️ 为什么主数字不是「收益率」：
+ *   股票的收益率无上限（股价能涨十倍），但体重有物理下限。
+ *   用 (成本−现价)/成本 当收益率，等于宣称「越轻越赚、永远能赚」——
+ *   逻辑不成立，健康观更是错的。真实交易里盈利池本来就是有限的：
+ *     建仓价 79.6 → 止盈价 70，这仓最多赚 9.6，赚满就止盈离场，
+ *     不存在「再多赚 20%」这回事。
+ *   所以主数字改为 止盈进度（已盈利 ÷ 止盈空间），天然封顶 100%；
+ *   跌破止盈价（超额）不计作更多盈利，只在状态里标「超额 X.X kg」提醒重定目标。
+ *
  * 口径：
  *   持仓成本 = 最早一条真实体重日志（没有则退回 user.startWeight）
  *   当前市值 = user.weight
- *   累计浮盈 = 成本 − 现价（减重为正）
- *   收益率   = 浮盈 / 成本 × 100%
+ *   止盈目标 = currentTargetW()（未设置时默认 起点−7.5kg）
+ *   止盈空间 = 持仓成本 − 止盈目标   ← 盈利上限
+ *   已盈利   = 持仓成本 − 当前市值
+ *   止盈进度 = 已盈利 ÷ 止盈空间 × 100%（clamp 0~100）
  * 配色沿用 A 股约定：盈利(减重)红、亏损(增重)绿。
  * ============================================================ */
 function _ddiff(a, b) {
@@ -4099,35 +4118,57 @@ function acctCost() {
 function renderAccount() {
   const elRate = document.getElementById('acct-rate');
   if (!elRate) return;
-  const cost = acctCost();
-  const now = +(state.user.weight || 0);
   const elDelta = document.getElementById('acct-delta');
   const elState = document.getElementById('acct-state');
   const elCost = document.getElementById('acct-cost');
   const elNow = document.getElementById('acct-now');
-  const elProfit = document.getElementById('acct-profit');
+  const elTarget = document.getElementById('acct-target');
+  const elCap = document.getElementById('acct-cap');
+  const elBar = document.getElementById('acct-bar');
+
+  const cost = acctCost();
+  const now = +(state.user.weight || 0);
   if (!cost || !now) { elRate.textContent = '--'; return; }
-  const profit = cost - now;                 // 减重 = 浮盈
-  const rate = profit / cost * 100;
-  const flat = Math.abs(rate) < 0.01;
-  elRate.textContent = (rate >= 0 ? '+' : '') + rate.toFixed(2) + '%';
-  elRate.className = 'acct-num ' + (flat ? 'flat' : (profit > 0 ? 'up' : 'down'));
-  if (elState) elState.textContent = flat ? '持仓中' : (profit > 0 ? '浮盈中' : '浮亏中');
-  // 持仓天数 + 今日浮动
-  const log = acctWeightLog();
-  let hold = 0, floatTxt = '暂无体重记录';
-  if (log.length >= 1) hold = Math.max(0, _ddiff(log[0].date, log[log.length - 1].date));
-  if (log.length >= 2) {
-    const d = log[log.length - 1].weight - log[log.length - 2].weight;
-    floatTxt = '上次浮动 ' + (d <= 0 ? '' : '+') + d.toFixed(1) + ' kg';
+
+  const profit = +(cost - now).toFixed(1);            // 已盈利（减重为正）
+  const target = currentTargetW();
+  const space = +(cost - target).toFixed(1);          // 止盈空间 = 盈利上限
+  const hasSpace = space > 0.05;
+  const prog = hasSpace ? (profit / space * 100) : 0;
+  const done = hasSpace && now <= target + 0.001;     // 已抵达止盈价
+  const over = done ? +(target - now).toFixed(1) : 0; // 超额（跌穿止盈价）
+
+  const tone = Math.abs(profit) < 0.05 ? 'flat' : (profit > 0 ? 'up' : 'down');
+  const TONE = { up: '#ff3b47', down: '#00c896', flat: '#9aa8be' };
+  elRate.className = 'acct-num ' + tone;
+
+  if (hasSpace) {
+    const shown = Math.max(0, Math.min(100, prog));   // 封顶 100%，盈利不可能超上限
+    elRate.textContent = shown.toFixed(1) + '%';
+    if (elCap) elCap.textContent = '止盈进度 · 上限 ' + space.toFixed(1) + ' kg';
+    if (elBar) { elBar.style.width = shown.toFixed(1) + '%'; elBar.style.background = TONE[tone]; }
+  } else {
+    // 目标不低于建仓价（没有减重空间）→ 退回显示累计浮盈千克
+    elRate.textContent = (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg';
+    if (elCap) elCap.textContent = '累计浮盈';
+    if (elBar) { elBar.style.width = '0%'; elBar.style.background = TONE[tone]; }
   }
-  if (elDelta) elDelta.innerHTML = '持仓 ' + hold + ' 天<br>' + floatTxt;
+
+  if (elState) {
+    elState.textContent = done
+      ? ('已止盈' + (over > 0.05 ? ' · 超额 ' + over.toFixed(1) + ' kg' : ''))
+      : (tone === 'flat' ? '持仓中' : (profit > 0 ? '浮盈中' : '浮亏中'));
+  }
+
+  // 持仓天数
+  const log = acctWeightLog();
+  let hold = 0;
+  if (log.length >= 1) hold = Math.max(0, _ddiff(log[0].date, log[log.length - 1].date));
+  const pTxt = (profit > 0.05 ? '已盈 +' : (profit < -0.05 ? '浮亏 ' : '盈亏 ')) + profit.toFixed(1) + ' kg';
+  if (elDelta) elDelta.innerHTML = pTxt + '<br>持仓 ' + hold + ' 天';
   if (elCost) elCost.textContent = cost.toFixed(1) + ' kg';
   if (elNow) elNow.textContent = now.toFixed(1) + ' kg';
-  if (elProfit) {
-    elProfit.textContent = (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg';
-    elProfit.style.color = flat ? '#9aa8be' : (profit > 0 ? '#ff3b47' : '#00c896');
-  }
+  if (elTarget) elTarget.textContent = target.toFixed(1) + ' kg';
 }
 
 /* ============================================================

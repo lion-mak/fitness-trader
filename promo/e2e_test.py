@@ -247,13 +247,24 @@ window.addEventListener('load', function () {
       state.exercise = [{ id: 'rve1', date: today, name: '游泳', kcal: 650, time: '07:00' }];
       render();
       var rate = document.getElementById('acct-rate');
+      var bar = document.getElementById('acct-bar');
+      var g = function (id) { var e = document.getElementById(id); return e ? e.textContent : ''; };
       out.acctExists = !!document.getElementById('acct-card');
       out.acctRate = rate ? rate.textContent : '';
       out.acctRateClass = rate ? rate.className : '';
-      out.acctCells = ['acct-cost', 'acct-now', 'acct-profit'].map(function (id) {
+      out.acctCap = g('acct-cap');
+      out.acctBarW = bar ? (bar.style.width || '') : '';
+      out.acctCells = ['acct-cost', 'acct-now', 'acct-target'].map(function (id) {
         var e = document.getElementById(id); return e ? e.textContent : '';
       }).join('|');
-      out.acctState = (document.getElementById('acct-state') || {}).textContent || '';
+      out.acctState = g('acct-state');
+      // v2.7.48：盈利有上限——抵达止盈价封顶 100%
+      state.user.weight = 69.5; render();
+      out.acctRateDone = g('acct-rate'); out.acctStateDone = g('acct-state');
+      // 跌穿止盈价很远，也绝不允许 >100%（体重不能无限降，盈利不可能无限赚）
+      state.user.weight = 60; render();
+      out.acctRateOver = g('acct-rate');
+      state.user.weight = 76; render();
     } catch (e) { out.acctErr = String((e && e.message) || e); }
 
     try {
@@ -407,14 +418,23 @@ def run():
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
-    chk('账户总览显示累计收益率（带符号 + %）',
-        (r.get('acctRate') or '').endswith('%') and (r.get('acctRate') or '').startswith(('+', '-')),
+    chk('账户总览主数字为「止盈进度」（有上限的 %，v2.7.48）',
+        (r.get('acctRate') or '') == '29.4%',
         r.get('acctRate'))
+    chk('账户总览标出盈利上限（止盈空间 kg）',
+        '上限' in (r.get('acctCap') or ''), r.get('acctCap'))
+    chk('账户总览进度条宽度 = 止盈进度',
+        (r.get('acctBarW') or '') == '29.4%', r.get('acctBarW'))
     chk('账户总览盈利时用红(up)——减重即浮盈', 'up' in (r.get('acctRateClass') or ''), r.get('acctRateClass'))
-    chk('账户总览三格（成本/市值/浮盈）均有值',
+    chk('账户总览三格（成本/市值/止盈目标）均有值',
         len([x for x in (r.get('acctCells') or '').split('|') if x and x != '--']) == 3,
         r.get('acctCells'))
     chk('账户总览状态标显示「浮盈中」', '浮盈中' in (r.get('acctState') or ''), r.get('acctState'))
+    chk('抵达止盈价时封顶 100% 且标「已止盈」',
+        (r.get('acctRateDone') or '') == '100.0%' and '已止盈' in (r.get('acctStateDone') or ''),
+        (r.get('acctRateDone') or '') + ' / ' + (r.get('acctStateDone') or ''))
+    chk('体重远低于止盈价也绝不超 100%（盈利有上限，v2.7.48）',
+        (r.get('acctRateOver') or '') == '100.0%', r.get('acctRateOver'))
     chk('复盘模块挂在龙虎榜 lb-content 之后', r.get('rvAfterLb'))
     chk('周视图复盘标题为「复盘周报」', r.get('rvWeekTitle'))
     chk('复盘三宫格齐备（做多最狠/做空之王/缺口达标）', r.get('rvWeekCells'))
