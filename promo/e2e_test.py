@@ -77,26 +77,36 @@ window.addEventListener('load', function () {
     // 注入本月数据（state 在后续涨停测试才赋值，此处先造数验证月榜明细格式）
     var lbToday = todayStr();
     state.diet = [{ id: 'lb-d', date: lbToday, name: '炸鸡', kcal: 1200, meal: '晚餐', time: '20:00' }];
-    state.exercise = [{ id: 'lb-e', date: lbToday, name: '跑步', kcal: 400, time: '07:00' }];
+    state.exercise = [
+      { id: 'lb-e1', date: lbToday, name: '跑步', kcal: 400, time: '07:00' },
+      { id: 'lb-e2', date: lbToday, name: '游泳', kcal: 650, time: '18:00' },
+      { id: 'lb-e3', date: lbToday, name: '骑车', kcal: 300, time: '12:00' }
+    ];
     out.lbWeekCardCount = -1; out.lbMonthCardCount = -1;
-    out.lbWeekFirstTwo = false; out.lbMonthFour = false; out.lbKeepsFour = false; out.lbDayFormat = false; out.lbNoRemoved = true;
+    out.lbWeekThree = false; out.lbMonthFive = false; out.lbKeepsBurn = false; out.lbBurnTop = ''; out.lbDayFormat = false; out.lbNoRemoved = true;
     if (typeof setLbRange === 'function') {
       setLbRange('week');
       var cw = document.getElementById('lb-content');
       out.lbWeekCardCount = cw ? cw.children.length : -1;
       var wm = function(c, i){ var el = c && c.children[i] && c.children[i].querySelector('.m'); return el ? el.textContent : ''; };
-      out.lbWeekFirstTwo = (wm(cw, 0) === '本周' && wm(cw, 1) === '本周' && !cw.children[2]);
+      out.lbWeekThree = (cw.children.length === 3 && wm(cw,0)==='本周' && wm(cw,1)==='本周' && wm(cw,2)==='本周' && !/大胃王日/.test(cw.textContent) && !/燃脂日/.test(cw.textContent));
+      var burnCard = cw.children[2];
+      out.lbBurnTop = burnCard ? (burnCard.querySelector('.lb-item .n') || {}).textContent || '' : '';
       out.lbNoRemoved = !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(cw.textContent || '');
       setLbRange('month');
       var cm = document.getElementById('lb-content');
       out.lbMonthCardCount = cm ? cm.children.length : -1;
       var curMonth = (new Date().getMonth() + 1) + '月';
-      out.lbMonthFour = (out.lbMonthCardCount === 4 && wm(cm, 0) === curMonth && wm(cm, 1) === curMonth && wm(cm, 2) === curMonth && wm(cm, 3) === curMonth);
-      out.lbKeepsFour = /热菜榜/.test(cm.textContent) && /劳模榜/.test(cm.textContent) && /大胃王日/.test(cm.textContent) && /燃脂日/.test(cm.textContent);
+      out.lbMonthFive = (out.lbMonthCardCount === 5 && wm(cm,0)===curMonth && wm(cm,1)===curMonth && wm(cm,2)===curMonth && wm(cm,3)===curMonth && wm(cm,4)===curMonth);
+      out.lbKeepsBurn = /热菜榜/.test(cm.textContent) && /劳模榜/.test(cm.textContent) && /暴汗榜/.test(cm.textContent) && /大胃王日/.test(cm.textContent) && /燃脂日/.test(cm.textContent);
       out.lbNoRemoved = out.lbNoRemoved && !/主力净流入|连板|板块龙虎榜|个人战绩墙/.test(cm.textContent || '');
-      var dayTxt = cm.children[2] ? (cm.children[2].textContent || '') : '';
+      var dayTxt = cm.children[3] ? (cm.children[3].textContent || '') : '';
       out.lbDayFormat = /号（周[一二三四五六日]）/.test(dayTxt);
     }
+    // v2.7.46：持仓评级定位点改为 emoji
+    try {
+      var hrSvg = document.getElementById('holdings-rating');      out.hrHasEmoji = !!(hrSvg && hrSvg.querySelector('.hr-marker'));
+    } catch (e) { out.hrHasEmoji = false; }
 
     var today = todayStr();
     // 全部成就置为已解锁：避免成就奖励混入，把发币观测隔离到「涨停」与「记录」两项
@@ -308,11 +318,13 @@ def run():
     chk('平滑色阶：亮度随消耗单调不增（v2.7.41）', r['heatColorMonotonic'])
     chk('旧的分档函数 exHeatLevel 已移除', r['heatLevelGone'])
     chk('图例改为连续渐变条', r['heatLegendGradient'])
-    chk('龙虎榜本周模式仅显示前两张（v2.7.43）', r['lbWeekCardCount'] == 2, r['lbWeekCardCount'])
-    chk('龙虎榜本周模式前两张标「本周」且无月榜', r['lbWeekFirstTwo'])
-    chk('龙虎榜本月模式显示四张（v2.7.43）', r['lbMonthCardCount'] == 4, r['lbMonthCardCount'])
-    chk('龙虎榜本月四张标题均为 x月（v2.7.43）', r['lbMonthFour'])
-    chk('龙虎榜保留 热菜/劳模/大胃王日/燃脂日', r['lbKeepsFour'])
+    chk('龙虎榜本周模式显示 3 张（含暴汗榜，v2.7.46）', r['lbWeekCardCount'] == 3, r['lbWeekCardCount'])
+    chk('龙虎榜本周三张均标「本周」且无月榜', r['lbWeekThree'])
+    chk('龙虎榜本月模式显示 5 张（v2.7.46）', r['lbMonthCardCount'] == 5, r['lbMonthCardCount'])
+    chk('龙虎榜本月五张标题均为 x月（v2.7.46）', r['lbMonthFive'])
+    chk('龙虎榜保留 热菜/劳模/暴汗/大胃王日/燃脂日', r['lbKeepsBurn'])
+    chk('暴汗榜按消耗热量排名（#1=游泳 650kcal）', r['lbBurnTop'] == '游泳', r['lbBurnTop'])
+    chk('持仓评级定位点改为 emoji 🧑（v2.7.46）', r['hrHasEmoji'])
     chk('龙虎榜已无 净流入/连板战绩/板块榜/战绩墙', r['lbNoRemoved'])
     chk('龙虎榜月榜明细显示「xx号（周x）」', r['lbDayFormat'])
     # 2：MA 数值

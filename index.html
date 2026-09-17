@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.45"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.46"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -388,9 +388,9 @@ body {
 .bd-card .track-labels { position:relative; height:16px; font-size:10px; color:var(--muted); margin-bottom:7px; }
 .bd-card .track-labels span { position:absolute; transform:translateX(-50%); }
 .bd-card .track-bar-wrap { position:relative; }
-.bd-card .track-bar { height:8px; border-radius:4px; display:flex; overflow:hidden; }
+.bd-card .track-bar { height:4px; border-radius:2px; display:flex; overflow:hidden; }
 .bd-card .track-bar .seg { height:100%; }
-.bd-card .track-bar-wrap .dot { position:absolute; top:50%; width:14px; height:14px; border-radius:50%; background:#fff; border:3px solid currentColor; transform:translate(-50%,-50%); box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:1; }
+.bd-card .track-bar-wrap .dot { position:absolute; top:50%; width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid currentColor; transform:translate(-50%,-50%); box-shadow:0 1px 4px rgba(0,0,0,0.35); z-index:1; }
 .bd-card .track-names { position:relative; height:14px; font-size:10px; color:var(--muted); margin-top:8px; }
 .bd-card .track-names span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
 .bd-ai { background:#141b2d; border:1px solid var(--border); border-radius:16px; padding:16px; margin:14px 14px 0; color:var(--muted2); font-size:13px; line-height:1.7; }
@@ -774,14 +774,6 @@ body {
         <div class="hr-desc" id="holdings-rating-desc" data-page-node-id="KQKkfVEaMjjqkqFtx7RUwE">--</div>
       </div>
 
-      <div class="card" data-page-node-id="brfulFR8Y7f1bE7Zzt5u7H">
-        <div class="card-title" data-page-node-id="MvVXP0B1D9IfXsyy6SDpSB"><span class="t" data-page-node-id="MEqYJKQGFkKly3M85vC8II">本周战绩</span><span class="m" data-page-node-id="E7uEtJmFzhec9EpuUN6oTW">达标天数</span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;" data-page-node-id="O1ba3X1MacWXXB8yUh31Wm">
-          <div data-page-node-id="7sDB5BkweWtAdfiMG73kui"><div style="color:var(--muted);font-size:11px;" data-page-node-id="tZ3EdaXxRzYFzYCnNcVFj6">达标天数</div><div style="font-size:18px;font-weight:500;" id="h-days" data-page-node-id="d1y2dICc4IDeWwd1usgKAc">0</div></div>
-          <div data-page-node-id="cKIkBuNtL4jbVTw4nE2tvW"><div style="color:var(--muted);font-size:11px;" data-page-node-id="TipfiXcx1rWdBXlBOTEaJq">累计缺口</div><div style="font-size:18px;font-weight:500;color:var(--green);" id="h-gap" data-page-node-id="uNTy5HEeI7eGuNF2HJKp1W">0</div></div>
-          <div data-page-node-id="iUSolfWcdN7Fnyr100At4t"><div style="color:var(--muted);font-size:11px;" data-page-node-id="JlbPoyPVlUxs9GVSR9FLPL">健康币</div><div style="font-size:18px;font-weight:500;color:var(--amber);" id="h-coins" data-page-node-id="51cCVM6z6ZPmWxBHxjtZU1">0</div></div>
-        </div>
-      </div>
     </section>
 
     <!-- ============ 榜单 ============ -->
@@ -2205,9 +2197,6 @@ function render() {
     remEl.style.color = '#ff9f43';
   }
   renderTrend();
-  document.getElementById('h-coins').textContent = state.coins;
-  document.getElementById('h-days').textContent = state.limitUpCount;
-  document.getElementById('h-gap').textContent = t.net < 0 ? t.net : 0;
   document.getElementById('stuck-card').style.display = t.net > 0 ? 'block' : 'none';
 
   // 每日缺口评级（7700 kcal ≈ 1 kg 脂肪）
@@ -3088,8 +3077,8 @@ const BODY_TYPES = {
   '隐性肥胖型': { color:'#ff7a38', range:'体脂 21–40% · BMI <21',   desc:'体重正常但脂肪偏高，应减脂增肌而非单纯减重。' },
   '肥胖型':     { color:'#ff3b47', range:'体脂 >26%·BMI >21 或 体脂 15–26%·BMI >28', desc:'肥胖区间，建议系统减脂，优先控制总热量与精制碳水。' }
 };
-const FAT_GRID = [0, 10, 15, 21, 26, 40];      // 体脂率分格（横轴）
-const BMI_GRID = [15, 18.5, 21, 24, 28, 35];   // BMI 分格（纵轴，<15 归入首格；顶到 35 避免肥胖人群贴边）
+const FAT_GRID = [0, 10, 15, 21, 26, 35];      // 体脂率分格（横轴，最高到 35%）
+const BMI_GRID = [15, 18.5, 21, 24, 28, 32];   // BMI 分格（纵轴，<15 归入首格；顶到 32 避免肥胖人群贴边）
 function getBodyType(bmi, fat) {
   const f = Math.max(0, Math.min(40, +fat || 0));
   const b = +bmi || 0;
@@ -3106,8 +3095,8 @@ function getBodyType(bmi, fat) {
 function renderHoldingsRating() {
   const b = state.body;
   const fatRaw = +b.bodyFat || 0, bmiRaw = +b.bmi || 0;
-  const fat = Math.max(0, Math.min(40, fatRaw));
-  const bmi = Math.max(0, Math.min(35, bmiRaw));
+  const fat = Math.max(0, Math.min(35, fatRaw));
+  const bmi = Math.max(0, Math.min(32, bmiRaw));
   const type = getBodyType(bmiRaw, fatRaw);
 
   const head = document.getElementById('holdings-rating-text');
@@ -3280,9 +3269,13 @@ function renderHoldingsRating() {
   svg += `<text x="14" y="${T + H / 2}" text-anchor="middle" fill="#7c8aa5" font-size="11" letter-spacing="2" transform="rotate(-90 14 ${T + H / 2})">BMI</text>`;
 
   // 当前位置：菱形标记（盘口极值点标准符号，换图标改 const MARKER 即可）
-  const MARKER = 'diamond';   // 可选 'diamond' / 'cross' / 'target' / 'pin'
+  const MARKER = 'emoji';   // 可选 'diamond' / 'cross' / 'target' / 'pin' / 'emoji'
+  const MARKER_EMOJI = '🧑';   // 当前位置 emoji 标注（替代菱形标记）
   const px = X(fat), py = Y(bmi);
   const drawMarker = (cx, cy, c) => {
+    if (MARKER === 'emoji') {
+      return `<text class="hr-marker" x="${cx}" y="${cy + 5}" text-anchor="middle" font-size="15" style="paint-order:stroke;stroke:#0b1020;stroke-width:3px;stroke-linejoin:round;">${MARKER_EMOJI}</text>`;
+    }
     if (MARKER === 'diamond') {
       return `<polygon points="${cx},${cy - 7} ${cx + 6},${cy} ${cx},${cy + 7} ${cx - 6},${cy}" fill="#141b2d" stroke="${c}" stroke-width="2"/>` +
              `<polygon points="${cx},${cy - 3} ${cx + 2.5},${cy} ${cx},${cy + 3} ${cx - 2.5},${cy}" fill="${c}"/>`;
@@ -4043,6 +4036,11 @@ function topEx(start) {
   (state.exercise || []).forEach(function(e) { if (e.date >= start) map[e.name] = (map[e.name] || 0) + 1; });
   return Object.keys(map).map(function(n) { return { name: n, c: map[n] }; }).sort(function(a, b) { return b.c - a.c; }).slice(0, 5);
 }
+function topExKcal(start) {
+  const map = {};
+  (state.exercise || []).forEach(function(e) { if (e.date >= start) map[e.name] = (map[e.name] || 0) + Math.round(e.kcal || 0); });
+  return Object.keys(map).map(function(n) { return { name: n, k: map[n] }; }).sort(function(a, b) { return b.k - a.k; }).slice(0, 5);
+}
 function dayAgg() {
   const din = {}, dout = {};
   (state.diet || []).forEach(function(d) { din[d.date] = (din[d.date] || 0) + Math.round(d.kcal || 0); });
@@ -4088,6 +4086,8 @@ function renderLeaderboard() {
   let html = '';
   html += lbCard('热菜榜 · 吃最多的食物', rLabel, foods.map(function(f, i) { return { rank: i + 1, name: f.name, sub: rLabel + '累吃', val: f.k + ' kcal', cls: '#ff8b96' }; }));
   html += lbCard('劳模榜 · 最常做的运动', rLabel, exs.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计', val: e.c + ' 次', cls: '#6ee7b7' }; }));
+  const exK = topExKcal(start);
+  html += lbCard('暴汗榜 · 消耗热量最高运动', rLabel, exK.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计燃脂', val: e.k + ' kcal', cls: '#ffd166' }; }));
   if (!isWeek) {  // 后两张仅月榜：周视图下不出现
     html += lbCard('大胃王日 · 吃热量最高 5 天', curMonth, topIn.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.in + ' kcal', cls: '#ff8b96' }; }));
     html += lbCard('燃脂日 · 消耗最高 5 天', curMonth, topOut.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.out + ' kcal', cls: '#6ee7b7' }; }));
