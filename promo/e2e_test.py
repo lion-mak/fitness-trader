@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""端到端验收（v2.7.38 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
+"""端到端验收（v2.7.49 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
 
 覆盖：
   · 摄入圆环模块 / 餐次模块 已移除（DOM 中不存在，且 render() 能跑完不抛错）
   · 行情页结构：首块 = 体重K线，第二块 = 运动网格图（v2.7.38）
-  · 交易大厅已迁入持仓页首块（v2.7.38），底图 trading-floor-full.png，无 canvas 引擎
+  · 交易大厅已整块删除（v2.7.49）：CSS/HTML/JS 全清，账户总览上位首块
   · 运动网格图：近 1 年 371 格 / 横向可滚动 / 少·多 图例 / 月份标签（v2.7.39）
   · 涨停币每日只发一次（重复记录不再叠加 +200）
   · MA 图例带数值
@@ -35,18 +35,20 @@ window.addEventListener('load', function () {
     var mk = document.getElementById('page-market');
     var firstCard = mk ? mk.querySelector('.card') : null;
     var cards = mk ? mk.querySelectorAll('.card') : [];
-    // v2.7.38：交易大厅迁到持仓页；行情页首块 = 体重K线，第二块 = 运动网格图
+    // 行情页首块 = 体重K线，第二块 = 运动网格图（v2.7.38）
     out.firstCardHasKline = !!(firstCard && firstCard.querySelector('#kline'));
     out.secondCardIsHeat = cards.length >= 2 && cards[1].id === 'ex-heat-card';
-    out.tradingFloorHasBgImg = !!document.querySelector('.tf-bg');
-    var bgImg = document.querySelector('.tf-bg');
-    out.tradingFloorUsesFull = !!(bgImg && /trading-floor-full/.test(bgImg.getAttribute('src') || ''));
-    out.tradingFloorNoTicker = !document.querySelector('.tf-ticker');
-    out.tradingFloorNoCanvas = !document.getElementById('tf-canvas');
+    // v2.7.49：交易大厅整块删除；账户总览自动上位成持仓页首块
     var hold = document.getElementById('page-holdings');
-    var tf = document.getElementById('tf-card');
-    out.tfInsideHoldings = !!(hold && tf && hold.contains(tf));
-    out.tfIsFirstHoldingsCard = !!(hold && hold.querySelector('.card') === tf);
+    out.tfCardGone = !document.getElementById('tf-card');
+    out.tfBgGone = !document.querySelector('.tf-bg');
+    out.tfCssGone = !/\.tf-stage\s*\{/.test(document.head.innerHTML);
+    out.tfFnGone = (typeof tfFlash === 'undefined' && typeof tfCelebrate === 'undefined'
+                    && typeof tfToggle === 'undefined');
+    // 注意：正则用拼接写法，否则本注入脚本自身的字面量会被 innerHTML 读回来（自匹配）
+    out.tfKeyGone = !new RegExp('jianpan_tf_' + 'collapsed').test(document.documentElement.innerHTML);
+    out.holdingsFirstCardIsAcct = !!(hold && hold.querySelector('.card')
+                                     && hold.querySelector('.card').id === 'acct-card');
     var heat = document.getElementById('ex-heat');
     out.heatHasCells = !!(heat && heat.querySelectorAll('.ex-heat-cell').length >= 365);
     out.heatHasLegend = !!(heat && heat.querySelector('.ex-heat-legend'));
@@ -368,12 +370,12 @@ def run():
     chk('餐次模块已移除（CSS）', r['mealCssGone'])
     chk('行情页首块是体重K线', r['firstCardHasKline'])
     chk('行情页第二块是运动网格图（v2.7.38 新增）', r['secondCardIsHeat'])
-    chk('交易大厅已迁入持仓页（v2.7.38）', r['tfInsideHoldings'])
-    chk('交易大厅是持仓页首块', r['tfIsFirstHoldingsCard'])
-    chk('交易大厅背景图存在', r['tradingFloorHasBgImg'])
-    chk('交易大厅底图是 trading-floor-full.png（v2.7.33 换图）', r['tradingFloorUsesFull'])
-    chk('交易大厅已去除底部跑马灯', r['tradingFloorNoTicker'])
-    chk('交易大厅已无 canvas 引擎（v2.7.34 改纯 CSS 特效）', r['tradingFloorNoCanvas'])
+    chk('交易大厅已整块删除（DOM·v2.7.49）', r['tfCardGone'])
+    chk('交易大厅底图元素已删除（v2.7.49）', r['tfBgGone'])
+    chk('交易大厅 CSS 已清理（v2.7.49）', r['tfCssGone'])
+    chk('交易大厅 JS 引擎/调用已删除（v2.7.49）', r['tfFnGone'])
+    chk('交易大厅折叠状态存储键已清理（v2.7.49）', r['tfKeyGone'])
+    chk('持仓页首块变为账户总览（v2.7.49）', r['holdingsFirstCardIsAcct'])
     chk('运动网格图渲染出近一年 371 个格子（v2.7.39）', r['heatHasCells'])
     chk('运动网格图带 少/多 图例', r['heatHasLegend'])
     chk('运动网格图带月份标签', r['heatHasMonths'])

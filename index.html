@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.48"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.49"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -47,33 +47,6 @@ body {
 .pagetitle .k { color:var(--muted); font-size:11px; }
 .pagetitle .t { font-size:22px; font-weight:600; margin-top:2px; }
 .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; margin:12px 14px 0; }
-/* 交易大厅 */
-.tf-card { padding:0; overflow:hidden; }
-.tf-title { padding:12px 16px; cursor:pointer; user-select:none; }
-.tf-stage { position:relative; width:100%; aspect-ratio:3/2; background:#0c1418; overflow:hidden; }
-.tf-bg { width:100%; height:100%; display:block; object-fit:cover; image-rendering:pixelated; }
-/* 灯光/屏闪特效层（纯 CSS，叠加在底图上，不破坏精致底图） */
-.tf-fx { position:absolute; inset:0; pointer-events:none; z-index:2; }
-/* 大屏整体辉光（顶部大屏区），蓝青呼吸 */
-.tf-screen-glow { position:absolute; top:6%; left:3%; right:3%; height:32%; background:radial-gradient(120% 140% at 50% 40%, rgba(90,190,255,0.20), rgba(90,190,255,0.05) 55%, transparent 75%); mix-blend-mode:screen; animation:tfScreenBreath 4.2s ease-in-out infinite; }
-/* 大屏刷新闪（偶尔整片亮一下，模拟数据刷新） */
-.tf-screen-flash { position:absolute; top:6%; left:3%; right:3%; height:32%; background:linear-gradient(180deg, rgba(255,255,255,0.10), rgba(180,230,255,0.04)); mix-blend-mode:screen; opacity:0; animation:tfScreenRefresh 6.5s linear infinite; }
-/* 记饮食/运动时大屏闪一下对应色 */
-.tf-screen-flash.flash-long  { background:linear-gradient(180deg, rgba(140,240,120,0.40), rgba(140,240,120,0.10)); animation:tfFlashOnce .9s ease-out; }
-.tf-screen-flash.flash-short { background:linear-gradient(180deg, rgba(255,110,110,0.40), rgba(255,110,110,0.10)); animation:tfFlashOnce .9s ease-out; }
-/* 整体暖色氛围辉光（大厅灯光呼吸） */
-.tf-ambient { position:absolute; inset:0; background:radial-gradient(110% 90% at 50% 18%, rgba(255,196,120,0.10), transparent 60%); mix-blend-mode:screen; animation:tfAmbient 5.5s ease-in-out infinite; }
-/* 涨停全屏光晕脉冲 */
-.tf-stage.celebrating::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background:radial-gradient(80% 70% at 50% 45%, rgba(255,200,90,0.28), transparent 70%); mix-blend-mode:screen; animation:tfCheer 1.6s ease-out; }
-@keyframes tfScreenBreath { 0%,100%{opacity:.55} 50%{opacity:1} }
-@keyframes tfScreenRefresh { 0%,92%{opacity:0} 94%{opacity:.9} 96%{opacity:0} 100%{opacity:0} }
-@keyframes tfFlashOnce { 0%{opacity:1} 100%{opacity:0} }
-@keyframes tfAmbient { 0%,100%{opacity:.55} 50%{opacity:1} }
-@keyframes tfCheer { 0%{opacity:0} 30%{opacity:1} 100%{opacity:0} }
-.tf-celebrate { position:absolute; top:8%; left:50%; transform:translateX(-50%); background:#e24b4a; color:#fff; font:500 16px/1 var(--font-mono); padding:6px 18px; border-radius:4px; letter-spacing:4px; box-shadow:0 0 24px rgba(226,75,74,0.7); display:none; z-index:3; }
-.tf-collapsed .tf-stage { display:none; }
-.tf-collapsed .tf-title { border-bottom:none; }
-
 /* 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） */
 .ex-heat { margin-top:2px; }
 /* 横向滚动视窗：数据窗口近 1 年（53 周），一屏约 5 个月（v2.7.39） */
@@ -734,23 +707,6 @@ body {
     <!-- ============ 持仓 ============ -->
     <section class="page" id="page-holdings" data-page-node-id="sZh2FcuAb7qaEDE2zUmr4J">
       <div class="pagetitle" data-page-node-id="RKQMWHNb4iSkWUITLy2SoB"><div class="k" data-page-node-id="C07VbMAXvlke6lQhpuZZGX">PORTFOLIO · 持仓</div><div class="t" data-page-node-id="ntzicCnoj0L58A2KNwf0DE">我的仓位</div></div>
-
-      <!-- 交易大厅（持仓页首块，可折叠） -->
-      <div class="card tf-card" id="tf-card">
-        <div class="card-title tf-title" onclick="tfToggle()">
-          <span class="t">交易大厅</span>
-          <span class="m" id="tf-toggle-icon">▾</span>
-        </div>
-        <div class="tf-stage" id="tf-stage">
-          <img class="tf-bg" src="./assets/trading-floor-full.png" alt="" draggable="false">
-          <div class="tf-fx" aria-hidden="true">
-            <div class="tf-ambient"></div>
-            <div class="tf-screen-glow"></div>
-            <div class="tf-screen-flash" id="tf-screen-flash"></div>
-          </div>
-          <div class="tf-celebrate" id="tf-celebrate">涨停</div>
-        </div>
-      </div>
 
       <!-- 账户总览（v2.7.47）：把「记录」升级成「账户」——用户要的是「我在赢」 -->
       <div class="card" id="acct-card" style="margin-top:12px;">
@@ -4906,45 +4862,6 @@ function foodManualKcal() {
 }
 
 
-/* ===========================================================
-   交易大厅 · 灯光/屏闪特效（纯 CSS，无 canvas 小人）
-   - 背景：assets/trading-floor-full.png（带交易员的完整像素大厅）
-   - 叠加层：大屏辉光呼吸 + 大屏刷新闪 + 扫描光带 + 整体灯光呼吸
-   - 联动：记饮食→大屏绿闪；记运动→大屏红闪；涨停→全屏光晕脉冲+banner
-   =========================================================== */
-function tfFlash(role){
-  const el = document.getElementById('tf-screen-flash');
-  if(!el) return;
-  el.classList.remove('flash-long','flash-short');
-  void el.offsetWidth;
-  el.classList.add(role === 'short' ? 'flash-short' : 'flash-long');
-}
-function tfCelebrate(){
-  const ban = document.getElementById('tf-celebrate');
-  const stage = document.getElementById('tf-stage');
-  if(ban){ ban.style.display = 'block'; clearTimeout(tfCelebrate._t); tfCelebrate._t = setTimeout(() => { if(ban) ban.style.display = 'none'; }, 3200); }
-  if(stage){ stage.classList.add('celebrating'); clearTimeout(tfCelebrate._c); tfCelebrate._c = setTimeout(() => { if(stage) stage.classList.remove('celebrating'); }, 1600); }
-}
-function tfToggle(){
-  const card = document.getElementById('tf-card');
-  if(!card) return;
-  card.classList.toggle('tf-collapsed');
-  const icon = document.getElementById('tf-toggle-icon');
-  if(icon) icon.textContent = card.classList.contains('tf-collapsed') ? '▸' : '▾';
-  try{ localStorage.setItem('jianpan_tf_collapsed', card.classList.contains('tf-collapsed') ? '1' : '0'); }catch(e){}
-}
-// 初始化：DOM 就绪后恢复折叠状态（特效纯 CSS，无需 JS 引擎）
-(function tfBootstrap(){
-  const collapsed = (function(){ try { return localStorage.getItem('jianpan_tf_collapsed') === '1'; } catch(e){ return false; } })();
-  if(collapsed){
-    const card = document.getElementById('tf-card');
-    if(card){ card.classList.add('tf-collapsed'); const i = document.getElementById('tf-toggle-icon'); if(i) i.textContent = '▸'; }
-  }
-  window.tfFlash = tfFlash;
-  window.tfCelebrate = tfCelebrate;
-})();
-
-
 function calcFoodKcal() {
   if (!curFood) return 0;
   return NutritionEngine.food(curFood, curFoodGrams()).kcal;
@@ -4975,7 +4892,6 @@ function addFood() {
   bumpFoodFreq(curFood);   // 供「我的常吃」自动收录统计
   awardRecordCoins('food');
   bumpStreak();
-  try{ tfFlash('long'); }catch(e){}
   closeFoodSheet(); render();
 }
 function toggleCustomFood() {
@@ -5122,7 +5038,6 @@ function addExercise() {
     avgHr: curAvgHr, method: r.method, manualKcal: manual != null, time: pickHM('es-time'), ts: tsFromHM(pickHM('es-time')) });
   awardRecordCoins('ex');
   bumpStreak();
-  try{ tfFlash('short'); }catch(e){}
   closeExSheet(); render();
 }
 function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }
@@ -5496,7 +5411,6 @@ function settleDay(dateStr) {
     state.exp += EXP_LIMITUP;
     var ce=document.getElementById('celeb-net'); if(ce) ce.innerHTML = net + '<small>kcal</small>';
     var cb=document.getElementById('celeb'); if(cb) cb.classList.add('show');
-    if (typeof tfCelebrate === 'function') tfCelebrate();
   }
   state.settledDate = dateStr;
   saveState(); render();
