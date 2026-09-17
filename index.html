@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.44"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.45"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -390,7 +390,7 @@ body {
 .bd-card .track-bar-wrap { position:relative; }
 .bd-card .track-bar { height:8px; border-radius:4px; display:flex; overflow:hidden; }
 .bd-card .track-bar .seg { height:100%; }
-.bd-card .track-bar .dot { position:absolute; top:50%; width:14px; height:14px; border-radius:50%; background:#fff; border:3px solid currentColor; transform:translate(-50%,-50%); box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:1; }
+.bd-card .track-bar-wrap .dot { position:absolute; top:50%; width:14px; height:14px; border-radius:50%; background:#fff; border:3px solid currentColor; transform:translate(-50%,-50%); box-shadow:0 2px 6px rgba(0,0,0,0.3); z-index:1; }
 .bd-card .track-names { position:relative; height:14px; font-size:10px; color:var(--muted); margin-top:8px; }
 .bd-card .track-names span { position:absolute; transform:translateX(-50%); white-space:nowrap; }
 .bd-ai { background:#141b2d; border:1px solid var(--border); border-radius:16px; padding:16px; margin:14px 14px 0; color:var(--muted2); font-size:13px; line-height:1.7; }
@@ -724,7 +724,6 @@ body {
         <div class="metric" data-page-node-id="GVbrDXUSyXEexvTsmDBx5v">
           <div class="l" data-page-node-id="WfwYiI8BegzsR4diR43WfI">当前仓位</div>
           <div class="v" id="h-weight" data-page-node-id="znZs6k0kl6VuFE2mqxLS4t">--<small data-page-node-id="zqoKnGoB4auotQd7u9ZJTy"> kg</small></div>
-          <div style="color:var(--green);font-size:11px;margin-top:4px;" id="h-change" data-page-node-id="ktLSNdj1oahPJ9Ja9n0co7">--</div>
         </div>
         <div class="metric" data-page-node-id="uKz57NkpRTPe3UjsLcmAEq">
           <div class="l" data-page-node-id="CJw4E3QbIx9il1mgspxRny" style="display:flex;justify-content:space-between;align-items:center;"><span>目标仓位</span><span class="tw-btn" onclick="toggleTargetW()">🎯 调整目标</span></div>
@@ -750,7 +749,6 @@ body {
         <div class="card-title" data-page-node-id="kQn7Ht84jkG7gUCbVtqfKk"><span class="t" data-page-node-id="qbBPojm5Gs46iA3Ja1BRH8">每日缺口评级</span><span class="m" id="gap-rate-name" data-page-node-id="OvMJKjaCd08C9xobZvAzHv">--</span></div>
         <div class="gap-hero" data-page-node-id="EEDVhy2CbmnkHSidJsh1WX">
           <div data-page-node-id="7wDXYQC7A3F4qPNSk0m7nE"><span class="big" id="gap-deficit" data-page-node-id="2M1OskqxDZ91n4eBBBOWsp">--</span><span class="unit" id="gap-unit" data-page-node-id="arztcqyqFQ55GmVriGnoGd">kcal 缺口</span></div>
-          <div class="side" id="gap-side" data-page-node-id="PcI474XRTzqQlFVNUcTgNi">按全天口径（含基础代谢）</div>
         </div>
         <div class="gap-grid" data-page-node-id="rHiM31QqCjJUGrf3x04C7D">
           <div data-page-node-id="taI0p1k2YEVcDQmMBbMQoI"><div class="v" id="gap-jin" data-page-node-id="1VNPVFHAiTCtKnAnqzysWY">--</div><div class="l" data-page-node-id="MiBwafqpFzGhN5lUDDXFR1">今日约减脂（斤）</div></div>
@@ -2075,8 +2073,6 @@ function renderGapRating(t) {
   // 实时进度缺口：基础代谢按当日已过时间折算，早上看不会虚高
   const progress = dayProgress();
   const nowDeficit = Math.round(t.bmr * progress) + t.burn - t.intake;
-  set('gap-side', '含基础代谢 ' + Math.round(t.bmr) + ' kcal · 全天口径<br>'
-    + '当前进度缺口 ' + (nowDeficit > 0 ? '' : '+') + Math.abs(nowDeficit) + ' kcal（已过 ' + Math.round(progress * 100) + '% 的今日）');
 
   const sub = document.getElementById('net-sub');
   if (sub) sub.innerHTML = '≈ 减脂 <b>' + fmtJin(deficit) + '</b> 斤 / 日 · <b>' + tier.name + '</b>'
@@ -2199,10 +2195,15 @@ function render() {
   document.getElementById('h-weight').innerHTML = u.weight + '<small> kg</small>';
   const targetW = currentTargetW();
   document.getElementById('h-target').innerHTML = targetW.toFixed(1) + '<small> kg</small>';
-  const change = (u.weight - u.startWeight).toFixed(1);
-  document.getElementById('h-change').textContent = '较起点 ' + (change < 0 ? '' : '+') + change + ' kg';
   const remain = u.weight - targetW;
-  document.getElementById('h-remain').textContent = remain > 0.05 ? '还差 ' + remain.toFixed(1) + ' kg' : '🎉 已达成目标';
+  const remEl = document.getElementById('h-remain');
+  if (remain > 0.05) {
+    remEl.textContent = '还差 ' + remain.toFixed(1) + ' kg';
+    remEl.style.color = '#ff3b47';
+  } else {
+    remEl.textContent = '🎉 已达成目标 · 漂亮！';
+    remEl.style.color = '#ff9f43';
+  }
   renderTrend();
   document.getElementById('h-coins').textContent = state.coins;
   document.getElementById('h-days').textContent = state.limitUpCount;
@@ -3504,8 +3505,18 @@ function renderBodyTrend(m, u) {
   if (n < 2) {
     return header + `<div class="empty">身体成分历史从本次版本开始记录，每录入一次攒一个点<br>（同一指标测到 2 次以上才会连成线）</div>`;
   }
-  const a = m.axisFn ? m.axisFn(u) : (m.axis || { min: (m.levels ? m.levels[0].min : 0), max: (m.levels ? m.levels[m.levels.length - 1].max : 100) });
-  const yMin = a.min, yMax = a.max, span = (yMax - yMin) || 1;
+  // Y 轴自适应数据范围（留白 20%），不再铺满「偏低→肥胖」全量程，折线细微变化才看得清
+  const dv = vals.map(p => p.v);
+  const dvMin = Math.min.apply(null, dv), dvMax = Math.max.apply(null, dv);
+  let yMin, yMax;
+  if (dvMax - dvMin < 1e-9) {
+    const step = Math.max(0.5, Math.abs(dvMin) * 0.04) || 0.5;
+    yMin = dvMin - step; yMax = dvMax + step;
+  } else {
+    const pad = (dvMax - dvMin) * 0.2;
+    yMin = dvMin - pad; yMax = dvMax + pad;
+  }
+  const span = (yMax - yMin) || 1;
   const W = 320, H = 200, padL = 34, padR = 30, padT = 16, padB = 24;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const clampV = v => Math.min(yMax, Math.max(yMin, v));

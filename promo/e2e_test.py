@@ -188,12 +188,19 @@ window.addEventListener('load', function () {
       var pl = td ? td.querySelector('polyline') : null;
       out.btHasSvg = !!pl;
       if (pl) {
-        var xs = pl.getAttribute('points').trim().split(' ').map(function (p) { return parseFloat(p.split(',')[0]); });
+        var pts = pl.getAttribute('points').trim().split(' ').map(function (p) { return p.split(',').map(parseFloat); });
+        var xs = pts.map(function (q) { return q[0]; });
         var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
         out.btFewExtent = Math.round(xmax - xmin);
         // 3 个点（少）→ 折线不应铺满整宽（plot 宽 ≈ 320-34-30=256）
         out.btFewNotFill = (xmax - xmin) < 256 * 0.9;
+        // v2.7.45：Y 轴自适应数据范围，折线纵向应明显铺开（全量程下仅约 14px）
+        var ys = pts.map(function (q) { return q[1]; });
+        out.btLineYSpread = Math.round(Math.max.apply(null, ys) - Math.min.apply(null, ys));
       }
+      // v2.7.45：身体成分子页第一个模块（bd-card）定位点真正定位
+      var bdDot = document.querySelector('#bd-card .dot');
+      out.bdDotPos = bdDot ? getComputedStyle(bdDot).position : 'none';
       // Y 轴：每个颜色分区带自身颜色的数字标注（非灰）
       var colored = 0;
       td.querySelectorAll('svg text').forEach(function (t) {
@@ -203,6 +210,19 @@ window.addEventListener('load', function () {
       out.btColoredLabels = colored;
       out.btHasBandNames = !!(td && /偏低|正常|偏胖|肥胖|标准/.test(td.textContent));
     } catch (e) { out.btErr = String((e && e.message) || e); }
+    // v2.7.45：持仓「较起点」已删 / 目标仓位评价逻辑 / 缺口评级右上小字已删
+    out.hChangeGone = !document.getElementById('h-change');
+    out.gapSideGone = !document.getElementById('gap-side');
+    try {
+      state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
+      render();
+      var rem = document.getElementById('h-remain');
+      out.remainUnmet = rem.textContent; out.remainUnmetColor = rem.style.color;
+      state.user.weight = 69; render();
+      rem = document.getElementById('h-remain');
+      out.remainMet = rem.textContent; out.remainMetColor = rem.style.color;
+      state.user.weight = 78;
+    } catch (e) { out.remainErr = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -308,6 +328,15 @@ def run():
     chk('Y 轴每个颜色分区带自身颜色标注数字（v2.7.44）', r['btColoredLabels'] >= 4, r.get('btColoredLabels'))
     chk('右侧显示颜色分区名（偏低/正常/偏胖/肥胖）', r['btHasBandNames'])
     chk('无数据时 MA30 显示 --', r['ma30None'] == '● MA30 --', r['ma30None'])
+    # v2.7.45：身体成分子页定位点 + 趋势图 Y 轴自适应 + 持仓/缺口评级清理
+    chk('身体成分子页第一个模块定位点已定位（v2.7.45 修 CSS 选择器）', r.get('bdDotPos') == 'absolute', r.get('bdDotPos'))
+    chk('趋势图 Y 轴自适应：折线纵向明显铺开（v2.7.45）', (r.get('btLineYSpread') or 0) > 80, r.get('btLineYSpread'))
+    chk('持仓「较起点+xxkg」已删除（v2.7.45）', r['hChangeGone'])
+    chk('缺口评级右上「含基础代谢·全天口径」小字已删除（v2.7.45）', r['gapSideGone'])
+    chk('目标未达成：红色「还差 xx kg」', (r.get('remainUnmet') or '').startswith('还差') and 'rgb(255, 59, 71)' in (r.get('remainUnmetColor') or ''),
+        (r.get('remainUnmet') or '') + ' / ' + (r.get('remainUnmetColor') or ''))
+    chk('目标已达成：橙色祝贺语', '已达成目标' in (r.get('remainMet') or '') and 'rgb(255, 159, 67)' in (r.get('remainMetColor') or ''),
+        (r.get('remainMet') or '') + ' / ' + (r.get('remainMetColor') or ''))
     # 4：餐次自动推断
     chk('12:30 推断午餐', r['mealAutoLunch'] == '午餐', r['mealAutoLunch'])
     chk('22:10 推断加餐', r['mealAutoSnack'] == '加餐', r['mealAutoSnack'])
