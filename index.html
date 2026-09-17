@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.53"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.54"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -299,13 +299,16 @@ body {
 .badge .b svg { width:26px; height:26px; }
 
 /* 底部 Tab */
-.tabbar { display:flex; justify-content:space-around; padding:12px 0 calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; }
-.tabbar > div { text-align:center; color:var(--muted); font-size:11px; cursor:pointer; }
+.tabbar { display:flex; padding:12px 0 calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; }
+/* v2.7.54：等宽列（flex:1）取代 space-around。原来空间是「按项」分配的，而「龙虎榜」是 3 个字、
+   项宽 36px，其余都 24px ⇒ 中间那格被挤到 237.5px，底栏几何中心却是 243.5px（差 6px），
+   肉眼就是「交易离持仓近、离龙虎榜远」。等宽后中心恒定落在 1/2 处，与文字长短无关。 */
+.tabbar > div { flex:1 1 0; min-width:0; text-align:center; color:var(--muted); font-size:11px; cursor:pointer; }
 .tabbar > div.on { color:var(--red); }
 .tabbar .ico { width:22px; height:22px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
-/* 居中位（交易）图标：彩色矢量，略放大 1px 拿到视觉权重 —— 彩色比线性图标“重”，
-   同尺寸会显得比邻居小，这是光学补偿不是偏心 */
-.tabbar .ico-trade svg { width:23px; height:23px; }
+/* 居中位（交易）图标：彩色矢量。不再额外放大 —— 它绘图内容已占 viewBox 的 ±10.8/12，
+   而 4 个线性图标只有 ±7~9，同 22px 框下它本来就是最重的一个。
+   （v2.7.52 那条 width:23px 被 .ico 的 flex 收缩吃掉、从未真正生效，故删除以免误导。） */
 
 /* 弹层 */
 .sheet-mask { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:50; display:none; align-items:flex-end; }
@@ -594,6 +597,9 @@ body {
 .hero-cap{position:relative;flex:none;display:flex;align-items:baseline;gap:4px;text-align:right;white-space:nowrap;}
 .hero-cap .k{font-size:10px;color:var(--muted2);letter-spacing:.3px;}
 .hero-cap b{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;}
+/* v2.7.54：右侧「+x kg」原来没设字号 → 从 body 继承到 16px，比 10px 的标签大一档半；
+   又因为等宽字体里「.」和空格都是全宽字身，看着「字间距很开」。收成 12px + 负字距/负词距。 */
+#acct-cap b{font-size:12px;letter-spacing:-.5px;word-spacing:-2px;}
 .hero-track{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin:8px 0 0;overflow:hidden;}
 .hero-track i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,rgba(255,59,71,.55),var(--red));transition:width .45s ease;}
 .hero-remain{position:relative;margin-top:6px;font-size:11px;line-height:1.4;color:#ff9f43;}
@@ -607,6 +613,8 @@ body {
 .lrow .lv{flex:none;font-family:var(--mono);font-size:15px;font-weight:500;line-height:1.3;font-variant-numeric:tabular-nums;}
 .lrow .lv small{margin-left:2px;font-size:10px;color:var(--muted);font-weight:400;}
 .lrow .lv.dim{color:var(--muted2);}
+/* v2.7.54：目标类数据统一琥珀（与「距止盈目标 还差」「🎯 调整目标」同色系） */
+.lrow .lv.tgt{color:#ff9f43;}
 
 /* Primary 卡：去边框、改左侧状态色条 */
 .pcard{position:relative;margin:12px 14px 0;padding:14px 16px 14px 18px;background:var(--panel);border-radius:12px;overflow:hidden;}
@@ -634,7 +642,7 @@ body {
 .gap2-hero .unit{margin-left:6px;font-size:11px;color:var(--muted2);}
 .gap2-hero .rank{flex:none;font-size:12px;color:#ff8a93;}
 .gap2-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 0;}
-.gap2-cell{padding:9px 10px;background:rgba(255,255,255,.035);border-radius:9px;}
+.gap2-cell{padding:9px 10px;background:rgba(255,255,255,.035);border-radius:9px;text-align:right;} /* v2.7.54：数值与文字都右对齐 */
 .gap2-cell .v{font-family:var(--mono);font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;}
 .gap2-cell .l{margin-top:3px;font-size:10px;color:var(--muted);}
 
@@ -798,7 +806,7 @@ body {
         <div class="ledger">
           <div class="lrow"><span class="lk">持仓成本</span><span class="ld"></span><span class="lv" id="acct-cost">--</span></div>
           <div class="lrow"><span class="lk">当前市值</span><span class="ld"></span><span class="lv" id="acct-now">--</span></div>
-          <div class="lrow"><span class="lk">止盈目标</span><span class="ld"></span><span class="lv dim" id="acct-target">--</span></div>
+          <div class="lrow"><span class="lk">止盈目标</span><span class="ld"></span><span class="lv tgt" id="acct-target">--</span></div>
         </div>
       </div>
 

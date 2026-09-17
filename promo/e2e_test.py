@@ -585,6 +585,65 @@ window.addEventListener('load', function () {
         && tsvg5.innerHTML.indexOf('translate(-1.4') < 0 && tsvg5.innerHTML.indexOf('translate(1.4') < 0
         && tsvg5.innerHTML.indexOf('19.15') >= 0;
     } catch (e) { out.uiErr53 = String((e && e.message) || e); }
+    // ===== v2.7.54：底栏等宽列 / Hero 右侧数值收紧 / 止盈目标琥珀 / 缺口评级右对齐 =====
+    try {
+      switchTab('holdings');
+      render();
+      // A) 底栏：5 个 tab 等宽 ⇒ 图标中心严格等距，且中间那格落在底栏几何中心
+      var tb54 = document.querySelector('.tabbar');
+      var its54 = tb54.querySelectorAll(':scope > div');
+      var ws54 = [], cs54 = [];
+      for (var z54 = 0; z54 < its54.length; z54++) {
+        ws54.push(+its54[z54].getBoundingClientRect().width.toFixed(1));
+        var rb54 = its54[z54].querySelector('.ico svg').getBoundingClientRect();
+        cs54.push(+(rb54.left + rb54.width / 2).toFixed(1));
+      }
+      out.ui54TabWidths = ws54.join(',');
+      out.ui54TabCenters = cs54.join(',');
+      out.ui54EvenWidth = Math.max.apply(null, ws54) - Math.min.apply(null, ws54) < 1;
+      var gaps54 = [];
+      for (var z55 = 1; z55 < cs54.length; z55++) gaps54.push(+(cs54[z55] - cs54[z55 - 1]).toFixed(1));
+      out.ui54Gaps = gaps54.join(',');
+      out.ui54EvenGaps = Math.max.apply(null, gaps54) - Math.min.apply(null, gaps54) < 1;
+      var tbr54 = tb54.getBoundingClientRect();
+      out.ui54TradeOnCenter = Math.abs(cs54[2] - (tbr54.left + tbr54.width / 2)) < 0.6;
+      out.ui54TradeOffPx = +(cs54[2] - (tbr54.left + tbr54.width / 2)).toFixed(1);
+      // 无放大补偿：交易图标框宽 == 其余图标框宽（v2.7.52 的 23px 被 flex 收缩吃掉、从未生效，已删）
+      out.ui54IconBoxW = getComputedStyle(tb54.querySelector('.ico-trade svg')).width;
+      out.ui54IconBoxWRef = getComputedStyle(tb54.querySelector('.ico svg')).width;
+      // B) Hero 右侧「+x kg」：字号收小 + 负字距/负词距
+      var cb54 = document.querySelector('#acct-cap b');
+      var cs54b = getComputedStyle(cb54);
+      out.ui54CapSize = cs54b.fontSize;
+      out.ui54CapSpacing = cs54b.letterSpacing;
+      out.ui54CapWordSpacing = cs54b.wordSpacing;
+      out.ui54CapSmaller = parseFloat(cs54b.fontSize) < 16;
+      out.ui54CapTight = parseFloat(cs54b.letterSpacing) < 0 && parseFloat(cs54b.wordSpacing) < 0;
+      var ck54 = document.querySelector('#acct-cap .k');
+      out.ui54CapOneLine = Math.abs(ck54.getBoundingClientRect().bottom - cb54.getBoundingClientRect().bottom) < 4;
+      out.ui54CapNoSuperscript = cs54b.verticalAlign === 'baseline';
+      // C) 止盈目标 → 琥珀（目标类数据统一色 #ff9f43，与 Hero 里「距止盈目标 还差」同色）
+      var tg54 = document.getElementById('acct-target');
+      var tgc54 = getComputedStyle(tg54).color;
+      out.ui54TgtColor = tgc54;
+      out.ui54TgtAmber = (tgc54 === 'rgb(255, 159, 67)') && tg54.className.indexOf('tgt') >= 0;
+      out.ui54TgtSameAsRemain = tgc54 === getComputedStyle(document.getElementById('acct-remain')).color;
+      // D) 缺口评级三卡：文字与数字都右对齐（看文字实际右边缘，而不是块级盒子的右边缘）
+      var gc54 = document.querySelector('.gap2-grid > div');
+      var txtRight54 = function (el) {
+        var rg = document.createRange(); rg.selectNodeContents(el);
+        return +rg.getBoundingClientRect().right.toFixed(1);
+      };
+      out.ui54GapAlign = getComputedStyle(gc54).textAlign;
+      out.ui54GapRight = getComputedStyle(gc54).textAlign === 'right'
+        && getComputedStyle(gc54.querySelector('.v')).textAlign === 'right'
+        && getComputedStyle(gc54.querySelector('.l')).textAlign === 'right';
+      var vr54 = txtRight54(gc54.querySelector('.v')), lr54 = txtRight54(gc54.querySelector('.l'));
+      out.ui54GapFlush = Math.abs(vr54 - lr54) < 1.5;
+      out.ui54GapTextRight = vr54 + ' / ' + lr54;
+      out.ui54GapNotLeft = vr54 > 60;   // 若是左对齐，数字会从内容左边缘起，右边缘远小于 60
+      switchTab('market');
+    } catch (e) { out.uiErr54 = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -808,6 +867,34 @@ def run():
     chk('交易图标：鸡腿翻转（骨节落到右下 cy=19.15）+ 外框 scale 1.18',
         r.get('ui53IconFlip'), str(r.get('ui53IconG')))
     chk('v2.7.53 注入块无异常', not r.get('uiErr53'), r.get('uiErr53'))
+
+    # ===== v2.7.54：底栏等宽列 / 数值收紧 / 目标琥珀 / 评级卡右对齐 =====
+    chk('底栏 5 格等宽（不再 space-around 按项分配）→ 宽度',
+        r.get('ui54EvenWidth') is True, r.get('ui54TabWidths'))
+    chk('底栏图标中心严格等距 → 间距',
+        r.get('ui54EvenGaps') is True, r.get('ui54Gaps') + '  centers=' + str(r.get('ui54TabCenters')))
+    chk('交易图标落在底栏几何中心（±0.6px）',
+        r.get('ui54TradeOnCenter') is True, str(r.get('ui54TradeOffPx')) + ' px')
+    chk('交易图标框宽 == 其余图标框宽（v2.7.52 那条无效的 23px 已删）',
+        r.get('ui54IconBoxW') == r.get('ui54IconBoxWRef') == '22px',
+        str(r.get('ui54IconBoxW')) + ' vs ' + str(r.get('ui54IconBoxWRef')))
+    chk('Hero 右侧「+x kg」字号收小（< 16px）', r.get('ui54CapSmaller') is True, r.get('ui54CapSize'))
+    chk('Hero 右侧「+x kg」负字距 + 负词距（等宽字体的松字距已收紧）',
+        r.get('ui54CapTight') is True,
+        str(r.get('ui54CapSpacing')) + ' / ' + str(r.get('ui54CapWordSpacing')))
+    chk('「止盈进度 · 已盈 +x kg」仍是一条线、底部对齐',
+        r.get('ui54CapOneLine') is True)
+    chk('「+x kg」不再上标（vertical-align 为 baseline）',
+        r.get('ui54CapNoSuperscript') is True)
+    chk('止盈目标数值为琥珀 #ff9f43 且带 .tgt 类',
+        r.get('ui54TgtAmber') is True, r.get('ui54TgtColor'))
+    chk('止盈目标与 Hero「距止盈目标 还差」同色（目标类数据统一）',
+        r.get('ui54TgtSameAsRemain') is True, r.get('ui54TgtColor'))
+    chk('缺口评级三卡 text-align 全为 right（含 .v 与 .l）',
+        r.get('ui54GapRight') is True, r.get('ui54GapAlign'))
+    chk('缺口评级卡数字与文字右边缘齐平（真的贴右，不是左对齐）',
+        r.get('ui54GapFlush') is True and r.get('ui54GapNotLeft') is True, r.get('ui54GapTextRight'))
+    chk('v2.7.54 注入块无异常', not r.get('uiErr54'), r.get('uiErr54'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
