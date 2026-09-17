@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.46"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.47"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -580,6 +580,35 @@ body {
 @keyframes achPop { 0%{transform:scale(0) rotate(-20deg)} 60%{transform:scale(1.3) rotate(8deg)} 100%{transform:scale(1) rotate(0)} }
 #info-toast { position:fixed; top:110px; left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#00c896; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(0,200,150,.4); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
 #info-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ================= 账户总览（v2.7.47）================= */
+.acct-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;}
+.acct-num{font-size:30px;font-weight:700;line-height:1;letter-spacing:-.5px;}
+.acct-num.up{color:#ff3b47;}
+.acct-num.down{color:#00c896;}
+.acct-num.flat{color:#9aa8be;}
+.acct-delta{font-size:11px;color:var(--muted);text-align:right;line-height:1.6;}
+.acct-grid{display:flex;gap:8px;margin-top:14px;}
+.acct-cell{flex:1;min-width:0;background:#161d2b;border-radius:8px;padding:9px 10px;}
+.acct-cell .l{font-size:11px;color:var(--muted);}
+.acct-cell .v{font-size:14px;font-weight:600;color:#fff;margin-top:4px;}
+/* ================= 复盘周报 / 月报（v2.7.47）================= */
+.rv-hero{display:flex;align-items:baseline;gap:6px;margin-top:4px;}
+.rv-num{font-size:32px;font-weight:700;line-height:1;letter-spacing:-.5px;}
+.rv-unit{font-size:12px;color:var(--muted);}
+.rv-sub{font-size:12px;margin-top:7px;}
+.rv-grid{display:flex;gap:8px;margin-top:14px;}
+.rv-cell{flex:1;min-width:0;background:#161d2b;border-radius:8px;padding:9px 10px;}
+.rv-cell .l{font-size:11px;color:var(--muted);}
+.rv-cell .v{font-size:13px;font-weight:600;color:#fff;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rv-cell .s{font-size:11px;margin-top:3px;}
+.rv-tip{background:#161d2b;border-radius:8px;padding:10px 12px;margin-top:12px;}
+.rv-tip .l{font-size:11px;color:var(--muted);}
+.rv-tip .t{font-size:12px;color:#c3ccdb;margin-top:5px;line-height:1.6;}
+.rv-acts{display:flex;gap:8px;margin-top:12px;}
+.rv-acts .ghost-btn{flex:1;}
+/* ================= 粘贴导入（v2.7.47）================= */
+#paste-json{width:100%;height:150px;box-sizing:border-box;background:#101728;border:1px solid #23304d;border-radius:8px;color:#c3ccdb;font-size:11px;line-height:1.5;padding:9px;resize:none;}
 </style>
 </head>
 <body data-page-node-id="dB90BLjL0sqmLJTdTSGhqN">
@@ -720,6 +749,20 @@ body {
         </div>
       </div>
 
+      <!-- 账户总览（v2.7.47）：把「记录」升级成「账户」——用户要的是「我在赢」 -->
+      <div class="card" id="acct-card" style="margin-top:12px;">
+        <div class="card-title"><span class="t">账户总览</span><span class="m" id="acct-state">--</span></div>
+        <div class="acct-hero">
+          <div class="acct-num flat" id="acct-rate">--</div>
+          <div class="acct-delta" id="acct-delta">--</div>
+        </div>
+        <div class="acct-grid">
+          <div class="acct-cell"><div class="l">持仓成本</div><div class="v" id="acct-cost">--</div></div>
+          <div class="acct-cell"><div class="l">当前市值</div><div class="v" id="acct-now">--</div></div>
+          <div class="acct-cell"><div class="l">累计浮盈</div><div class="v" id="acct-profit">--</div></div>
+        </div>
+      </div>
+
       <div class="metric-grid" data-page-node-id="O04vCZVjzPYUmJVp6F0E4y">
         <div class="metric" data-page-node-id="GVbrDXUSyXEexvTsmDBx5v">
           <div class="l" data-page-node-id="WfwYiI8BegzsR4diR43WfI">当前仓位</div>
@@ -785,6 +828,9 @@ body {
       </div>
 
       <div id="lb-content"></div>
+
+      <!-- 复盘周报/月报（v2.7.47）：随顶部周/月切换，版式即分享卡 -->
+      <div id="lb-review"></div>
     </section>
 
     <!-- ============ 我的 ============ -->
@@ -859,7 +905,12 @@ body {
           <button class="confirm sell" onclick="exportData()" style="flex:1;">导出备份</button>
           <button class="confirm buy" onclick="importData()" style="flex:1;">导入恢复</button>
         </div>
-        <div class="gap-note">导出为 JSON 存到手机；换源/清缓存后用「导入恢复」找回进度，永不丢失。</div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="confirm" onclick="copyMigrateCode()" style="flex:1;">复制迁移码</button>
+          <button class="confirm" onclick="openPasteImport()" style="flex:1;">粘贴导入</button>
+        </div>
+        <div class="gap-note">导出为 JSON 存到手机；换源/清缓存后用「导入恢复」找回进度，永不丢失。<br>
+「复制迁移码」把全部记录压成一段文本，可在小程序版「粘贴导入」里还原；反向同理。</div>
       </div>
 
       <!-- 版本与更新（主屏幕 App 无刷新按钮：自动检测 + 手动检查 + 版本可见） -->
@@ -1084,6 +1135,23 @@ body {
         <div style="display:flex;gap:10px;margin-top:12px;">
           <button class="ghost-btn" onclick="closeCustomEx()" style="flex:1;">取消</button>
           <button class="confirm sell" onclick="addCustomEx()" style="flex:1;">保存自建运动</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 粘贴导入弹层（v2.7.47，数据迁移口）============ -->
+    <div class="sheet-mask" id="paste-sheet">
+      <div class="sheet">
+        <span class="close" onclick="closePasteImport()">×</span>
+        <h3>粘贴导入</h3>
+        <div style="color:var(--muted);font-size:11px;margin:0 0 8px;line-height:1.6;">
+          把从本应用（或小程序版）复制的<b>迁移码</b>粘贴到下面，确认后覆盖当前进度。建议先「导出备份」留个底。
+        </div>
+        <textarea id="paste-json" placeholder="在此粘贴迁移码（以 {&quot;__app&quot; 开头的 JSON 文本）"></textarea>
+        <div id="paste-hint" style="color:var(--muted);font-size:11px;margin-top:6px;line-height:1.5;">&nbsp;</div>
+        <div style="display:flex;gap:10px;margin-top:12px;">
+          <button class="ghost-btn" onclick="closePasteImport()" style="flex:1;">取消</button>
+          <button class="confirm sell" onclick="doPasteImport()" style="flex:1;">确认导入</button>
         </div>
       </div>
     </div>
@@ -1929,7 +1997,7 @@ function toastInfo(msg) {
 }
 function exportData() {
   try {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+    const blob = new Blob([JSON.stringify(buildExportPayload(), null, 2)], { type:'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'jianpan-backup-' + todayStr() + '.json';
@@ -1948,16 +2016,10 @@ function doImport(inp) {
   const reader = new FileReader();
   reader.onload = function() {
     try {
-      const data = JSON.parse(reader.result);
-      if (!data || typeof data !== 'object') throw new Error('格式错误');
-      const base = loadState();                       // 当前兜底后的完整状态作底
-      const merged = Object.assign({}, base, data);   // 导入数据覆盖
-      merged.user = Object.assign({}, base.user, data.user || {});
-      merged.body = Object.assign({}, base.body, data.body || {});
-      state = merged;
-      saveState(); render();
-      toastInfo('已从备份恢复进度');
-    } catch(e) { toastInfo('导入失败：文件格式不正确'); }
+      const data = migratePayload(JSON.parse(reader.result));
+      const nd = (data.diet || []).length, ne = (data.exercise || []).length;
+      applyImported(data, '已从备份恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+    } catch(e) { toastInfo('导入失败：' + ((e && e.message) || '文件格式不正确')); }
     inp.value = '';
   };
   reader.readAsText(f);
@@ -2196,6 +2258,7 @@ function render() {
     remEl.textContent = '🎉 已达成目标 · 漂亮！';
     remEl.style.color = '#ff9f43';
   }
+  renderAccount();
   renderTrend();
   document.getElementById('stuck-card').style.display = t.net > 0 ? 'block' : 'none';
 
@@ -4007,6 +4070,292 @@ function renderTrend() {
   el.innerHTML = svg;
 }
 
+
+/* ============================================================
+ * 账户总览（v2.7.47）
+ *
+ * 为什么要有它：体重K线是「价格」，用户每天想看的却是「我的收益」。
+ *   K线给的是「我轻了」，账户给的是「我在赢」——前者是数据，后者是成就感。
+ * 口径：
+ *   持仓成本 = 最早一条真实体重日志（没有则退回 user.startWeight）
+ *   当前市值 = user.weight
+ *   累计浮盈 = 成本 − 现价（减重为正）
+ *   收益率   = 浮盈 / 成本 × 100%
+ * 配色沿用 A 股约定：盈利(减重)红、亏损(增重)绿。
+ * ============================================================ */
+function _ddiff(a, b) {
+  const f = function(x) { const p = (x || '').split('-'); return p.length < 3 ? 0 : Date.UTC(+p[0], +p[1] - 1, +p[2]); };
+  return Math.round((f(b) - f(a)) / 86400000);
+}
+function acctWeightLog() {
+  return (state.weightLog || []).filter(function(x) { return x && x.weight > 0; })
+    .slice().sort(function(a, b) { return (a.date || '') < (b.date || '') ? -1 : 1; });
+}
+function acctCost() {
+  const log = acctWeightLog();
+  if (log.length && log[0].weight > 0) return +log[0].weight;
+  return +(state.user.startWeight || state.user.weight || 0);
+}
+function renderAccount() {
+  const elRate = document.getElementById('acct-rate');
+  if (!elRate) return;
+  const cost = acctCost();
+  const now = +(state.user.weight || 0);
+  const elDelta = document.getElementById('acct-delta');
+  const elState = document.getElementById('acct-state');
+  const elCost = document.getElementById('acct-cost');
+  const elNow = document.getElementById('acct-now');
+  const elProfit = document.getElementById('acct-profit');
+  if (!cost || !now) { elRate.textContent = '--'; return; }
+  const profit = cost - now;                 // 减重 = 浮盈
+  const rate = profit / cost * 100;
+  const flat = Math.abs(rate) < 0.01;
+  elRate.textContent = (rate >= 0 ? '+' : '') + rate.toFixed(2) + '%';
+  elRate.className = 'acct-num ' + (flat ? 'flat' : (profit > 0 ? 'up' : 'down'));
+  if (elState) elState.textContent = flat ? '持仓中' : (profit > 0 ? '浮盈中' : '浮亏中');
+  // 持仓天数 + 今日浮动
+  const log = acctWeightLog();
+  let hold = 0, floatTxt = '暂无体重记录';
+  if (log.length >= 1) hold = Math.max(0, _ddiff(log[0].date, log[log.length - 1].date));
+  if (log.length >= 2) {
+    const d = log[log.length - 1].weight - log[log.length - 2].weight;
+    floatTxt = '上次浮动 ' + (d <= 0 ? '' : '+') + d.toFixed(1) + ' kg';
+  }
+  if (elDelta) elDelta.innerHTML = '持仓 ' + hold + ' 天<br>' + floatTxt;
+  if (elCost) elCost.textContent = cost.toFixed(1) + ' kg';
+  if (elNow) elNow.textContent = now.toFixed(1) + ' kg';
+  if (elProfit) {
+    elProfit.textContent = (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg';
+    elProfit.style.color = flat ? '#9aa8be' : (profit > 0 ? '#ff3b47' : '#00c896');
+  }
+}
+
+/* ============================================================
+ * 复盘周报 / 月报（v2.7.47）
+ *
+ * 挂在龙虎榜周榜/月榜下方，随顶部的 周/月 切换。
+ * 版式本身就是一张「分享卡」：期号 → 大数字 → 迷你趋势线 → 三宫格 → 一句建议。
+ * 只给三个数字（守「信息密度低」原则），剩下的靠「复制战绩」带走。
+ *
+ * 口径（与「每日缺口评级」完全一致，避免两套算法打架）：
+ *   净缺口 = (运动消耗 + 基础代谢) − 饮食摄入   ← 全天口径
+ *   达标   = 净缺口 ≥ 150 kcal（对齐 GAP_TIERS 的「小阴线」）
+ * ============================================================ */
+const REVIEW_HIT_KCAL = 150;      // 达标线：与 GAP_TIERS「小阴线 · 温和减脂」一致
+                                  // 热量换算复用全局 KCAL_PER_KG_FAT（7700），不重复声明
+
+function reviewPeriod() {
+  const isWeek = lbRange === 'week';
+  const start = lbRangeStart();
+  const m = new Date().getMonth() + 1;
+  return {
+    isWeek: isWeek,
+    start: start,
+    title: isWeek ? '复盘周报' : '复盘月报',
+    label: isWeek ? ('本周 · ' + start.slice(5).replace('-', '/') + ' 起') : (m + '月')
+  };
+}
+function reviewData() {
+  const p = reviewPeriod();
+  const bmr = calcBMR();
+  const rows = dayAgg().filter(function(d) { return d.date >= p.start; })
+    .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+  let total = 0, hit = 0, acc = 0;
+  const cum = [], pts = [];
+  rows.forEach(function(d) {
+    const def = d.out + bmr - d.in;     // 全天口径净缺口
+    total += def;
+    if (def >= REVIEW_HIT_KCAL) hit++;
+    acc += def;
+    cum.push(acc);
+    pts.push({ date: d.date, def: def });
+  });
+  let bigIn = null, bigOut = null;
+  (state.diet || []).forEach(function(d) {
+    if ((d.date || '') >= p.start && (!bigIn || (d.kcal || 0) > (bigIn.kcal || 0))) bigIn = d;
+  });
+  (state.exercise || []).forEach(function(e) {
+    if ((e.date || '') >= p.start && (!bigOut || (e.kcal || 0) > (bigOut.kcal || 0))) bigOut = e;
+  });
+  let worst = null;
+  pts.forEach(function(x) { if (!worst || x.def < worst.def) worst = x; });
+  return { p: p, total: total, hit: hit, cnt: rows.length, cum: cum, pts: pts, worst: worst, bigIn: bigIn, bigOut: bigOut };
+}
+function reviewTip(r) {
+  const p = r.p;
+  const tail = p.isWeek ? '下周' : '下月';
+  if (r.cnt === 0) return '本期还没有成交记录，先下第一单。';
+  if (r.total > 0 && r.hit / r.cnt >= 0.8) return r.cnt + ' 天里 ' + r.hit + ' 天达标，节奏很稳，' + tail + '保持仓位别乱动。';
+  if (r.total > 0) {
+    return '整体是盈利的。' + (r.worst ? fmtDay(r.worst.date) + '那笔空单没接住，' + tail + '补回来就漂亮了。' : tail + '继续保持这个节奏。');
+  }
+  return '本期净盈余，K线翻红。' + (r.worst ? '问题出在' + fmtDay(r.worst.date) + '，那天把利润吃掉了。' : tail + '先把每天的第一笔运动补上。');
+}
+function reviewSpark(cum, col) {
+  const W = 320, H = 56, padL = 6, padR = 8, padT = 9, padB = 10;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" style="display:block;margin-top:14px;">';
+  if (cum.length >= 2) {
+    const mn = Math.min.apply(null, cum), mx = Math.max.apply(null, cum);
+    const span = (mx - mn) || 1;
+    const xy = cum.map(function(v, i) {
+      const x = padL + i / (cum.length - 1) * plotW;
+      const y = padT + (1 - (v - mn) / span) * plotH;
+      return [x, y];
+    });
+    svg += '<polyline points="' + xy.map(function(a) { return a[0].toFixed(1) + ',' + a[1].toFixed(1); }).join(' ')
+      + '" fill="none" stroke="' + col + '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
+    const last = xy[xy.length - 1];
+    svg += '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="2.6" fill="' + col + '"/>';
+  } else {
+    svg += '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle" fill="#5a6478" font-size="11">数据点不足，多记几天就有曲线了</text>';
+  }
+  svg += '<line x1="' + padL + '" y1="' + (padT + plotH + 4) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH + 4) + '" stroke="#1e2634" stroke-width="1"/>';
+  svg += '</svg>';
+  return svg;
+}
+function renderReview() {
+  const el = document.getElementById('lb-review');
+  if (!el) return;
+  const r = reviewData();
+  const col = r.total >= 0 ? '#ff3b47' : '#00c896';     // 涨红跌绿
+  const kg = r.total / KCAL_PER_KG_FAT;
+  const sub = r.cnt === 0
+    ? '本期还没有记录'
+    : ('约合减脂 ' + (kg >= 0 ? '' : '+') + Math.abs(kg).toFixed(2) + ' kg');
+  let h = '<div class="card" style="margin-top:12px;">';
+  h += '<div class="card-title"><span class="t">' + r.p.title + '</span><span class="m">' + r.p.label + '</span></div>';
+  h += '<div class="rv-hero"><span class="rv-num" style="color:' + col + ';">'
+    + (r.total > 0 ? '' : (r.total < 0 ? '+' : '')) + fmtNum(Math.abs(r.total))
+    + '</span><span class="rv-unit">kcal 净缺口</span></div>';
+  h += '<div class="rv-sub" style="color:' + (kg >= 0 ? '#4fd18b' : '#ff8b96') + ';">' + sub + '</div>';
+  h += reviewSpark(r.cum, col);
+  h += '<div class="rv-grid">';
+  h += '<div class="rv-cell"><div class="l">做多最狠</div><div class="v">'
+    + (r.bigIn ? escHtml(r.bigIn.name) : '--') + '</div><div class="s" style="color:#ff8b96;">'
+    + (r.bigIn ? '+' + fmtNum(Math.round(r.bigIn.kcal || 0)) : '暂无') + '</div></div>';
+  h += '<div class="rv-cell"><div class="l">做空之王</div><div class="v">'
+    + (r.bigOut ? escHtml(r.bigOut.name) : '--') + '</div><div class="s" style="color:#4fd18b;">'
+    + (r.bigOut ? fmtNum(Math.round(r.bigOut.kcal || 0)) : '暂无') + '</div></div>';
+  h += '<div class="rv-cell"><div class="l">缺口达标</div><div class="v">'
+    + r.hit + ' / ' + r.cnt + '</div><div class="s" style="color:var(--muted);">天</div></div>';
+  h += '</div>';
+  h += '<div class="rv-tip"><div class="l">' + (r.p.isWeek ? '下周建议' : '下月建议') + '</div><div class="t">'
+    + escHtml(reviewTip(r)) + '</div></div>';
+  h += '<div class="rv-acts"><button class="ghost-btn" onclick="copyReview()">复制战绩</button></div>';
+  h += '</div>';
+  el.innerHTML = h;
+}
+function reviewText() {
+  const r = reviewData();
+  const kg = r.total / KCAL_PER_KG_FAT;
+  const L = [];
+  L.push('【' + r.p.title + ' · ' + r.p.label + '】');
+  L.push('净缺口 ' + fmtNum(Math.abs(r.total)) + ' kcal（约合减脂 ' + Math.abs(kg).toFixed(2) + ' kg）');
+  L.push('缺口达标 ' + r.hit + '/' + r.cnt + ' 天');
+  if (r.bigIn) L.push('做多最狠：' + r.bigIn.name + ' +' + fmtNum(Math.round(r.bigIn.kcal || 0)) + ' kcal');
+  if (r.bigOut) L.push('做空之王：' + r.bigOut.name + ' ' + fmtNum(Math.round(r.bigOut.kcal || 0)) + ' kcal');
+  L.push(reviewTip(r));
+  L.push('—— 健身交易员');
+  return L.join('\n');
+}
+function copyReview() {
+  copyPlain(reviewText(), '战绩已复制');
+}
+
+/* ============================================================
+ * 数据迁移口（v2.7.47）
+ *
+ * 为什么现在就要做：小程序版读不了浏览器存档。迁移必须在
+ * 「还不知道要迁什么」的时候就把格式定好，否则等上线再补，
+ * 历史记录要么迁不过去、要么迁过去报错。
+ *
+ * 存档格式（带元信息，向后兼容旧版裸 state）：
+ *   { __app:'fitness-trader', __schema:N, __exportedAt:ISO, __appVersion:'x.y.z', state:{...} }
+ *
+ * 迁移路径（两条腿，互为备份）：
+ *   a) 文件：导出 JSON → 微信「文件传输助手」→ 小程序 chooseMessageFile 读取
+ *   b) 文本：复制迁移码 → 小程序里粘贴导入
+ * ============================================================ */
+const SCHEMA_VERSION = 1;
+const APP_TAG = 'fitness-trader';
+function appVerNow() {
+  try { return (document.querySelector('meta[name="app-version"]') || {}).content || ''; } catch (e) { return ''; }
+}
+function buildExportPayload() {
+  return { __app: APP_TAG, __schema: SCHEMA_VERSION, __exportedAt: new Date().toISOString(), __appVersion: appVerNow(), state: state };
+}
+/* 把任意来源的存档归一化成 state；旧版裸 state 视为 __schema=0 */
+function migratePayload(raw) {
+  let data, from;
+  if (raw && raw.__app === APP_TAG && raw.state && typeof raw.state === 'object') {
+    data = raw.state; from = Number(raw.__schema) || 1;
+  } else if (raw && typeof raw === 'object') {
+    data = raw; from = 0;
+  } else {
+    throw new Error('格式不正确');
+  }
+  if (from > SCHEMA_VERSION) throw new Error('存档来自更高版本，请先更新应用');
+  // 迁移链（未来在此逐级补字段）：if (from < 2) { ... }
+  return data;
+}
+function applyImported(data, tip) {
+  const base = loadState();                          // 当前兜底后的完整状态作底
+  const merged = Object.assign({}, base, data);
+  merged.user = Object.assign({}, base.user, data.user || {});
+  merged.body = Object.assign({}, base.body, data.body || {});
+  state = merged;
+  saveState(); render();
+  toastInfo(tip);
+}
+function copyPlain(text, okMsg) {
+  const done = function(ok) { toastInfo(ok ? okMsg : '复制失败，请改用「导出备份」'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { done(true); }, function() { done(false); });
+  } else {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); ta.remove(); done(ok);
+    } catch (e) { done(false); }
+  }
+}
+function copyMigrateCode() {
+  const txt = JSON.stringify(buildExportPayload());
+  const kb = (txt.length / 1024).toFixed(1);
+  copyPlain(txt, '迁移码已复制（约 ' + kb + ' KB），到小程序里粘贴导入');
+}
+function openPasteImport() {
+  const ta = document.getElementById('paste-json');
+  const hint = document.getElementById('paste-hint');
+  if (ta) ta.value = '';
+  if (hint) hint.innerHTML = '&nbsp;';
+  const el = document.getElementById('paste-sheet');
+  if (el) el.classList.add('show');
+}
+function closePasteImport() {
+  const el = document.getElementById('paste-sheet');
+  if (el) el.classList.remove('show');
+}
+function doPasteImport() {
+  const ta = document.getElementById('paste-json');
+  const hint = document.getElementById('paste-hint');
+  const txt = (ta && ta.value || '').trim();
+  if (!txt) { if (hint) hint.textContent = '内容为空，先粘贴迁移码。'; return; }
+  let data;
+  try {
+    data = migratePayload(JSON.parse(txt));
+  } catch (e) {
+    if (hint) hint.textContent = '解析失败：' + ((e && e.message) || '格式不正确');
+    return;
+  }
+  const nd = (data.diet || []).length, ne = (data.exercise || []).length;
+  if (!confirm('即将覆盖当前进度。\n导入内容：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔。\n确定继续吗？')) return;
+  closePasteImport();
+  applyImported(data, '已导入：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+}
+
 /* ============ 龙虎榜 · 数据驱动 ============ */
 let lbRange = 'week';   // 周期：week=本周(周一始) / month=本月
 function setLbRange(r) {
@@ -4097,6 +4446,7 @@ function renderLeaderboard() {
   const a = document.getElementById('lbt-week'), b = document.getElementById('lbt-month');
   const sty = function(el, on) { if (!el) return; el.style.background = on ? '#1d2b4d' : '#16203a'; el.style.color = on ? '#fff' : '#8b97ad'; el.style.borderColor = on ? '#3a4d7a' : '#23304d'; };
   sty(a, lbRange === 'week'); sty(b, lbRange === 'month');
+  renderReview();
 }
 
 function achCat(id) { for (const c of ACH_CATS) if (c.id === id) return c; return ACH_CATS[0]; }

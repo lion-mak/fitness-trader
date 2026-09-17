@@ -233,6 +233,61 @@ window.addEventListener('load', function () {
       out.remainMet = rem.textContent; out.remainMetColor = rem.style.color;
       state.user.weight = 78;
     } catch (e) { out.remainErr = String((e && e.message) || e); }
+
+    // ================= v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =================
+    try {
+      state.user.startWeight = 80; state.user.weight = 76; state.user.targetWeight = 70;
+      var wl2 = [];
+      for (var i2 = 9; i2 >= 0; i2--) wl2.push({ date: addDaysStr(today, -i2), weight: +(78.5 - (9 - i2) * 0.25).toFixed(1) });
+      state.weightLog = wl2;
+      state.diet = [
+        { id: 'rv1', date: today, name: '炸鸡', kcal: 1200, meal: '晚餐', time: '20:00' },
+        { id: 'rv2', date: addDaysStr(today, -1), name: '沙拉', kcal: 300, meal: '午餐', time: '12:00' }
+      ];
+      state.exercise = [{ id: 'rve1', date: today, name: '游泳', kcal: 650, time: '07:00' }];
+      render();
+      var rate = document.getElementById('acct-rate');
+      out.acctExists = !!document.getElementById('acct-card');
+      out.acctRate = rate ? rate.textContent : '';
+      out.acctRateClass = rate ? rate.className : '';
+      out.acctCells = ['acct-cost', 'acct-now', 'acct-profit'].map(function (id) {
+        var e = document.getElementById(id); return e ? e.textContent : '';
+      }).join('|');
+      out.acctState = (document.getElementById('acct-state') || {}).textContent || '';
+    } catch (e) { out.acctErr = String((e && e.message) || e); }
+
+    try {
+      setLbRange('week');
+      var rv = document.getElementById('lb-review');
+      out.rvWeekExists = !!rv;
+      out.rvAfterLb = !!(rv && rv.previousElementSibling && rv.previousElementSibling.id === 'lb-content');
+      out.rvWeekTitle = !!(rv && /复盘周报/.test(rv.textContent));
+      out.rvWeekCells = !!(rv && /做多最狠/.test(rv.textContent) && /做空之王/.test(rv.textContent) && /缺口达标/.test(rv.textContent));
+      out.rvWeekHit = !!(rv && /\d+ \/ \d+/.test(rv.textContent));
+      out.rvWeekSvg = !!(rv && rv.querySelector('svg'));
+      out.rvHasCopy = !!document.querySelector('[onclick="copyReview()"]');
+      setLbRange('month');
+      var rv2 = document.getElementById('lb-review');
+      out.rvMonthTitle = !!(rv2 && /复盘月报/.test(rv2.textContent));
+      setLbRange('week');
+    } catch (e) { out.rvErr = String((e && e.message) || e); }
+
+    try {
+      out.migBtn1 = !!document.querySelector('[onclick="copyMigrateCode()"]');
+      out.migBtn2 = !!document.querySelector('[onclick="openPasteImport()"]');
+      out.migSheet = !!document.getElementById('paste-sheet') && !!document.getElementById('paste-json');
+      var pl = buildExportPayload();
+      out.migApp = pl.__app; out.migSchema = pl.__schema;
+      out.migHasState = !!(pl.state && pl.state.diet);
+      out.migNew = !!migratePayload({ __app: 'fitness-trader', __schema: 1, state: { diet: [1, 2] } });
+      var oldOk = false;
+      try { var dd = migratePayload({ diet: [1] }); oldOk = !!(dd && dd.diet.length === 1); } catch (e2) { }
+      out.migOld = oldOk;
+      var rejOk = false;
+      try { migratePayload({ __app: 'fitness-trader', __schema: 99, state: {} }); } catch (e3) { rejOk = true; }
+      out.migReject = rejOk;
+      out.rvText = reviewText().indexOf('健身交易员') >= 0;
+    } catch (e) { out.migErr = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -349,6 +404,34 @@ def run():
         (r.get('remainUnmet') or '') + ' / ' + (r.get('remainUnmetColor') or ''))
     chk('目标已达成：橙色祝贺语', '已达成目标' in (r.get('remainMet') or '') and 'rgb(255, 159, 67)' in (r.get('remainMetColor') or ''),
         (r.get('remainMet') or '') + ' / ' + (r.get('remainMetColor') or ''))
+
+    # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
+    chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
+    chk('账户总览显示累计收益率（带符号 + %）',
+        (r.get('acctRate') or '').endswith('%') and (r.get('acctRate') or '').startswith(('+', '-')),
+        r.get('acctRate'))
+    chk('账户总览盈利时用红(up)——减重即浮盈', 'up' in (r.get('acctRateClass') or ''), r.get('acctRateClass'))
+    chk('账户总览三格（成本/市值/浮盈）均有值',
+        len([x for x in (r.get('acctCells') or '').split('|') if x and x != '--']) == 3,
+        r.get('acctCells'))
+    chk('账户总览状态标显示「浮盈中」', '浮盈中' in (r.get('acctState') or ''), r.get('acctState'))
+    chk('复盘模块挂在龙虎榜 lb-content 之后', r.get('rvAfterLb'))
+    chk('周视图复盘标题为「复盘周报」', r.get('rvWeekTitle'))
+    chk('复盘三宫格齐备（做多最狠/做空之王/缺口达标）', r.get('rvWeekCells'))
+    chk('复盘显示缺口达标天数 x / y', r.get('rvWeekHit'))
+    chk('复盘含迷你趋势线 SVG', r.get('rvWeekSvg'))
+    chk('复盘有「复制战绩」按钮', r.get('rvHasCopy'))
+    chk('复制战绩文案含品牌落款', r.get('rvText'))
+    chk('月视图复盘标题为「复盘月报」', r.get('rvMonthTitle'))
+    chk('数据备份有「复制迁移码」按钮', r.get('migBtn1'))
+    chk('数据备份有「粘贴导入」按钮', r.get('migBtn2'))
+    chk('粘贴导入弹层 + 文本框存在', r.get('migSheet'))
+    chk('导出载荷带 __app / __schema / state',
+        r.get('migApp') == 'fitness-trader' and r.get('migSchema') == 1 and r.get('migHasState'),
+        str(r.get('migApp')) + ' / ' + str(r.get('migSchema')))
+    chk('迁移链兼容新版存档（带元信息）', r.get('migNew'))
+    chk('迁移链兼容旧版裸 state（向后兼容）', r.get('migOld'))
+    chk('迁移链拒绝来自更高版本的存档', r.get('migReject'))
     # 4：餐次自动推断
     chk('12:30 推断午餐', r['mealAutoLunch'] == '午餐', r['mealAutoLunch'])
     chk('22:10 推断加餐', r['mealAutoSnack'] == '加餐', r['mealAutoSnack'])
