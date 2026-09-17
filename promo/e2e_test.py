@@ -442,9 +442,9 @@ window.addEventListener('load', function () {
       var ncs4 = getComputedStyle(num4);
       out.ui52NumSize = ncs4.fontSize;
       out.ui52NumSpacing = ncs4.letterSpacing;
-      var k4 = cap4.querySelector('.k'), v4 = cap4.querySelector('.v');
-      out.ui52CapTwoLine = !!(k4 && v4) && k4.getBoundingClientRect().bottom <= v4.getBoundingClientRect().top + 1;
-      out.ui52CapRight = getComputedStyle(cap4).alignItems === 'flex-end';
+      var k4 = cap4.querySelector('.k'), b4 = cap4.querySelector('b');
+      out.ui52CapOneLine = !!(k4 && b4) && Math.abs(k4.getBoundingClientRect().bottom - b4.getBoundingClientRect().bottom) < 4;
+      out.ui52CapRight = getComputedStyle(cap4).textAlign === 'right';
       // C) 净热量趋势：单边柱（全部贴同一条基线向上），只有绿(缺口)/红(超额)
       state.diet = []; state.exercise = [];
       var d4, over4;
@@ -503,6 +503,88 @@ window.addEventListener('load', function () {
       out.ui52TradeIconTag = tico4 ? tico4.tagName.toLowerCase() : '';
       out.ui52OtherIconsLine = document.querySelectorAll('.tabbar .ico svg[stroke="currentColor"]').length;
     } catch (e) { out.uiErr52 = String((e && e.message) || e); }
+    // ================= v2.7.53：大数字排版 / 趋势周期+横滑 / 名次分色 / 图标翻转 =================
+    try {
+      state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
+      switchTab('holdings');
+      render();
+      // A) 大数字分段：整数位 44px / 小数位 30px / 「%」回底线（不再上标）
+      var num5 = document.getElementById('acct-rate');
+      var iv5 = num5.querySelector('.iv'), dec5 = num5.querySelector('.dec'), pc5 = num5.querySelector('.pc');
+      out.ui53HasSeg = !!(iv5 && dec5 && pc5);
+      out.ui53IvSize = iv5 ? getComputedStyle(iv5).fontSize : '';
+      out.ui53DecSize = dec5 ? getComputedStyle(dec5).fontSize : '';
+      out.ui53PcSize = pc5 ? getComputedStyle(pc5).fontSize : '';
+      out.ui53DecSmaller = !!dec5 && parseFloat(out.ui53DecSize) < parseFloat(out.ui53IvSize);
+      out.ui53PcPos = pc5 ? getComputedStyle(pc5).position : '';
+      out.ui53PcTop = pc5 ? getComputedStyle(pc5).top : '';
+      out.ui53PcVAlign = pc5 ? getComputedStyle(pc5).verticalAlign : '';
+      // B) 「止盈进度 · 已盈 +x kg」回到一条线
+      var cap5 = document.getElementById('acct-cap');
+      var k5 = cap5.querySelector('.k'), b5 = cap5.querySelector('b');
+      var kb5 = k5 ? k5.getBoundingClientRect() : null, bb5 = b5 ? b5.getBoundingClientRect() : null;
+      out.ui53CapOneLine = !!(kb5 && bb5) && Math.abs(kb5.bottom - bb5.bottom) < 4 && kb5.right <= bb5.left + 1;
+      out.ui53CapNoV = !cap5.querySelector('.v');
+      out.ui53CapText = cap5.textContent;
+      // C) 净热量趋势：周期切换 + 横向滚动（100 天记录 → 「全部」必须可横滑）
+      state.diet = []; state.exercise = [];
+      var i5;
+      for (i5 = 0; i5 < 100; i5++) {
+        var d5 = addDaysStr(today, -i5);
+        state.diet.push({ id: 't53d' + i5, date: d5, name: '饭', kcal: 1500, meal: '午餐', time: '12:00' });
+        state.exercise.push({ id: 't53e' + i5, date: d5, name: '跑步', kcal: 700 - i5, min: 40, met: 8 });
+      }
+      switchTab('market'); render(); switchTab('holdings');   // 走一遍「隐藏态量不到宽度 → 切页补绘」的路
+      var tab53 = [];
+      document.querySelectorAll('#nt-tabs .nt-tab').forEach(function (x) { tab53.push(x.getAttribute('data-nt')); });
+      out.ui53Tabs = tab53.join(',');
+      var sc5 = document.getElementById('nt-scroll');
+      setTrendRange('all');
+      out.ui53AllBars = document.querySelectorAll('#trend rect').length;
+      out.ui53AllScrollable = !!sc5 && sc5.scrollWidth > sc5.clientWidth + 10;
+      out.ui53AllAtEnd = !!sc5 && (sc5.scrollLeft + sc5.clientWidth) >= (sc5.scrollWidth - 6);
+      out.ui53Hint = (document.getElementById('nt-hint') || {}).textContent;
+      setTrendRange('7d');
+      out.ui53SevenBars = document.querySelectorAll('#trend rect').length;
+      out.ui53SevenNoScroll = !!sc5 && sc5.scrollWidth <= sc5.clientWidth + 2;
+      out.ui53SevenHint = (document.getElementById('nt-hint') || {}).textContent;
+      setTrendRange('30d');
+      out.ui53MonthBars = document.querySelectorAll('#trend rect').length;
+      out.ui53MonthSub = (document.getElementById('trend-sub') || {}).textContent;
+      setTrendRange('365d');
+      out.ui53YearBars = document.querySelectorAll('#trend rect').length;
+      out.ui53YearSub = (document.getElementById('trend-sub') || {}).textContent;
+      setTrendRange('all');
+      switchTab('market');
+      // D) 龙虎榜名次徽章：三档分色（1 最深 → 3 最浅）+ 食物红系 / 运动绿系
+      setLbRange('month');
+      var lum5 = function (c) { var m = String(c).match(/\d+/g); return m ? 0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2] : -1; };
+      var rgb5 = function (c) { var m = String(c).match(/\d+/g); return m ? [+m[0], +m[1], +m[2]] : [0, 0, 0]; };
+      var foodR = [], exR = [], k5i;
+      for (k5i = 1; k5i <= 3; k5i++) {
+        var fe5 = document.querySelector('#lb-content .lb-food .rank.r' + k5i);
+        var ee5 = document.querySelector('#lb-content .lb-ex .rank.r' + k5i);
+        foodR.push(fe5 ? getComputedStyle(fe5).backgroundColor : '');
+        exR.push(ee5 ? getComputedStyle(ee5).backgroundColor : '');
+      }
+      out.ui53FoodR1 = foodR[0]; out.ui53ExR1 = exR[0];
+      out.ui53RankLums = foodR.map(lum5).join(' / ') + ' | ' + exR.map(lum5).join(' / ');
+      out.ui53RankRamp = foodR.concat(exR).every(function (v) { return lum5(v) >= 0; })
+        && lum5(foodR[0]) < lum5(foodR[1]) && lum5(foodR[1]) < lum5(foodR[2])
+        && lum5(exR[0]) < lum5(exR[1]) && lum5(exR[1]) < lum5(exR[2]);
+      var fr5 = rgb5(foodR[2]), er5 = rgb5(exR[2]);
+      out.ui53RankHue = (fr5[0] > fr5[1]) && (er5[1] > er5[0]);
+      out.ui53RankCount = document.querySelectorAll('#lb-content .lb-food').length
+                          + document.querySelectorAll('#lb-content .lb-ex').length;
+      setLbRange('week');
+      // E) 交易图标：翻转 + 双轴过中心
+      var tsvg5 = document.querySelector('.tabbar .ico-trade svg');
+      out.ui53IconG = tsvg5 && tsvg5.querySelector('g') ? tsvg5.querySelector('g').getAttribute('transform') : '';
+      out.ui53IconFlip = !!tsvg5
+        && out.ui53IconG.indexOf('scale(1.18)') >= 0
+        && tsvg5.innerHTML.indexOf('translate(-1.4') < 0 && tsvg5.innerHTML.indexOf('translate(1.4') < 0
+        && tsvg5.innerHTML.indexOf('19.15') >= 0;
+    } catch (e) { out.uiErr53 = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -515,7 +597,8 @@ window.addEventListener('load', function () {
 
 
 def run():
-    html = io.open(SRC, encoding='utf-8').read()
+    global ok                     # ⚠️ 必须 global：chk() 里改的是模块级 ok，
+    html = io.open(SRC, encoding='utf-8').read()   # 否则 run() 的局部 ok 永远 True，RESULT 恒为 OK
     print('inline total chars:', len(html))
     # 静态审计：已删除的标识符不应再出现在代码里
     static = {
@@ -669,9 +752,9 @@ def run():
     chk('止盈进度大数字 44px + 字距收紧（-2.4px）',
         r.get('ui52NumSize') == '44px' and r.get('ui52NumSpacing') == '-2.4px',
         str(r.get('ui52NumSize')) + ' / ' + str(r.get('ui52NumSpacing')))
-    chk('右侧「止盈进度 / 已盈」拆两行且右对齐（排版不再散）',
-        r.get('ui52CapTwoLine') and r.get('ui52CapRight'),
-        str(r.get('ui52CapTwoLine')) + ' / ' + str(r.get('ui52CapRight')))
+    chk('右侧「止盈进度 · 已盈 +x kg」右对齐（v2.7.53 回到一条线）',
+        r.get('ui52CapOneLine') and r.get('ui52CapRight'),
+        str(r.get('ui52CapOneLine')) + ' / ' + str(r.get('ui52CapRight')))
     chk('净热量趋势柱全部贴同一条基线向上生长（单边柱，不再 0 轴上下分叉）',
         r.get('ui52BarsBaseline'), r.get('ui52BarCount'))
     chk('趋势柱只有绿(缺口 #00c896)/红(超额 #ff3b47)两色',
@@ -690,6 +773,41 @@ def run():
         r.get('ui52TradeIconColorful') and r.get('ui52TradeIconTag') == 'svg', r.get('ui52TradeIconTag'))
     chk('其余 4 个 tab 图标保持线性同款', r.get('ui52OtherIconsLine') == 4, r.get('ui52OtherIconsLine'))
     chk('v2.7.52 注入块无异常', not r.get('uiErr52'), r.get('uiErr52'))
+
+    # ===== v2.7.53：大数字排版 / 进度一条线 / 趋势周期+横滑 / 名次分色 / 图标翻转 =====
+    chk('大数字拆成 整数位+小数位+% 三段（v2.7.53）',
+        r.get('ui53HasSeg'), str(r.get('ui53IvSize')) + ' / ' + str(r.get('ui53DecSize')))
+    chk('小数点后数字降一档（30px < 44px）', r.get('ui53DecSmaller'), r.get('ui53DecSize'))
+    chk('「%」不再上标（static / 无 top 偏移 / 基线对齐）',
+        r.get('ui53PcPos') == 'static' and r.get('ui53PcTop') in ('0px', 'auto')
+        and r.get('ui53PcVAlign') == 'baseline',
+        str(r.get('ui53PcPos')) + ' / ' + str(r.get('ui53PcTop')) + ' / ' + str(r.get('ui53PcVAlign')))
+    chk('「止盈进度 · 已盈 +x kg」回到一条线（不再是两行）',
+        r.get('ui53CapOneLine') and r.get('ui53CapNoV')
+        and (r.get('ui53CapText') or '').startswith('止盈进度 · 已盈'), r.get('ui53CapText'))
+    chk('趋势周期 tab = 7日/月度/年度/全部', r.get('ui53Tabs') == '7d,30d,365d,all', r.get('ui53Tabs'))
+    chk('趋势「全部」逐日：100 天记录 → 100 根柱', r.get('ui53AllBars') == 100, r.get('ui53AllBars'))
+    chk('趋势装不下 → 横向可滑 + 提示「左右滑动查看」',
+        r.get('ui53AllScrollable') and r.get('ui53Hint') == '左右滑动查看',
+        str(r.get('ui53AllScrollable')) + ' / ' + str(r.get('ui53Hint')))
+    chk('趋势默认贴最右（最新）', r.get('ui53AllAtEnd'))
+    chk('趋势「7日」= 7 根柱且无需滚动、无滑动提示',
+        r.get('ui53SevenBars') == 7 and r.get('ui53SevenNoScroll') and r.get('ui53SevenHint') == '',
+        str(r.get('ui53SevenBars')) + ' / noScroll=' + str(r.get('ui53SevenNoScroll')))
+    chk('趋势「月度」按自然月聚合（100 天 → 4 个月）+ 副标题标「取日均」',
+        r.get('ui53MonthBars') == 4 and '取日均' in (r.get('ui53MonthSub') or ''),
+        str(r.get('ui53MonthBars')) + ' / ' + str(r.get('ui53MonthSub')))
+    chk('趋势「年度」按自然年聚合（本年 1 根）+ 同样标「取日均」',
+        r.get('ui53YearBars') == 1 and '取日均' in (r.get('ui53YearSub') or ''),
+        str(r.get('ui53YearBars')) + ' / ' + str(r.get('ui53YearSub')))
+    chk('名次徽章三档分色：1 最深 → 3 最浅（亮度递增）',
+        r.get('ui53RankRamp') is True, r.get('ui53RankLums'))
+    chk('食物榜红系 / 运动榜绿系（色相分开）', r.get('ui53RankHue') is True,
+        str(r.get('ui53FoodR1')) + ' vs ' + str(r.get('ui53ExR1')))
+    chk('月榜 5 张卡全部带上分色标记类', r.get('ui53RankCount') == 5, r.get('ui53RankCount'))
+    chk('交易图标：鸡腿翻转（骨节落到右下 cy=19.15）+ 外框 scale 1.18',
+        r.get('ui53IconFlip'), str(r.get('ui53IconG')))
+    chk('v2.7.53 注入块无异常', not r.get('uiErr53'), r.get('uiErr53'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))

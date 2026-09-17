@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.52"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.53"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -147,9 +147,13 @@ body {
 .lb-item { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
 .lb-item:first-child { border-top:none; }
 .lb-item .rank { width:22px; height:22px; border-radius:6px; background:var(--panel); color:var(--muted); font-size:12px; font-weight:500; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.lb-item .rank.r1 { background:var(--amber); color:#0a0e1a; }
-.lb-item .rank.r2 { background:#c0c8d0; color:#0a0e1a; }
-.lb-item .rank.r3 { background:#d19060; color:#0a0e1a; }
+/* 名次徽章（v2.7.53）：分色三档 —— 1 最深 → 3 最浅；食物榜红系 / 运动榜绿系（4 名以后统一中性灰） */
+.lb-food .rank.r1 { background:#b00d18; color:#fff; }
+.lb-food .rank.r2 { background:#e0202f; color:#fff; }
+.lb-food .rank.r3 { background:#ff808e; color:#3a0409; }
+.lb-ex .rank.r1 { background:#0a7d5d; color:#fff; }
+.lb-ex .rank.r2 { background:#17a87b; color:#fff; }
+.lb-ex .rank.r3 { background:#5fd9ae; color:#04301f; }
 .lb-item .av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500; flex-shrink:0; }
 .lb-item .meta { flex:1; }
 .lb-item .meta .n { font-size:13px; }
@@ -580,15 +584,15 @@ body {
 .hero-badge{flex:none;font-size:10px;line-height:1.4;color:var(--muted2);padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);white-space:nowrap;}
 .hero-badge--btn{cursor:pointer;color:#ffb066;background:rgba(255,159,67,.12);border-color:rgba(255,159,67,.34);}
 .hero-badge--btn:active{opacity:.6;}
-.hero-mid{position:relative;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:5px;}
+.hero-mid{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:5px;}
 .hero-num{position:relative;font-family:var(--mono);font-size:44px;font-weight:600;line-height:.9;letter-spacing:-2.4px;font-variant-numeric:tabular-nums;}
-.hero-num .pc{position:relative;top:-16px;margin-left:1px;font-size:15px;font-weight:500;letter-spacing:0;}
+.hero-num .dec{font-size:30px;font-weight:600;letter-spacing:-1.2px;}
+.hero-num .pc{margin-left:2px;font-size:15px;font-weight:500;letter-spacing:0;}
 .hero-num.up{color:#ff3b47;}
 .hero-num.down{color:#00c896;}
 .hero-num.flat{color:#9aa8be;}
-.hero-cap{position:relative;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;}
+.hero-cap{position:relative;flex:none;display:flex;align-items:baseline;gap:4px;text-align:right;white-space:nowrap;}
 .hero-cap .k{font-size:10px;color:var(--muted2);letter-spacing:.3px;}
-.hero-cap .v{font-size:11px;color:var(--muted);}
 .hero-cap b{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;}
 .hero-track{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin:8px 0 0;overflow:hidden;}
 .hero-track i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,rgba(255,59,71,.55),var(--red));transition:width .45s ease;}
@@ -614,6 +618,15 @@ body {
 .pcard-hd .m{font-size:11px;color:var(--muted2);}
 .info-btn{margin-left:8px;padding:1px 7px;border:1px solid rgba(255,255,255,.09);border-radius:20px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;}
 .info-btn:active{opacity:.6;}
+
+/* 净热量趋势（v2.7.53）：周期切换 + 横向滚动容器（交互对齐行情页「历史成交」） */
+.nt-tabs{display:flex;gap:2px;background:#0b1120;border:1px solid var(--border);border-radius:8px;padding:3px;flex:none;}
+.nt-tab{font-size:11px;color:var(--muted2);padding:4px 8px;border-radius:5px;cursor:pointer;white-space:nowrap;}
+.nt-tab.on{background:var(--panel);color:#fff;border:1px solid var(--border);}
+.nt-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.nt-scroll::-webkit-scrollbar{display:none;}
+#trend{min-width:100%;}
+.nt-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;font-size:11px;color:var(--muted2);}
 
 /* 缺口评级 Hero */
 .gap2-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;}
@@ -768,7 +781,7 @@ body {
     <section class="page" id="page-holdings" data-page-node-id="sZh2FcuAb7qaEDE2zUmr4J">
       <div class="pagetitle"><div class="k">PORTFOLIO · 持仓</div><div class="t">我的仓位</div><div class="idline"></div></div>
 
-      <!-- 账户总览 Hero（v2.7.47 新增 / v2.7.50 升格 / v2.7.51 收窄 / v2.7.52 去氛围光+排版收紧）
+      <!-- 账户总览 Hero（v2.7.47 新增 / v2.7.50 升格 / v2.7.51 收窄 / v2.7.52 去氛围光+排版收紧 / v2.7.53 数字分段+进度一条线）
            持仓页只留这一张「我在赢」的主卡：主数字 + 止盈进度 + 距目标一句话 + 三行账本。
            「持仓明细」已删（与下面三行账本同口径重复），目标体重输入行挂在本卡下方。 -->
       <div class="hero" id="acct-card">
@@ -798,9 +811,18 @@ body {
         </div>
       </div>
 
-      <div class="pcard pcard--green">
-        <div class="pcard-hd"><span class="t">净热量趋势</span><span class="m" id="trend-sub">绿 = 缺口 · 红 = 超额</span></div>
-        <div id="trend"></div>
+      <div class="pcard pcard--green" id="trend-card">
+        <div class="pcard-hd">
+          <span class="t">净热量趋势</span>
+          <div class="nt-tabs" id="nt-tabs">
+            <div class="nt-tab" data-nt="7d" onclick="setTrendRange('7d')">7日</div>
+            <div class="nt-tab" data-nt="30d" onclick="setTrendRange('30d')">月度</div>
+            <div class="nt-tab" data-nt="365d" onclick="setTrendRange('365d')">年度</div>
+            <div class="nt-tab on" data-nt="all" onclick="setTrendRange('all')">全部</div>
+          </div>
+        </div>
+        <div class="nt-scroll" id="nt-scroll"><div id="trend"></div></div>
+        <div class="nt-foot"><span id="trend-sub">绿 = 缺口 · 红 = 超额</span><span id="nt-hint"></span></div>
       </div>
 
       <div class="pcard pcard--red" id="gap-card">
@@ -1255,7 +1277,7 @@ body {
       <!-- 交易图标（v2.7.52）：彩色「鸡腿 × 哑铃」交叉成 X
            = 做多做空两条腿：鸡腿(吃) 与 哑铃(练) 一横一竖，交叉才是这个 App 的全部动作。
            纯矢量手绘，不引位图（22px 下位图会糊、还带底色边） -->
-      <div class="ico ico-trade" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><g transform="translate(12 12) scale(1.22) translate(-12 -12)"><g transform="rotate(45 12 12) translate(-1.4 0)"><rect x="8.2" y="3.2" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="8.2" y="17.4" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="10.6" y="6.6" width="2.8" height="10.8" rx="1.4" fill="#7f90ad"/></g><g transform="rotate(-45 12 12) translate(1.4 0)"><rect x="10.8" y="4.6" width="2.4" height="5.2" rx="1.2" fill="#f4efe2"/><circle cx="12" cy="3.7" r="2.1" fill="#f4efe2"/><path d="M10.7 9.2h2.6l2.4 7.2a3.7 3.7 0 0 1-7.4 0Z" fill="#e2703f"/></g></g></svg></div>交易
+      <div class="ico ico-trade" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><g transform="translate(12 12) scale(1.18) translate(-12 -12)"><g transform="rotate(45 12 12)"><rect x="8.2" y="3.2" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="8.2" y="17.4" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="10.6" y="6.6" width="2.8" height="10.8" rx="1.4" fill="#7f90ad"/></g><g transform="rotate(-45 12 12)"><rect x="10.8" y="13.05" width="2.4" height="5.2" rx="1.2" fill="#f4efe2"/><circle cx="12" cy="19.15" r="2.1" fill="#f4efe2"/><path d="M10.7 13.65h2.6l2.4-7.2a3.7 3.7 0 0 0-7.4 0Z" fill="#e2703f"/></g></g></svg></div>交易
     </div>
     <div data-tab="leaderboard" onclick="switchTab('leaderboard')" data-page-node-id="jJLPTbnEKemO0sS2SkJr5b">
       <div class="ico" data-page-node-id="amyIU316UQlQJ1cCFJtlGc"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 5.5H4.2v1.8A3.2 3.2 0 0 0 7.4 10.5"/><path d="M17 5.5h2.8v1.8A3.2 3.2 0 0 1 16.6 10.5"/><path d="M12 13v3.2"/><path d="M8.6 20h6.8"/><path d="M9.4 16.5h5.2L18 20H6l2.6-3.5Z"/></svg></div>龙虎榜
@@ -4093,57 +4115,134 @@ function renderKline() {
   bindKlineTip(klineEl);
 }
 
+/* ============ 净热量趋势（v2.7.53：周期切换 + 横向滚动）============
+   交互对齐行情页「历史成交」：7日 / 月度 / 年度 / 全部。
+   口径与分时图一致 —— 净热量 = 摄入 − 运动消耗 − BMR
+     · 7日 / 全部：逐日柱，只画「有记录」的日
+       （无记录日也会算出 −BMR，画出来就是一排假缺口，所以跳过）
+     · 月度 / 年度：按自然期聚合，取「有记录日的日均净热量」
+       （用累计值会让 31 天的月份天然压过 28 天的月份，也会被记录天数左右）
+   柱长 = |净热量|，绿 = 缺口（减重方向）/ 红 = 超额。
+   槽宽固定 26px，装不下就横向滚动（默认贴最右 = 最新），做法对齐运动网格图。 */
+let trendRange = 'all';
+const NT = { SLOT: 26, FALLBACK_W: 340, deferred: false, needEnd: true };
+function setTrendRange(r) {
+  if (trendRange === r) return;
+  trendRange = r;
+  NT.needEnd = true;
+  renderTrend();
+}
+function trendScrollToEnd() {
+  const sc = document.getElementById('nt-scroll');
+  if (!sc || sc.clientWidth <= 0) return;
+  sc.scrollLeft = Math.max(0, sc.scrollWidth - sc.clientWidth);
+}
+/* 切到持仓页时补一次：隐藏态（display:none）量不到宽度 → 重绘；否则只把位置贴回最右 */
+function ntAfterShow() {
+  if (NT.deferred) { NT.deferred = false; NT.needEnd = true; renderTrend(); }
+  else trendScrollToEnd();
+}
+window.addEventListener('resize', function () {   // 横竖屏切换：槽宽按新容器宽度重算
+  if (window.__ntRz) clearTimeout(window.__ntRz);
+  window.__ntRz = setTimeout(renderTrend, 180);
+});
+window.addEventListener('resize', function () {   // 横竖屏切换：槽宽按新容器宽度重算
+  if (window.__ntRz) clearTimeout(window.__ntRz);
+  window.__ntRz = setTimeout(renderTrend, 180);
+});
+function trendBuckets() {
+  const todayS = todayStr();
+  const firstD = firstRecordDate();
+  if (!firstD) return null;
+  const agg = {};
+  (state.diet || []).forEach(function(d) {
+    const k = d.date || todayS, o = agg[k] || (agg[k] = { in: 0, out: 0 });
+    o.in += Math.round(d.kcal || 0);
+  });
+  (state.exercise || []).forEach(function(e) {
+    const k = e.date || todayS, o = agg[k] || (agg[k] = { in: 0, out: 0 });
+    o.out += Math.round(e.kcal || 0);
+  });
+  const bmr = calcBMR();
+  const netOf = function(k) { const a = agg[k]; return (a.in - a.out) - bmr; };
+  const out = [];
+  if (trendRange === '7d' || trendRange === 'all') {
+    let from = (trendRange === '7d') ? addDaysStr(todayS, -6) : firstD;
+    if (firstD > from) from = firstD;
+    for (let d = from; d <= todayS; d = addDaysStr(d, 1)) {
+      if (!agg[d]) continue;
+      out.push({ label: String(Number(d.slice(8))), net: netOf(d) });
+    }
+    return out;
+  }
+  const cut = (trendRange === '30d') ? 7 : 4;          // 'YYYY-MM' / 'YYYY'
+  const g = {};
+  Object.keys(agg).forEach(function(k) {
+    if (k < firstD) return;
+    const key = k.slice(0, cut), o = g[key] || (g[key] = { sum: 0, n: 0 });
+    o.sum += netOf(k); o.n++;
+  });
+  Object.keys(g).sort().forEach(function(key) {
+    out.push({ label: (cut === 7 ? monthLabel(key) : key), net: g[key].sum / g[key].n });
+  });
+  return out;
+}
 function renderTrend() {
   const el = document.getElementById('trend');
   if (!el) return;
-  // 时间轴：从第一条有记录的日期向右到今天（首个记录在最左，符合常规可视化顺序）
-  const todayS = todayStr();
-  const firstD = firstRecordDate();
-  if (!firstD) {
-    el.innerHTML = '<div style="height:104px;display:flex;align-items:center;justify-content:center;color:#5a6478;'
+  document.querySelectorAll('#nt-tabs .nt-tab').forEach(function(x) {
+    x.classList.toggle('on', x.getAttribute('data-nt') === trendRange);
+  });
+  const sub = document.getElementById('trend-sub');
+  if (sub) sub.textContent = (trendRange === '30d' || trendRange === '365d')
+    ? '绿 = 缺口 · 红 = 超额 · 取日均'
+    : '绿 = 缺口 · 红 = 超额';
+  const sc = document.getElementById('nt-scroll');
+  const hint = document.getElementById('nt-hint');
+  const pts = trendBuckets();
+  if (!pts || !pts.length) {
+    NT.deferred = false;
+    el.style.width = '';
+    if (hint) hint.textContent = '';
+    el.innerHTML = '<div style="height:118px;display:flex;align-items:center;justify-content:center;color:#5a6478;'
       + 'font-size:12px;text-align:center;line-height:1.7;">暂无净热量记录<br/>记录饮食/运动后自动生成真实柱状趋势</div>';
     return;
   }
-  let from = firstD;
-  if (spanDays(from, todayS) > 62) from = addDaysStr(todayS, -61);   // 保底：单屏最多 62 天
-  const days = [];
-  for (let d = from; d <= todayS; d = addDaysStr(d, 1)) days.push(d);
-  const pts = days.map(d => ({ d, net: dailyNet(d), has: hasRecord(d) }));
-  // 柱状图（v2.7.52 改版）：全部柱贴在同一条基线上向上生长，柱长 = |净热量|
-  //   绿 = 净缺口（消耗 > 摄入，减重方向）｜红 = 净超额（摄入 > 消耗，增重方向）
-  //   为什么删掉「0 轴中分、上下分叉」：上下分叉时视觉重心被 0 轴劈成两半，
-  //   一眼看不出这周是「连续达标」还是「连续爆表」；贴底单边柱让柱长直接等于强度，
-  //   「谁更长谁更强」是零学习成本的读法。
-  const W = 340, H = 118, padT = 14, padB = 20;
+  const n = pts.length;
+  const availW = (sc && sc.clientWidth > 40) ? sc.clientWidth : 0;
+  NT.deferred = availW === 0;                       // 非当前页测不到宽度 → 切页时补绘
+  const viewW = availW > 0 ? availW : NT.FALLBACK_W;
+  const atEnd = !sc || (sc.scrollLeft + sc.clientWidth) >= (sc.scrollWidth - 4);
+  const W = Math.max(viewW, n * NT.SLOT);           // 装不下就撑宽 → 交给外层横滑
+  const H = 118, padT = 14, padB = 20;
   const innerH = H - padT - padB;
-  const real = pts.filter(p => p.has);
-  const absMax = Math.max(50, Math.ceil(Math.max.apply(null, real.map(p => Math.abs(p.net))) / 50) * 50);
-  const unit = innerH / absMax;          // 每 kcal 对应像素（最高柱顶到 padT）
-  const baseY = H - padB;                // 基线（所有柱的起点）
-  const N = days.length;
-  // 舒适槽宽固定 26px：数据少时柱贴左排列（首柱在最左、右侧留白等后续记录），不居中不拉伸；超容量才压缩
-  const slot = (N * 26 <= W) ? 26 : W / N;
+  const absMax = Math.max(50, Math.ceil(Math.max.apply(null, pts.map(function(p) { return Math.abs(p.net); })) / 50) * 50);
+  const unit = innerH / absMax;
+  const baseY = H - padB;
+  const slot = W / n;
   const bw = Math.min(38, Math.max(4, slot * 0.6));
-  const labStep = N <= 14 ? 1 : Math.ceil(N / 14);   // x 标签抽稀
-  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;">';
+  const labStep = n <= 16 ? 1 : Math.ceil(n / 16);
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:' + W + 'px;height:' + H + 'px;">';
   svg += '<line x1="0" y1="' + baseY + '" x2="' + W + '" y2="' + baseY + '" stroke="#2a3142" stroke-width="1"/>';
-  pts.forEach((p, i) => {
-    const today = p.d === todayS;
-    if (p.has) {
-      const x = slot * i + (slot - bw) / 2;
-      const deficit = p.net < 0;                       // 净缺口=减重达标
-      const col = deficit ? '#00c896' : '#ff3b47';
-      const barH = Math.max(2, Math.abs(p.net) * unit);
-      svg += '<rect x="' + x + '" y="' + (baseY - barH) + '" width="' + bw + '" height="' + barH + '" rx="3" fill="' + col + '" opacity="' + (today ? 1 : 0.85) + '"/>';
-    }
-    // X 轴标签：今天标「今」，其余按 labStep 抽稀标日期
-    if ((i % labStep === 0) || (today && p.has)) {
-      const lx = slot * i + slot / 2;
-      svg += '<text x="' + lx + '" y="' + (H - padB + 10) + '" text-anchor="middle" fill="' + (today && p.has ? '#ff3b47' : '#5a6478') + '" font-size="8">' + Number(p.d.slice(8)) + '</text>';
+  pts.forEach(function(p, i) {
+    const last = i === n - 1;
+    const barH = Math.max(2, Math.abs(p.net) * unit);
+    svg += '<rect x="' + (slot * i + (slot - bw) / 2).toFixed(1) + '" y="' + (baseY - barH).toFixed(1)
+      + '" width="' + bw.toFixed(1) + '" height="' + barH.toFixed(1) + '" rx="3" fill="'
+      + (p.net < 0 ? '#00c896' : '#ff3b47') + '" opacity="' + (last ? 1 : 0.85) + '"/>';
+    if ((i % labStep === 0) || last) {
+      svg += '<text x="' + (slot * i + slot / 2).toFixed(1) + '" y="' + (H - padB + 10)
+        + '" text-anchor="middle" fill="' + (last ? '#ff3b47' : '#5a6478') + '" font-size="8">' + p.label + '</text>';
     }
   });
   svg += '</svg>';
   el.innerHTML = svg;
+  el.style.width = W + 'px';
+  if (hint) hint.textContent = (n * NT.SLOT > viewW + 1) ? '左右滑动查看' : '';
+  if (sc && sc.clientWidth > 0 && (NT.needEnd || atEnd)) {
+    sc.scrollLeft = Math.max(0, sc.scrollWidth - sc.clientWidth);
+    NT.needEnd = false;
+  }
 }
 
 
@@ -4171,6 +4270,13 @@ function renderTrend() {
  *   止盈进度 = 已盈利 ÷ 止盈空间 × 100%（clamp 0~100）
  * 配色沿用 A 股约定：盈利(减重)红、亏损(增重)绿。
  * ============================================================ */
+/* 大数字排版（v2.7.53）：整数位 44px / 小数位降一档 30px / 「%」与数字同底线（不再上标）
+   为什么：等宽字体下小数位和整数位同号会显得「一坨」，而 % 上标会让整个数字重心偏移 */
+function ntNum(v) {
+  const t = String(v), i = t.indexOf('.');
+  if (i < 0) return '<span class="iv">' + t + '</span>';
+  return '<span class="iv">' + t.slice(0, i) + '</span><span class="dec">' + t.slice(i) + '</span>';
+}
 function _ddiff(a, b) {
   const f = function(x) { const p = (x || '').split('-'); return p.length < 3 ? 0 : Date.UTC(+p[0], +p[1] - 1, +p[2]); };
   return Math.round((f(b) - f(a)) / 86400000);
@@ -4218,15 +4324,16 @@ function renderAccount() {
 
   if (hasSpace) {
     const shown = Math.max(0, Math.min(100, prog));   // 封顶 100%，盈利不可能超上限
-    elRate.innerHTML = shown.toFixed(1) + '<span class="pc">%</span>';
+    elRate.innerHTML = ntNum(shown.toFixed(1)) + '<span class="pc">%</span>';
     // v2.7.50：不再显示「上限 xx kg」——上限是内部计算量，上屏只会让人疑惑
     // v2.7.51：这段挪到进度条上方右侧；「+xx kg」按盈亏染色（红=盈利 / 绿=亏损 / 灰=打平）
-    if (elCap) elCap.innerHTML = '<span class="k">止盈进度</span><span class="v">已盈 <b style="color:'
-      + PROFIT_C[tone] + '">' + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b></span>';
+    // v2.7.53：回到一条线（「·」连接），不再上下两行
+    if (elCap) elCap.innerHTML = '<span class="k">止盈进度 · 已盈</span><b style="color:'
+      + PROFIT_C[tone] + '">' + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b>';
     if (elBar) { elBar.style.width = shown.toFixed(1) + '%'; elBar.style.background = GRAD[tone]; }
   } else {
     // 目标不低于建仓价（没有减重空间）→ 退回显示累计浮盈千克
-    elRate.innerHTML = (profit >= 0 ? '+' : '') + profit.toFixed(1) + '<span class="pc"> kg</span>';
+    elRate.innerHTML = ntNum((profit >= 0 ? '+' : '') + profit.toFixed(1)) + '<span class="pc"> kg</span>';
     if (elCap) elCap.innerHTML = '<span class="k">累计浮盈</span>';
     if (elBar) { elBar.style.width = '0%'; elBar.style.background = GRAD[tone]; }
   }
@@ -4528,8 +4635,8 @@ function dayAgg() {
   (state.exercise || []).forEach(function(e) { dates[e.date] = 1; });
   return Object.keys(dates).map(function(dt) { return { date: dt, in: din[dt] || 0, out: dout[dt] || 0, net: (din[dt] || 0) - (dout[dt] || 0) }; });
 }
-function lbCard(title, sub, rows) {
-  let h = '<div class="card" style="margin-top:12px;">';
+function lbCard(title, sub, rows, kind) {
+  let h = '<div class="card lb-' + (kind === 'ex' ? 'ex' : 'food') + '" style="margin-top:12px;">';
   h += '<div class="card-title"><span class="t">' + title + '</span><span class="m">' + sub + '</span></div>';
   if (!rows || rows.length === 0) { h += '<div class="empty">暂无数据，先去记几笔吧</div>'; }
   else rows.forEach(function(r) {
@@ -4562,13 +4669,13 @@ function renderLeaderboard() {
   const topIn = days.filter(function(d) { return d.date >= monthStart; }).sort(function(a, b) { return b.in - a.in; }).slice(0, 5);
   const topOut = days.filter(function(d) { return d.date >= monthStart; }).sort(function(a, b) { return b.out - a.out; }).slice(0, 5);
   let html = '';
-  html += lbCard('热菜榜 · 吃最多的食物', rLabel, foods.map(function(f, i) { return { rank: i + 1, name: f.name, sub: rLabel + '累吃', val: f.k + ' kcal', cls: '#ff8b96' }; }));
-  html += lbCard('劳模榜 · 最常做的运动', rLabel, exs.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计', val: e.c + ' 次', cls: '#6ee7b7' }; }));
+  html += lbCard('热菜榜 · 吃最多的食物', rLabel, foods.map(function(f, i) { return { rank: i + 1, name: f.name, sub: rLabel + '累吃', val: f.k + ' kcal', cls: '#ff8b96' }; }), 'food');
+  html += lbCard('劳模榜 · 最常做的运动', rLabel, exs.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计', val: e.c + ' 次', cls: '#6ee7b7' }; }), 'ex');
   const exK = topExKcal(start);
-  html += lbCard('暴汗榜 · 消耗热量最高运动', rLabel, exK.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计燃脂', val: e.k + ' kcal', cls: '#ffd166' }; }));
+  html += lbCard('暴汗榜 · 消耗热量最高运动', rLabel, exK.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计燃脂', val: e.k + ' kcal', cls: '#ffd166' }; }), 'ex');
   if (!isWeek) {  // 后两张仅月榜：周视图下不出现
-    html += lbCard('大胃王日 · 吃热量最高 5 天', curMonth, topIn.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.in + ' kcal', cls: '#ff8b96' }; }));
-    html += lbCard('燃脂日 · 消耗最高 5 天', curMonth, topOut.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.out + ' kcal', cls: '#6ee7b7' }; }));
+    html += lbCard('大胃王日 · 吃热量最高 5 天', curMonth, topIn.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.in + ' kcal', cls: '#ff8b96' }; }), 'food');
+    html += lbCard('燃脂日 · 消耗最高 5 天', curMonth, topOut.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.out + ' kcal', cls: '#6ee7b7' }; }), 'ex');
   }
   const el = document.getElementById('lb-content');
   if (el) el.innerHTML = html;
@@ -5634,6 +5741,9 @@ function switchTab(tab) {
   if (tab === 'market') {
     try { renderMarketMap(); } catch (e) {}          // 容器已可见，用真实宽度重绘云图，避免隐藏态留下的右侧黑条
     try { exHeatScrollToEnd(); } catch (e) {}        // 运动网格图默认贴最右（最新）
+  }
+  if (tab === 'holdings') {
+    try { ntAfterShow(); } catch (e) {}              // 净热量趋势：隐藏态量不到宽度 → 可见后重绘并贴最右
   }
 }
 /* 子页面左缘右滑返回手势（贴合手机操作习惯） */
