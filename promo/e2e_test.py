@@ -175,6 +175,34 @@ window.addEventListener('load', function () {
     render();
     out.ma7None = (document.getElementById('ma7-lab') || {}).textContent || '';
     out.ma30None = (document.getElementById('ma30-lab') || {}).textContent || '';
+    // v2.7.44：身体成分趋势图 —— 日期少不铺满 + 颜色分区标注数字
+    try {
+      state.body = { bmi: 22, bodyFat: 20, muscleRate: 55, waterRate: 60, bodyAge: 30, visceralFat: 8 };
+      state.bodyLog = [
+        { date: '2026-09-01', bodyFat: 24 },
+        { date: '2026-09-10', bodyFat: 21 },
+        { date: '2026-09-20', bodyFat: 20 }
+      ];
+      openBodyDetail(1); // 体脂率
+      var td = document.getElementById('bd-trend');
+      var pl = td ? td.querySelector('polyline') : null;
+      out.btHasSvg = !!pl;
+      if (pl) {
+        var xs = pl.getAttribute('points').trim().split(' ').map(function (p) { return parseFloat(p.split(',')[0]); });
+        var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+        out.btFewExtent = Math.round(xmax - xmin);
+        // 3 个点（少）→ 折线不应铺满整宽（plot 宽 ≈ 320-34-30=256）
+        out.btFewNotFill = (xmax - xmin) < 256 * 0.9;
+      }
+      // Y 轴：每个颜色分区带自身颜色的数字标注（非灰）
+      var colored = 0;
+      td.querySelectorAll('svg text').forEach(function (t) {
+        var f = (t.getAttribute('fill') || '');
+        if (f && f !== '#6b7690' && f.charAt(0) === '#') colored++;
+      });
+      out.btColoredLabels = colored;
+      out.btHasBandNames = !!(td && /偏低|正常|偏胖|肥胖|标准/.test(td.textContent));
+    } catch (e) { out.btErr = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -274,6 +302,11 @@ def run():
         r['ma30'])
     chk('仅 3 根时 MA7 显示 --', r['ma7Low'] == '● MA7 --', r['ma7Low'])
     chk('仅 3 根时 MA30 显示 --', r['ma30Low'] == '● MA30 --', r['ma30Low'])
+    # v2.7.44：身体成分趋势图
+    chk('趋势图已渲染 SVG（体脂率 3 点）', r['btHasSvg'])
+    chk('日期少：折线不铺满整宽（v2.7.44）', r['btFewNotFill'], r.get('btFewExtent'))
+    chk('Y 轴每个颜色分区带自身颜色标注数字（v2.7.44）', r['btColoredLabels'] >= 4, r.get('btColoredLabels'))
+    chk('右侧显示颜色分区名（偏低/正常/偏胖/肥胖）', r['btHasBandNames'])
     chk('无数据时 MA30 显示 --', r['ma30None'] == '● MA30 --', r['ma30None'])
     # 4：餐次自动推断
     chk('12:30 推断午餐', r['mealAutoLunch'] == '午餐', r['mealAutoLunch'])

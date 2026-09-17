@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.43"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.44"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -3506,10 +3506,16 @@ function renderBodyTrend(m, u) {
   }
   const a = m.axisFn ? m.axisFn(u) : (m.axis || { min: (m.levels ? m.levels[0].min : 0), max: (m.levels ? m.levels[m.levels.length - 1].max : 100) });
   const yMin = a.min, yMax = a.max, span = (yMax - yMin) || 1;
-  const W = 320, H = 190, padL = 10, padR = 10, padT = 18, padB = 26;
+  const W = 320, H = 200, padL = 34, padR = 30, padT = 16, padB = 24;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const yOf = v => padT + (1 - (Math.min(yMax, Math.max(yMin, v)) - yMin) / span) * plotH;
-  const xOf = i => padL + (n === 1 ? plotW / 2 : i / (n - 1) * plotW);
+  const clampV = v => Math.min(yMax, Math.max(yMin, v));
+  const yOf = v => padT + (1 - (clampV(v) - yMin) / span) * plotH;
+  // X 轴：日期少不铺满 —— 固定点距、居中；点多了再铺满整宽
+  const GAP = 58;
+  const innerW = (n - 1) * GAP;
+  const xOf = i => innerW <= plotW
+    ? padL + (plotW - innerW) / 2 + i * GAP
+    : padL + (n === 1 ? plotW / 2 : i / (n - 1) * plotW);
   const levels = resolveLevels(m, u);
   // 参考等级色带（与子页分段色轴同一套配色），折线叠在其上
   let bands = '';
@@ -3519,11 +3525,26 @@ function renderBodyTrend(m, u) {
     const yTop = yOf(hi), yBot = yOf(lo);
     bands += `<rect x="${padL}" y="${yTop.toFixed(1)}" width="${plotW}" height="${(yBot - yTop).toFixed(1)}" fill="${l.color}" opacity="0.12"/>`;
   });
-  const grid = `
-    <line x1="${padL}" y1="${yOf(yMax).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(yMax).toFixed(1)}" stroke="rgba(255,255,255,0.08)"/>
-    <line x1="${padL}" y1="${yOf(yMin).toFixed(1)}" x2="${padL + plotW}" y2="${yOf(yMin).toFixed(1)}" stroke="rgba(255,255,255,0.08)"/>
-    <text x="${padL + 2}" y="${(yOf(yMax) + 10).toFixed(1)}" fill="#6b7690" font-size="9">${fmtTick(m, yMax)}</text>
-    <text x="${padL + 2}" y="${(yOf(yMin) - 3).toFixed(1)}" fill="#6b7690" font-size="9">${fmtTick(m, yMin)}</text>`;
+  // Y 轴：每个颜色分公司各自标注数字（用本分区颜色）+ 右侧分区名
+  function colorAbove(x) { for (const l of levels) if (x <= l.max) return l.color; return (levels[levels.length - 1] || {}).color || '#6b7690'; }
+  let yax = '';
+  const internal = [...new Set(levels.flatMap(l => [l.min, l.max]))]
+    .filter(x => x > yMin && x < yMax).sort((p, q) => p - q);
+  internal.forEach(x => {
+    const y = yOf(x), c = colorAbove(x);
+    yax += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL + plotW}" y2="${y.toFixed(1)}" stroke="${c}" stroke-width="1" stroke-dasharray="3 3" opacity="0.28"/>`;
+    yax += `<text x="${padL - 5}" y="${(y + 3).toFixed(1)}" fill="${c}" font-size="9" text-anchor="end" font-weight="600">${fmtTick(m, x)}</text>`;
+  });
+  // 右侧分区名（颜色对齐本分区）
+  levels.forEach(l => {
+    const lo = Math.max(l.min, yMin), hi = Math.max(lo, Math.min(l.max, yMax));
+    if (hi <= lo) return;
+    const yc = yOf((lo + hi) / 2);
+    yax += `<text x="${(padL + plotW + 4).toFixed(1)}" y="${(yc + 3).toFixed(1)}" fill="${l.color}" font-size="8.5" text-anchor="start" opacity="0.7">${l.name}</text>`;
+  });
+  const frame = `
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.14)"/>
+    <line x1="${padL + plotW}" y1="${padT}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.14)"/>`;
   const curColor = (findMetricLevel(m, bodyValue(m.key), u) || levels[levels.length - 1]).color;
   const pts = vals.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ');
   const dots = vals.map((p, i) => {
@@ -3533,16 +3554,19 @@ function renderBodyTrend(m, u) {
     return `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(p.v).toFixed(1)}" r="${last ? 4 : 2.6}" fill="${curColor}"${last ? ' stroke="#fff" stroke-width="1.6"' : ''}/>`;
   }).join('');
   let xl = '';
-  const idxs = n >= 3 ? [0, Math.floor((n - 1) / 2), n - 1] : [0, n - 1];
+  const idxs = n <= 7 ? vals.map((_, i) => i) : [0, Math.floor((n - 1) / 2), n - 1];
   idxs.forEach(i => {
-    xl += `<text x="${xOf(i).toFixed(1)}" y="${(H - 8).toFixed(1)}" fill="#6b7690" font-size="9" text-anchor="middle">${vals[i].date.slice(5).replace('-', '/')}</text>`;
+    xl += `<text x="${xOf(i).toFixed(1)}" y="${(H - 7).toFixed(1)}" fill="#6b7690" font-size="9" text-anchor="middle">${vals[i].date.slice(5).replace('-', '/')}</text>`;
   });
   const lv = vals[n - 1].v, lx = xOf(n - 1), ly = yOf(lv);
-  const lab = `<text x="${Math.min(W - padR - 2, lx).toFixed(1)}" y="${(ly - 8).toFixed(1)}" fill="#fff" font-size="11" text-anchor="end" font-weight="600">${lv}${m.unit}</text>`;
+  const nearRight = lx > padL + plotW - 38;
+  const labX = nearRight ? lx - 6 : lx + 6;
+  const labY = Math.max(padT + 9, ly - 6);
+  const lab = `<text x="${labX.toFixed(1)}" y="${labY.toFixed(1)}" fill="#fff" font-size="11" text-anchor="${nearRight ? 'end' : 'start'}" font-weight="600">${lv}${m.unit}</text>`;
   const d0 = vals[0].v, dN = vals[n - 1].v;
   const dch = +(dN - d0).toFixed(m.tickDec || 1);
   const deltaStr = `首次 ${d0} → 最新 ${dN}（${dN >= d0 ? '+' : ''}${dch}${m.unit}）${derivedN ? ' · 空心点＝按体重推算' : ''}`;
-  const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bands}${grid}<polyline points="${pts}" fill="none" stroke="${curColor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xl}${lab}</svg>`;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${bands}${yax}${frame}<polyline points="${pts}" fill="none" stroke="${curColor}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xl}${lab}</svg>`;
   return header + `<div class="sub">${deltaStr}</div>` + svg;
 }
 
