@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.54"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.55"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -40,7 +40,6 @@ body {
 .pheader .logo .lm { width:32px; height:32px; background:var(--red); border-radius:9px; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:16px; }
 .pheader .logo .lt { font-size:15px; font-weight:500; }
 .pheader .logo .lt small { display:block; color:var(--muted); font-size:10px; font-weight:400; }
-.pheader .reset { color:var(--muted); font-size:11px; cursor:pointer; padding:4px 10px; border:1px solid var(--border); border-radius:8px; }
 .backrow { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:10px; padding:10px 16px; margin-bottom:4px; background:rgba(10,14,26,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--border); cursor:pointer; }
 .backrow .arrow { width:30px; height:30px; border-radius:50%; background:var(--panel-hi); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:20px; color:#fff; line-height:1; }
 .backrow .tt { font-size:15px; font-weight:500; color:#fff; }
@@ -679,7 +678,6 @@ body {
           <div class="avatar-sm" id="hdr-avatar" onclick="openProfileEdit()" data-page-node-id="Bbf6Wsmd267KGCE5zEgKGM"></div>
           <div class="lt" data-page-node-id="AV1bS6M80E6gI8KPKUKz3H"><span id="hdr-id" data-page-node-id="fQTFXLcg3cmTTN5jGdpzBO">FT_8848</span><small data-page-node-id="kRVpbsYemfNe7eGHVsivxQ">健交所 · Workout000001</small></div>
         </div>
-        <div class="reset" onclick="resetAll()" data-page-node-id="tCHcd9OSjcCQGQXIyqhCPc">↺ 重置</div>
       </div>
 
       <!-- 体重 K 线（行情页首块） -->
@@ -2044,11 +2042,7 @@ function achHasRarity(r) {
 function achOwnedAllOf(r) {
   try { const list = CARDS.filter(function(c){ return c.rarity === r; }); return list.length > 0 && list.every(function(c){ return (state.cards[c.id]||0) > 0; }); } catch(e) { return false; }
 }
-function resetAll() {
-  if (!confirm('确定清空所有记录并重置吗？')) return;
-  state = defaultState();
-  saveState(); render();
-}
+/* v2.7.55 已删除 resetAll() 与行情页右上角的「↺ 重置」按钮：该按钮位于顶部可误触区，一次误点就清空全部记录。需要清空时请直接清浏览器站点数据。⛔不要加回来。 */
 
 /* ============ 数据备份 / 恢复（防丢，跨源可移植） ============ */
 function toastInfo(msg) {

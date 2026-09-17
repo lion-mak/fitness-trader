@@ -644,6 +644,23 @@ window.addEventListener('load', function () {
       out.ui54GapNotLeft = vr54 > 60;   // 若是左对齐，数字会从内容左边缘起，右边缘远小于 60
       switchTab('market');
     } catch (e) { out.uiErr54 = String((e && e.message) || e); }
+
+    /* ===== v2.7.55：行情页右上角「↺ 重置」已删除（顶部误触会清空全部记录） ===== */
+    try {
+      switchTab('market');
+      var ph55 = document.querySelector('#page-market .pheader');
+      out.ui55HdrKids = ph55 ? ph55.children.length : -1;
+      out.ui55LogoOnly = !!ph55 && ph55.children.length === 1
+        && ph55.children[0].classList.contains('logo');
+      out.ui55HasResetInHdr = !!document.querySelector('#page-market .pheader .reset');
+      out.ui55ResetNodes = document.querySelectorAll('.reset').length;
+      out.ui55ResetFnGone = (typeof window.resetAll === 'undefined');
+      out.ui55HdrOnclicks = document.querySelectorAll('#page-market .pheader [onclick]').length;
+      out.ui55HdrOnclickWhat = ph55
+        ? Array.prototype.map.call(ph55.querySelectorAll('[onclick]'),
+            function(n){ return n.getAttribute('onclick'); }).join(',')
+        : 'no-header';
+    } catch (e) { out.uiErr55 = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -666,6 +683,9 @@ def run():
         'curMeal 残留': 'curMeal' in html,
         'MEAL_SUGGEST_HM 残留': 'MEAL_SUGGEST_HM' in html,
         '.meal-row CSS 残留': bool(re.search(r'\.meal-row\s*\{', html)),
+        'resetAll 函数残留': 'function resetAll' in html,
+        '行情页重置按钮残留': 'onclick="resetAll' in html,
+        '.pheader .reset CSS 残留': '.pheader .reset' in html,
     }
     ok = True
     for k, bad in static.items():
@@ -895,6 +915,16 @@ def run():
     chk('缺口评级卡数字与文字右边缘齐平（真的贴右，不是左对齐）',
         r.get('ui54GapFlush') is True and r.get('ui54GapNotLeft') is True, r.get('ui54GapTextRight'))
     chk('v2.7.54 注入块无异常', not r.get('uiErr54'), r.get('uiErr54'))
+
+    # ===== v2.7.55：行情页右上角「↺ 重置」按钮已删除 =====
+    chk('行情页头部只剩 logo（重置按钮不在头里了）',
+        r.get('ui55LogoOnly') is True, r.get('ui55HdrKids'))
+    chk('行情页头部已无 .reset 节点', r.get('ui55HasResetInHdr') is False, r.get('ui55HasResetInHdr'))
+    chk('全文档已无任何 .reset 节点', r.get('ui55ResetNodes') == 0, r.get('ui55ResetNodes'))
+    chk('resetAll 已从全局删除（就算误触也没得清）', r.get('ui55ResetFnGone') is True)
+    chk('行情页头部可点击元素只剩头像（openProfileEdit）',
+        r.get('ui55HdrOnclicks') == 1, r.get('ui55HdrOnclickWhat'))
+    chk('v2.7.55 注入块无异常', not r.get('uiErr55'), r.get('uiErr55'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
