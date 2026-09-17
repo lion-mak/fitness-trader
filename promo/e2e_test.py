@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""端到端验收（v2.7.49 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
+"""端到端验收（v2.7.51 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
 
 覆盖：
   · 摄入圆环模块 / 餐次模块 已移除（DOM 中不存在，且 render() 能跑完不抛错）
@@ -9,6 +9,7 @@
   · 涨停币每日只发一次（重复记录不再叠加 +200）
   · MA 图例带数值
   · 体重K线悬浮数据标签能由指针坐标取到正确那根K线的日期
+  · 持仓页 Hero：无网格纹 / 收窄 275→200px / 数字与说明同行；「持仓明细」已删；调目标按钮在 Hero 右上（v2.7.51）
 """
 import base64
 import io
@@ -229,10 +230,10 @@ window.addEventListener('load', function () {
     try {
       state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
       render();
-      var rem = document.getElementById('h-remain');
+      var rem = document.getElementById('acct-remain');
       out.remainUnmet = rem.textContent; out.remainUnmetColor = rem.style.color;
       state.user.weight = 69; render();
-      rem = document.getElementById('h-remain');
+      rem = document.getElementById('acct-remain');
       out.remainMet = rem.textContent; out.remainMetColor = rem.style.color;
       state.user.weight = 78;
     } catch (e) { out.remainErr = String((e && e.message) || e); }
@@ -315,12 +316,12 @@ window.addEventListener('load', function () {
       out.uiHeroHasTrack = !!(hero && hero.querySelector('.hero-track i#acct-bar'));
       out.uiLedgerRows = hero ? hero.querySelectorAll('.ledger .lrow').length : -1;
       out.uiNoUpperCap = g('acct-cap').indexOf('上限') < 0;   // 用户：上限 xx kg 不需要，删掉
-      out.uiHeroBadge = g('acct-hold');
+      out.uiHeroBadgeGone = !document.getElementById('acct-hold');
       out.uiIdline = !!document.querySelector('#page-holdings .pagetitle .idline');
       // 三级层级：Primary 卡改左色条，Data 区无卡片
       out.uiPrimaryGreen = !!document.querySelector('#page-holdings .pcard--green');
       out.uiPrimaryRed = !!document.querySelector('#page-holdings .pcard--red');
-      out.uiDataSection = !!document.querySelector('#page-holdings .dsection #h-remain');
+      out.uiNoDSection50 = !document.querySelector('#page-holdings .dsection');
       out.uiNoMetricGrid = !document.querySelector('#page-holdings .metric-grid');
       var pcardAccent = document.querySelector('#page-holdings .pcard--red');
       out.uiPcardNoBorder = !!pcardAccent && getComputedStyle(pcardAccent).borderTopWidth === '0px';
@@ -333,7 +334,7 @@ window.addEventListener('load', function () {
       out.uiNoteReFolded = !!note && getComputedStyle(note).display === 'none';
       // 【用户反馈】目标仓位调整按钮在哪？→ 固定在持仓明细标题行，永远可点
       var twBtn = document.getElementById('tw-open-btn');
-      out.uiTwBtn = !!(twBtn && twBtn.closest('.dsection-hd')
+      out.uiTwBtn = !!(twBtn && twBtn.closest('.hero-top')
                        && twBtn.getAttribute('onclick') === 'toggleTargetW()');
       toggleTargetW();
       var trow = document.getElementById('tw-row');
@@ -368,14 +369,65 @@ window.addEventListener('load', function () {
       state.diet.push({ id: 'upt', date: today, name: '沙拉', kcal: 300, meal: '午餐', time: '12:00' });
       state.user.weight = 78;
       render();
-      out.uiPaceShown = /按当前速度约 [\d.]+ 周/.test(g('h-remain'));
+      out.uiPaceShown = /按当前速度约 [\d.]+ 周/.test(g('acct-remain'));
       out.uiPaceNum = paceWeeks(8);
       state.user.weight = 69; render();
-      out.uiPaceDone = g('h-remain').indexOf('已达成目标') >= 0;
+      out.uiPaceDone = g('acct-remain').indexOf('已达成目标') >= 0;
       state.diet = [{ id: 'z1', date: today, name: '饭', kcal: 5000, meal: '午餐', time: '12:00' }];
       out.uiPaceNoGap = paceWeeks(8) === null;
       state.user.weight = 76;
     } catch (e) { out.uiErr = String((e && e.message) || e); }
+    // ================= v2.7.51：持仓页瘦身 + 结构调整（用户反馈）=================
+    try {
+      state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
+      switchTab('holdings');   // 必须切到持仓页：display:none 时 offsetHeight/getBoundingClientRect 全是 0，断言会假通过
+      render();
+      var hero3 = document.getElementById('acct-card');
+      var rules3 = document.styleSheets[0].cssRules, heroRule = null, hri;
+      for (hri = 0; hri < rules3.length; hri++) {
+        if (rules3[hri].selectorText === '.hero') { heroRule = rules3[hri]; break; }
+      }
+      out.uiHeroPadTop = heroRule ? heroRule.style.paddingTop : '';
+      out.uiHeroNoGrid = getComputedStyle(hero3, '::before').backgroundImage === 'none';
+      out.uiHeroHeight = hero3.offsetHeight;
+      // 大数字与「止盈进度 · 已盈 xx kg」并成一行，说明靠右
+      out.uiHeroMidRow = !!(hero3.querySelector('.hero-mid .hero-num#acct-rate')
+                            && hero3.querySelector('.hero-mid .hero-cap#acct-cap'));
+      var cap3 = document.getElementById('acct-cap');
+      var num3 = document.getElementById('acct-rate');
+      out.uiCapAlign = getComputedStyle(cap3).textAlign;
+      out.uiCapRightOfNum = cap3.getBoundingClientRect().left > num3.getBoundingClientRect().right - 1;
+      out.uiCapProfitRed = cap3.innerHTML.indexOf('#ff3b47') >= 0 && cap3.textContent.indexOf('+') >= 0;
+      out.uiHeroNumSize = getComputedStyle(num3).fontSize;
+      // 「持仓明细」整块清零（DOM + CSS），render() 不再引用 h-weight/h-target/h-remain
+      out.uiNoDSection = !document.querySelector('#page-holdings .dsection')
+                         && !/\.dsection\s*\{/.test(document.head.innerHTML)
+                         && !/\.drow\s*\{/.test(document.head.innerHTML);
+      out.uiNoHoldRows = !document.getElementById('h-weight') && !document.getElementById('h-target')
+                         && !document.getElementById('h-remain');
+      // 「距止盈目标」那句话搬进 Hero，琥珀色
+      var rem3 = document.getElementById('acct-remain');
+      out.uiRemainInHero = !!(rem3 && rem3.closest('#acct-card') && rem3.className.indexOf('hero-remain') >= 0);
+      out.uiRemainAmber = rem3 ? rem3.style.color : '';
+      out.uiRemainText = rem3 ? rem3.textContent : '';
+      // 「🎯 调整目标」按钮 = Hero 右上（顶掉原「持仓 xx 天」徽章位）
+      var tw3 = document.getElementById('tw-open-btn');
+      out.uiTwInHeroTop = !!(tw3 && tw3.closest('.hero-top') && tw3.classList.contains('hero-badge')
+                             && tw3.getAttribute('onclick') === 'toggleTargetW()');
+      out.uiHoldBadgeGone = !document.getElementById('acct-hold');
+      var wrap3 = document.querySelector('#page-holdings .kw-wrap');
+      out.uiTwRowUnderHero = !!(wrap3 && wrap3.previousElementSibling === hero3);
+      toggleTargetW();
+      var trow3 = document.getElementById('tw-row');
+      out.uiTwOpens51 = !!trow3 && trow3.style.display === 'flex';
+      closeTargetW();
+      out.uiTwCloses51 = !!trow3 && trow3.style.display === 'none';
+      // 已达成目标 → 红色（盈利色，与主数字同色）
+      state.user.weight = 69; render();
+      out.uiRemainMetRed = document.getElementById('acct-remain').style.color;
+      state.user.weight = 78; render();
+      switchTab('market');
+    } catch (e) { out.uiErr51 = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -488,31 +540,53 @@ def run():
     chk('趋势图 Y 轴自适应：折线纵向明显铺开（v2.7.45）', (r.get('btLineYSpread') or 0) > 80, r.get('btLineYSpread'))
     chk('持仓「较起点+xxkg」已删除（v2.7.45）', r['hChangeGone'])
     chk('缺口评级右上「含基础代谢·全天口径」小字已删除（v2.7.45）', r['gapSideGone'])
-    chk('目标未达成：红色「还差 xx kg」', '还差' in (r.get('remainUnmet') or '') and 'rgb(255, 59, 71)' in (r.get('remainUnmetColor') or ''),
+    chk('目标未达成：琥珀色「还差 xx kg」（v2.7.51 红只留给盈利）',
+        '还差' in (r.get('remainUnmet') or '') and 'rgb(255, 159, 67)' in (r.get('remainUnmetColor') or ''),
         (r.get('remainUnmet') or '') + ' / ' + (r.get('remainUnmetColor') or ''))
-    chk('目标已达成：橙色祝贺语', '已达成目标' in (r.get('remainMet') or '') and 'rgb(255, 159, 67)' in (r.get('remainMetColor') or ''),
+    chk('目标已达成：红色祝贺语（盈利色）',
+        '已达成目标' in (r.get('remainMet') or '') and 'rgb(255, 59, 71)' in (r.get('remainMetColor') or ''),
         (r.get('remainMet') or '') + ' / ' + (r.get('remainMetColor') or ''))
 
     # ===== v2.7.50：持仓页视觉体系（三级层级 + 账本母题）=====
     chk('账户总览升格为 Hero 账户头（无 card 边框）', r.get('uiHeroIsBlock'))
     chk('Hero 紧跟在 pagetitle 之后（仍是持仓页首块）', r.get('uiHeroRightAfterTitle'))
-    chk('Hero 含 46px 等宽大数字 + 3px 进度轨道', r.get('uiHeroHasBigNum') and r.get('uiHeroHasTrack'))
+    chk('Hero 含大号等宽数字 + 3px 进度轨道', r.get('uiHeroHasBigNum') and r.get('uiHeroHasTrack'))
     chk('账本母题：Hero 内 3 行「标签·虚线·等宽数字」', r.get('uiLedgerRows') == 3, r.get('uiLedgerRows'))
     chk('「止盈进度 · 上限 xx kg」已删除（v2.7.50）', r.get('uiNoUpperCap'))
-    chk('持仓天数移入右上徽章', (r.get('uiHeroBadge') or '').startswith('持仓 '), r.get('uiHeroBadge'))
+    chk('原「持仓 xx 天」徽章已移除（位子让给调整目标按钮）', r.get('uiHeroBadgeGone'))
     chk('页面身份线 idline 已加', r.get('uiIdline'))
     chk('Primary 卡改左色条（绿=趋势/红=缺口）', r.get('uiPrimaryGreen') and r.get('uiPrimaryRed'))
     chk('Primary 卡去四周边框（左色条替代）', r.get('uiPcardNoBorder'))
-    chk('持仓明细改为无卡片 Data 区', r.get('uiDataSection') and r.get('uiNoMetricGrid'))
+    chk('持仓明细 Data 区已删除（v2.7.51）', r.get('uiNoDSection50') and r.get('uiNoMetricGrid'))
     chk('「ⓘ 口径」默认收起 / 点击展开 / 再点收起', r.get('uiNoteFolded') and r.get('uiNoteOpen') and r.get('uiNoteReFolded'))
-    chk('🎯 调整目标按钮位于持仓明细标题行且可点', r.get('uiTwBtn'))
+    chk('🎯 调整目标按钮位于 Hero 顶栏且可点', r.get('uiTwBtn'))
     chk('点「调整目标」弹出输入行 / 取消可收起', r.get('uiTwRowOpens') and r.get('uiTwRowCloses'))
     chk('「跑赢 X% 的交易日」真算（7 日历史+今日极值→100%）', r.get('uiRankShown') and r.get('uiRankAll'), r.get('uiRankAll'))
     chk('历史交易日 < 7 天 → 整句话隐藏（不编数据）', r.get('uiRankHidden') and r.get('uiRankFnNull'))
     chk('「按当前速度约 X 周」真算（近期缺口稳定 → 真实周数）', r.get('uiPaceShown') and isinstance(r.get('uiPaceNum'), (int, float)), r.get('uiPaceNum'))
-    chk('已达成目标 → 橙色祝贺语', r.get('uiPaceDone'))
+    chk('已达成目标 → 显示祝贺语', r.get('uiPaceDone'))
     chk('平均缺口 ≤ 50 kcal → 不做周数预估', r.get('uiPaceNoGap'))
     chk('v2.7.50 注入块无异常', not r.get('uiErr'), r.get('uiErr'))
+
+    # ===== v2.7.51：持仓页瘦身 + 结构调整（用户反馈）=====
+    chk('Hero 去掉网格纹底（用户嫌像格子）', r.get('uiHeroNoGrid'))
+    chk('Hero 内距收窄到 10px（旧版 16px）', r.get('uiHeroPadTop') == '10px', r.get('uiHeroPadTop'))
+    chk('Hero 总高收窄到 130~210px（旧版实测 275px；含下限防页面隐藏时 0 假通过）',
+        isinstance(r.get('uiHeroHeight'), (int, float)) and 130 <= r.get('uiHeroHeight') <= 210, r.get('uiHeroHeight'))
+    chk('大数字随收窄降到 42px（仍是页面最大号）', r.get('uiHeroNumSize') == '42px', r.get('uiHeroNumSize'))
+    chk('大数字与「止盈进度 · 已盈」并成一行、说明靠右',
+        r.get('uiHeroMidRow') and r.get('uiCapAlign') == 'right' and r.get('uiCapRightOfNum') is True,
+        str(r.get('uiCapRightOfNum')))
+    chk('「+xx kg」染红（盈利色）', r.get('uiCapProfitRed'))
+    chk('「持仓明细」整块清零（CSS + DOM + render 引用）', r.get('uiNoDSection') and r.get('uiNoHoldRows'))
+    chk('「距止盈目标」句搬进 Hero 且为琥珀色',
+        r.get('uiRemainInHero') and r.get('uiRemainAmber') == 'rgb(255, 159, 67)',
+        (r.get('uiRemainText') or '') + ' / ' + (r.get('uiRemainAmber') or ''))
+    chk('已达成目标 → 红色（盈利色）', r.get('uiRemainMetRed') == 'rgb(255, 59, 71)', r.get('uiRemainMetRed'))
+    chk('🎯 调整目标按钮移入 Hero 右上（顶掉持仓天数徽章）', r.get('uiTwInHeroTop') and r.get('uiHoldBadgeGone'))
+    chk('目标输入行紧跟 Hero 之后 / 可展开可收起',
+        r.get('uiTwRowUnderHero') and r.get('uiTwOpens51') and r.get('uiTwCloses51'))
+    chk('v2.7.51 注入块无异常', not r.get('uiErr51'), r.get('uiErr51'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.50"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.51"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -558,35 +558,42 @@ body {
 /* ================= 持仓页视觉体系（v2.7.50 / 三级层级 + 账本母题）=================
    设计意图：过去这一页 4 张卡长得一模一样（同底同边同圆角），视觉上没有主次。
    重构为三级层级 ——
-     ① Hero    账户头：去边框、细网格纹 + 红色氛围光、46px 等宽大数字
+     ① Hero    账户头：去边框、红色氛围光、46px 等宽大数字
      ② Primary 净热量趋势 / 每日缺口评级：去四周边框，改左侧状态色条
-     ③ Data    持仓明细：不要卡片，直接铺底（券商对账单行）
-   专属母题：账本行（标签 · 虚线引导点 · 等宽数字）—— 让持仓页一眼可辨识。 */
+   专属母题：账本行（标签 · 虚线引导点 · 等宽数字）—— 让持仓页一眼可辨识。
+   v2.7.51：① 删掉网格纹底（用户嫌像格子）② 说明文字并入数字行、整体压缩行距
+            ③ 删「持仓明细」Data 区（当前仓位/目标仓位 = 账户总览同口径，纯重复）
+            ④ 「🎯 调整目标」按钮移入 Hero 右上，替换原「持仓 xx 天」徽章
+            ⑤ 止盈进度说明移到进度条上方右侧，「+xx kg」按盈亏染色 */
 .idline{height:2px;width:44px;border-radius:2px;margin-top:10px;background:linear-gradient(90deg,var(--red),rgba(255,59,71,.15));}
 
-.hero{position:relative;margin:12px 14px 0;padding:16px 16px 2px;background:var(--panel);border-radius:14px;overflow:hidden;}
-.hero::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:24px 24px;}
+.hero{position:relative;margin:12px 14px 0;padding:10px 15px 0;background:var(--panel);border-radius:14px;overflow:hidden;}
 .hero::after{content:'';position:absolute;top:-46px;left:-20px;right:-20px;height:120px;background:radial-gradient(60% 100% at 22% 100%,rgba(255,59,71,.13),transparent 70%);pointer-events:none;}
 .hero-top{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
-.hero-lab{font-size:11px;color:var(--muted2);letter-spacing:.4px;}
+.hero-lab{font-size:11px;color:var(--muted2);letter-spacing:.4px;line-height:1.4;}
 .hero-lab b{font-weight:500;}
-.hero-badge{flex:none;font-size:10px;color:var(--muted2);padding:3px 9px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);white-space:nowrap;}
-.hero-num{position:relative;margin-top:14px;font-family:var(--mono);font-size:46px;font-weight:500;line-height:1;letter-spacing:-1px;font-variant-numeric:tabular-nums;}
+.hero-badge{flex:none;font-size:10px;line-height:1.4;color:var(--muted2);padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);white-space:nowrap;}
+.hero-badge--btn{cursor:pointer;color:#ffb066;background:rgba(255,159,67,.12);border-color:rgba(255,159,67,.34);}
+.hero-badge--btn:active{opacity:.6;}
+.hero-mid{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px;}
+.hero-num{position:relative;font-family:var(--mono);font-size:42px;font-weight:500;line-height:1;letter-spacing:-1px;font-variant-numeric:tabular-nums;}
 .hero-num .pc{font-size:20px;margin-left:2px;}
 .hero-num.up{color:#ff3b47;}
 .hero-num.down{color:#00c896;}
 .hero-num.flat{color:#9aa8be;}
-.hero-cap{position:relative;font-size:11px;color:var(--muted);margin-top:6px;}
-.hero-cap b{color:var(--muted2);font-weight:400;}
-.hero-track{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin:14px 0 0;overflow:hidden;}
+.hero-cap{position:relative;flex:none;font-size:11px;color:var(--muted);text-align:right;}
+.hero-cap b{color:var(--muted2);font-weight:600;}
+.hero-track{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin:8px 0 0;overflow:hidden;}
 .hero-track i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,rgba(255,59,71,.55),var(--red));transition:width .45s ease;}
+.hero-remain{position:relative;margin-top:6px;font-size:11px;line-height:1.4;color:#ff9f43;}
+.hero-remain b{font-weight:600;}
 
 /* 账本行（持仓页专属母题） */
-.ledger{position:relative;padding:12px 2px 14px;}
-.lrow{display:flex;align-items:baseline;gap:8px;padding:5px 0;}
-.lrow .lk{flex:none;font-size:11px;color:var(--muted);}
+.ledger{position:relative;margin-top:7px;border-top:1px solid rgba(255,255,255,.06);padding:3px 2px 6px;}
+.lrow{display:flex;align-items:baseline;gap:8px;padding:2px 0;}
+.lrow .lk{flex:none;font-size:11px;line-height:1.3;color:var(--muted);}
 .lrow .ld{flex:1;border-bottom:1px dashed rgba(255,255,255,.10);transform:translateY(-4px);}
-.lrow .lv{flex:none;font-family:var(--mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;}
+.lrow .lv{flex:none;font-family:var(--mono);font-size:15px;font-weight:500;line-height:1.3;font-variant-numeric:tabular-nums;}
 .lrow .lv small{margin-left:2px;font-size:10px;color:var(--muted);font-weight:400;}
 .lrow .lv.dim{color:var(--muted2);}
 
@@ -611,17 +618,9 @@ body {
 .gap2-cell .v{font-family:var(--mono);font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;}
 .gap2-cell .l{margin-top:3px;font-size:10px;color:var(--muted);}
 
-/* Data 区：持仓明细（无卡片，券商对账单质感） */
-.dsection{margin:16px 18px 0;}
-.dsection-hd{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px;color:var(--muted);letter-spacing:.4px;}
-.dsection-hd .tw-btn{font-size:10px;}
-.drow{display:flex;align-items:baseline;gap:8px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.045);}
-.drow .lk{flex:none;font-size:12px;color:var(--muted2);}
-.drow .ld{flex:1;border-bottom:1px dashed rgba(255,255,255,.09);transform:translateY(-4px);}
-.drow .lv{flex:none;font-family:var(--mono);font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;}
-.drow .lv small{margin-left:2px;font-size:10px;color:var(--muted);font-weight:400;}
-.hint{padding:10px 0 2px;font-size:11px;color:var(--muted);line-height:1.7;}
-.hint b{font-weight:500;}
+/* v2.7.51：原「持仓明细」Data 区（.dsection/.drow/.hint）已整块删除 ——
+   它上面的「当前仓位 / 目标仓位」和账户总览的「当前市值 / 止盈目标」是同一个数，
+   距止盈目标那句话已搬进 Hero（.hero-remain）。切勿再往 DOM 里写 h-weight/h-target/h-remain。 */
 /* ================= 复盘周报 / 月报（v2.7.47）================= */
 .rv-hero{display:flex;align-items:baseline;gap:6px;margin-top:4px;}
 .rv-num{font-size:32px;font-weight:700;line-height:1;letter-spacing:-.5px;}
@@ -762,15 +761,20 @@ body {
     <section class="page" id="page-holdings" data-page-node-id="sZh2FcuAb7qaEDE2zUmr4J">
       <div class="pagetitle"><div class="k">PORTFOLIO · 持仓</div><div class="t">我的仓位</div><div class="idline"></div></div>
 
-      <!-- 账户总览（v2.7.47 新增 / v2.7.50 升格为 Hero 账户头）——用户要的是「我在赢」 -->
+      <!-- 账户总览 Hero（v2.7.47 新增 / v2.7.50 升格 / v2.7.51 收窄）
+           持仓页只留这一张「我在赢」的主卡：主数字 + 止盈进度 + 距目标一句话 + 三行账本。
+           「持仓明细」已删（与下面三行账本同口径重复），目标体重输入行挂在本卡下方。 -->
       <div class="hero" id="acct-card">
         <div class="hero-top">
           <span class="hero-lab">账户总览 · <b id="acct-state">--</b></span>
-          <span class="hero-badge" id="acct-hold">持仓 -- 天</span>
+          <span class="hero-badge hero-badge--btn" id="tw-open-btn" onclick="toggleTargetW()">🎯 调整目标</span>
         </div>
-        <div class="hero-num flat" id="acct-rate">--</div>
-        <div class="hero-cap" id="acct-cap">止盈进度</div>
+        <div class="hero-mid">
+          <div class="hero-num flat" id="acct-rate">--</div>
+          <div class="hero-cap" id="acct-cap">止盈进度</div>
+        </div>
         <div class="hero-track"><i id="acct-bar"></i></div>
+        <div class="hero-remain" id="acct-remain">--</div>
         <div class="ledger">
           <div class="lrow"><span class="lk">持仓成本</span><span class="ld"></span><span class="lv" id="acct-cost">--</span></div>
           <div class="lrow"><span class="lk">当前市值</span><span class="ld"></span><span class="lv" id="acct-now">--</span></div>
@@ -778,18 +782,8 @@ body {
         </div>
       </div>
 
-      <!-- 持仓明细（v2.7.50）：无卡片账本区；「调整目标」入口固定在标题行右侧，不会被藏起来 -->
-      <div class="dsection">
-        <div class="dsection-hd">
-          <span>持仓明细</span>
-          <span class="tw-btn" id="tw-open-btn" onclick="toggleTargetW()">🎯 调整目标</span>
-        </div>
-        <div class="drow"><span class="lk">当前仓位</span><span class="ld"></span><span class="lv" id="h-weight">--<small> kg</small></span></div>
-        <div class="drow"><span class="lk">目标仓位</span><span class="ld"></span><span class="lv" id="h-target">--<small> kg</small></span></div>
-        <div class="hint" id="h-remain">--</div>
-      </div>
-
-      <div class="kw-wrap" style="margin:8px 18px 0;">
+      <!-- 目标体重输入行：点 Hero 右上的「🎯 调整目标」展开 / 取消收起（默认收起） -->
+      <div class="kw-wrap" style="margin:8px 14px 0;">
         <div class="kw-row" id="tw-row">
           <input type="number" id="tw-input" inputmode="decimal" step="0.1" min="20" max="300" placeholder="目标体重 (kg)">
           <button class="kw-save" onclick="saveTargetW()">保存</button>
@@ -2317,22 +2311,8 @@ function render() {
   document.getElementById('t-intake-cnt').textContent = todayDiet().length + ' 笔 · 食物库匹配';
   document.getElementById('t-burn-cnt').textContent = todayExercise().length + ' 笔 · MET 自动算';
 
-  // 持仓
-  document.getElementById('h-weight').innerHTML = u.weight + '<small> kg</small>';
-  const targetW = currentTargetW();
-  document.getElementById('h-target').innerHTML = targetW.toFixed(1) + '<small> kg</small>';
-  const remain = Math.round((u.weight - targetW) * 10) / 10;
-  const remEl = document.getElementById('h-remain');
-  if (remain > 0.05) {
-    // 未达成：红。有稳定近期缺口才追加「按当前速度约 X 周」——算不出就不说，绝不编数字
-    const wk = paceWeeks(remain);
-    remEl.innerHTML = '距止盈目标 还差 <b>' + remain.toFixed(1) + ' kg</b>'
-      + (wk ? ' · 按当前速度约 <b>' + wk + ' 周</b>' : '');
-    remEl.style.color = '#ff3b47';
-  } else {
-    remEl.innerHTML = '🎉 已达成目标 · 漂亮！';
-    remEl.style.color = '#ff9f43';
-  }
+  // 持仓（v2.7.51：「持仓明细」区已删 —— 它的当前仓位/目标仓位就是账户总览的当前市值/止盈目标，
+  //   同口径重复。距止盈目标那句话搬进 Hero，由 renderAccount() 一并输出。）
   renderAccount();
   renderTrend();
   document.getElementById('stuck-card').style.display = t.net > 0 ? 'block' : 'none';
@@ -4188,7 +4168,7 @@ function renderAccount() {
   if (!elRate) return;
   const elCap = document.getElementById('acct-cap');
   const elState = document.getElementById('acct-state');
-  const elHold = document.getElementById('acct-hold');
+  const elRemain = document.getElementById('acct-remain');
   const elCost = document.getElementById('acct-cost');
   const elNow = document.getElementById('acct-now');
   const elTarget = document.getElementById('acct-target');
@@ -4196,7 +4176,7 @@ function renderAccount() {
 
   const cost = acctCost();
   const now = +(state.user.weight || 0);
-  if (!cost || !now) { elRate.textContent = '--'; return; }
+  if (!cost || !now) { elRate.textContent = '--'; if (elCap) elCap.textContent = ''; if (elRemain) elRemain.textContent = ''; return; }
 
   const profit = +(cost - now).toFixed(1);            // 已盈利（减重为正）
   const target = currentTargetW();
@@ -4207,6 +4187,7 @@ function renderAccount() {
   const over = done ? +(target - now).toFixed(1) : 0; // 超额（跌穿止盈价）
 
   const tone = Math.abs(profit) < 0.05 ? 'flat' : (profit > 0 ? 'up' : 'down');
+  const PROFIT_C = { up: '#ff3b47', down: '#00c896', flat: '#9aa8be' };
   const GRAD = {
     up: 'linear-gradient(90deg, rgba(255,59,71,.55), #ff3b47)',
     down: 'linear-gradient(90deg, rgba(0,200,150,.55), #00c896)',
@@ -4218,7 +4199,9 @@ function renderAccount() {
     const shown = Math.max(0, Math.min(100, prog));   // 封顶 100%，盈利不可能超上限
     elRate.innerHTML = shown.toFixed(1) + '<span class="pc">%</span>';
     // v2.7.50：不再显示「上限 xx kg」——上限是内部计算量，上屏只会让人疑惑
-    if (elCap) elCap.innerHTML = '止盈进度 · 已盈 <b>' + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b>';
+    // v2.7.51：这段挪到进度条上方右侧；「+xx kg」按盈亏染色（红=盈利 / 绿=亏损 / 灰=打平）
+    if (elCap) elCap.innerHTML = '止盈进度 · 已盈 <b style="color:' + PROFIT_C[tone] + '">'
+      + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b>';
     if (elBar) { elBar.style.width = shown.toFixed(1) + '%'; elBar.style.background = GRAD[tone]; }
   } else {
     // 目标不低于建仓价（没有减重空间）→ 退回显示累计浮盈千克
@@ -4233,14 +4216,26 @@ function renderAccount() {
       : (tone === 'flat' ? '持仓中' : (profit > 0 ? '浮盈中' : '浮亏中'));
   }
 
-  // 持仓天数 → Hero 右上角徽章（v2.7.50：原来挤在右下的两行小字，现在各归其位）
-  const log = acctWeightLog();
-  let hold = 0;
-  if (log.length >= 1) hold = Math.max(0, _ddiff(log[0].date, log[log.length - 1].date));
-  if (elHold) elHold.textContent = '持仓 ' + hold + ' 天';
   if (elCost) elCost.textContent = cost.toFixed(1) + ' kg';
   if (elNow) elNow.textContent = now.toFixed(1) + ' kg';
   if (elTarget) elTarget.textContent = target.toFixed(1) + ' kg';
+
+  // 距止盈目标（v2.7.51：从被删的「持仓明细」搬进 Hero）
+  //   未达成 → 琥珀色（红只留给「赚了」这一件事，色义不再打架）
+  //   已达成 → 红色（盈利色，与主数字同色）
+  //   「按当前速度约 X 周」只在近期缺口稳定时给出：算不出就不说，绝不编数字
+  if (elRemain) {
+    const remain = Math.round((now - target) * 10) / 10;
+    if (remain > 0.05) {
+      const wk = paceWeeks(remain);
+      elRemain.innerHTML = '距止盈目标 还差 <b>' + remain.toFixed(1) + ' kg</b>'
+        + (wk ? ' · 按当前速度约 <b>' + wk + ' 周</b>' : '');
+      elRemain.style.color = '#ff9f43';
+    } else {
+      elRemain.innerHTML = '🎉 已达成目标 · 漂亮！';
+      elRemain.style.color = '#ff3b47';
+    }
+  }
 }
 
 /* ============================================================
