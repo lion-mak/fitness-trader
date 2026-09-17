@@ -1,0 +1,20 @@
+# 行尾统一：仓库与工作区一律 LF，杜绝 core.autocrlf 造成的工作区行尾漂移。
+#
+# 背景（真实踩坑）：本仓库曾设 core.autocrlf=true，导致同一份 index.html
+# 在「被 git checkout 过」时是 CRLF、在「被脚本写过」时是 LF。改码脚本若
+# 假定单一换行符，子串匹配会静默失败 0 处（v2.7.34 因此白跑一轮）。
+# 现在由 .gitattributes 强制 eol=lf，工作区行尾恒定，脚本可放心用 \n。
+#
+# 注意：本文件生效后，请配合 `git config core.autocrlf false`（已在仓库内设置）。
+
+* text=auto eol=lf
+
+# 二进制资源不做任何行尾转换
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
