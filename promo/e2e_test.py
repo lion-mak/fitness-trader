@@ -47,8 +47,9 @@ window.addEventListener('load', function () {
                     && typeof tfToggle === 'undefined');
     // 注意：正则用拼接写法，否则本注入脚本自身的字面量会被 innerHTML 读回来（自匹配）
     out.tfKeyGone = !new RegExp('jianpan_tf_' + 'collapsed').test(document.documentElement.innerHTML);
-    out.holdingsFirstCardIsAcct = !!(hold && hold.querySelector('.card')
-                                     && hold.querySelector('.card').id === 'acct-card');
+    var hpt = hold ? hold.querySelector('.pagetitle') : null;
+    out.holdingsFirstCardIsAcct = !!(hpt && hpt.nextElementSibling
+                                     && hpt.nextElementSibling.id === 'acct-card');
     var heat = document.getElementById('ex-heat');
     out.heatHasCells = !!(heat && heat.querySelectorAll('.ex-heat-cell').length >= 365);
     out.heatHasLegend = !!(heat && heat.querySelector('.ex-heat-legend'));
@@ -301,6 +302,80 @@ window.addEventListener('load', function () {
       out.migReject = rejOk;
       out.rvText = reviewText().indexOf('健身交易员') >= 0;
     } catch (e) { out.migErr = String((e && e.message) || e); }
+    // ================= v2.7.50：持仓页视觉体系（Hero / Primary / Data + 账本母题）=================
+    try {
+      state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
+      render();
+      var hold2 = document.getElementById('page-holdings');
+      var hero = document.getElementById('acct-card');
+      out.uiHeroIsBlock = !!(hold2 && hero && hero.className.indexOf('hero') >= 0);
+      var hpt2 = hold2 ? hold2.querySelector('.pagetitle') : null;
+      out.uiHeroRightAfterTitle = !!(hpt2 && hpt2.nextElementSibling === hero);
+      out.uiHeroHasBigNum = !!(hero && hero.querySelector('.hero-num#acct-rate'));
+      out.uiHeroHasTrack = !!(hero && hero.querySelector('.hero-track i#acct-bar'));
+      out.uiLedgerRows = hero ? hero.querySelectorAll('.ledger .lrow').length : -1;
+      out.uiNoUpperCap = g('acct-cap').indexOf('上限') < 0;   // 用户：上限 xx kg 不需要，删掉
+      out.uiHeroBadge = g('acct-hold');
+      out.uiIdline = !!document.querySelector('#page-holdings .pagetitle .idline');
+      // 三级层级：Primary 卡改左色条，Data 区无卡片
+      out.uiPrimaryGreen = !!document.querySelector('#page-holdings .pcard--green');
+      out.uiPrimaryRed = !!document.querySelector('#page-holdings .pcard--red');
+      out.uiDataSection = !!document.querySelector('#page-holdings .dsection #h-remain');
+      out.uiNoMetricGrid = !document.querySelector('#page-holdings .metric-grid');
+      var pcardAccent = document.querySelector('#page-holdings .pcard--red');
+      out.uiPcardNoBorder = !!pcardAccent && getComputedStyle(pcardAccent).borderTopWidth === '0px';
+      // 「ⓘ 口径」折叠：默认收起，点开才显示
+      var note = document.getElementById('gap-note');
+      out.uiNoteFolded = !!note && getComputedStyle(note).display === 'none';
+      toggleGapNote();
+      out.uiNoteOpen = !!note && getComputedStyle(note).display !== 'none';
+      toggleGapNote();
+      out.uiNoteReFolded = !!note && getComputedStyle(note).display === 'none';
+      // 【用户反馈】目标仓位调整按钮在哪？→ 固定在持仓明细标题行，永远可点
+      var twBtn = document.getElementById('tw-open-btn');
+      out.uiTwBtn = !!(twBtn && twBtn.closest('.dsection-hd')
+                       && twBtn.getAttribute('onclick') === 'toggleTargetW()');
+      toggleTargetW();
+      var trow = document.getElementById('tw-row');
+      out.uiTwRowOpens = !!trow && trow.style.display === 'flex';
+      closeTargetW();
+      out.uiTwRowCloses = !!trow && trow.style.display === 'none';
+
+      // 「跑赢 X% 的交易日」必须真算：7 个清淡历史日 + 今日极低摄入 → 跑赢 100%
+      var uik, uih = [];
+      for (uik = 7; uik >= 1; uik--) uih.push({ id: 'ui' + uik, date: addDaysStr(today, -uik), name: '饭', kcal: 2000, meal: '午餐', time: '12:00' });
+      state.diet = uih.concat([{ id: 'uit', date: today, name: '沙拉', kcal: 200, meal: '午餐', time: '12:00' }]);
+      state.exercise = []; state.weightLog = [];
+      render();
+      var rk = document.getElementById('gap-rank');
+      out.uiRankShown = !!rk && rk.style.display !== 'none' && /跑赢 \d+% 的交易日/.test(rk.textContent);
+      out.uiRankAll = !!rk && rk.textContent === '跑赢 100% 的交易日';
+      // 样本不足（仅 3 个历史交易日）→ 整句话隐藏，绝不编数据
+      state.diet = [
+        { id: 'ui-a', date: addDaysStr(today, -3), name: '饭', kcal: 2000, meal: '午餐', time: '12:00' },
+        { id: 'ui-b', date: addDaysStr(today, -2), name: '饭', kcal: 2000, meal: '午餐', time: '12:00' },
+        { id: 'ui-c', date: addDaysStr(today, -1), name: '饭', kcal: 2000, meal: '午餐', time: '12:00' },
+        { id: 'ui-t', date: today, name: '沙拉', kcal: 200, meal: '午餐', time: '12:00' }
+      ];
+      render();
+      rk = document.getElementById('gap-rank');
+      out.uiRankHidden = !!rk && rk.style.display === 'none' && rk.textContent === '';
+      out.uiRankFnNull = gapRankPct(-1200) === null;
+
+      // 「按当前速度约 X 周」：近期缺口稳定 → 给出真实周数；无缺口 → 不预估
+      state.diet = [];
+      for (uik = 10; uik >= 1; uik--) state.diet.push({ id: 'up' + uik, date: addDaysStr(today, -uik), name: '饭', kcal: 1200, meal: '午餐', time: '12:00' });
+      state.diet.push({ id: 'upt', date: today, name: '沙拉', kcal: 300, meal: '午餐', time: '12:00' });
+      state.user.weight = 78;
+      render();
+      out.uiPaceShown = /按当前速度约 [\d.]+ 周/.test(g('h-remain'));
+      out.uiPaceNum = paceWeeks(8);
+      state.user.weight = 69; render();
+      out.uiPaceDone = g('h-remain').indexOf('已达成目标') >= 0;
+      state.diet = [{ id: 'z1', date: today, name: '饭', kcal: 5000, meal: '午餐', time: '12:00' }];
+      out.uiPaceNoGap = paceWeeks(8) === null;
+      state.user.weight = 76;
+    } catch (e) { out.uiErr = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -413,18 +488,39 @@ def run():
     chk('趋势图 Y 轴自适应：折线纵向明显铺开（v2.7.45）', (r.get('btLineYSpread') or 0) > 80, r.get('btLineYSpread'))
     chk('持仓「较起点+xxkg」已删除（v2.7.45）', r['hChangeGone'])
     chk('缺口评级右上「含基础代谢·全天口径」小字已删除（v2.7.45）', r['gapSideGone'])
-    chk('目标未达成：红色「还差 xx kg」', (r.get('remainUnmet') or '').startswith('还差') and 'rgb(255, 59, 71)' in (r.get('remainUnmetColor') or ''),
+    chk('目标未达成：红色「还差 xx kg」', '还差' in (r.get('remainUnmet') or '') and 'rgb(255, 59, 71)' in (r.get('remainUnmetColor') or ''),
         (r.get('remainUnmet') or '') + ' / ' + (r.get('remainUnmetColor') or ''))
     chk('目标已达成：橙色祝贺语', '已达成目标' in (r.get('remainMet') or '') and 'rgb(255, 159, 67)' in (r.get('remainMetColor') or ''),
         (r.get('remainMet') or '') + ' / ' + (r.get('remainMetColor') or ''))
+
+    # ===== v2.7.50：持仓页视觉体系（三级层级 + 账本母题）=====
+    chk('账户总览升格为 Hero 账户头（无 card 边框）', r.get('uiHeroIsBlock'))
+    chk('Hero 紧跟在 pagetitle 之后（仍是持仓页首块）', r.get('uiHeroRightAfterTitle'))
+    chk('Hero 含 46px 等宽大数字 + 3px 进度轨道', r.get('uiHeroHasBigNum') and r.get('uiHeroHasTrack'))
+    chk('账本母题：Hero 内 3 行「标签·虚线·等宽数字」', r.get('uiLedgerRows') == 3, r.get('uiLedgerRows'))
+    chk('「止盈进度 · 上限 xx kg」已删除（v2.7.50）', r.get('uiNoUpperCap'))
+    chk('持仓天数移入右上徽章', (r.get('uiHeroBadge') or '').startswith('持仓 '), r.get('uiHeroBadge'))
+    chk('页面身份线 idline 已加', r.get('uiIdline'))
+    chk('Primary 卡改左色条（绿=趋势/红=缺口）', r.get('uiPrimaryGreen') and r.get('uiPrimaryRed'))
+    chk('Primary 卡去四周边框（左色条替代）', r.get('uiPcardNoBorder'))
+    chk('持仓明细改为无卡片 Data 区', r.get('uiDataSection') and r.get('uiNoMetricGrid'))
+    chk('「ⓘ 口径」默认收起 / 点击展开 / 再点收起', r.get('uiNoteFolded') and r.get('uiNoteOpen') and r.get('uiNoteReFolded'))
+    chk('🎯 调整目标按钮位于持仓明细标题行且可点', r.get('uiTwBtn'))
+    chk('点「调整目标」弹出输入行 / 取消可收起', r.get('uiTwRowOpens') and r.get('uiTwRowCloses'))
+    chk('「跑赢 X% 的交易日」真算（7 日历史+今日极值→100%）', r.get('uiRankShown') and r.get('uiRankAll'), r.get('uiRankAll'))
+    chk('历史交易日 < 7 天 → 整句话隐藏（不编数据）', r.get('uiRankHidden') and r.get('uiRankFnNull'))
+    chk('「按当前速度约 X 周」真算（近期缺口稳定 → 真实周数）', r.get('uiPaceShown') and isinstance(r.get('uiPaceNum'), (int, float)), r.get('uiPaceNum'))
+    chk('已达成目标 → 橙色祝贺语', r.get('uiPaceDone'))
+    chk('平均缺口 ≤ 50 kcal → 不做周数预估', r.get('uiPaceNoGap'))
+    chk('v2.7.50 注入块无异常', not r.get('uiErr'), r.get('uiErr'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
     chk('账户总览主数字为「止盈进度」（有上限的 %，v2.7.48）',
         (r.get('acctRate') or '') == '29.4%',
         r.get('acctRate'))
-    chk('账户总览标出盈利上限（止盈空间 kg）',
-        '上限' in (r.get('acctCap') or ''), r.get('acctCap'))
+    chk('账户总览不再上屏「上限 xx kg」（v2.7.50 用户要求删除）',
+        '上限' not in (r.get('acctCap') or '') and '止盈进度' in (r.get('acctCap') or ''), r.get('acctCap'))
     chk('账户总览进度条宽度 = 止盈进度',
         (r.get('acctBarW') or '') == '29.4%', r.get('acctBarW'))
     chk('账户总览盈利时用红(up)——减重即浮盈', 'up' in (r.get('acctRateClass') or ''), r.get('acctRateClass'))
