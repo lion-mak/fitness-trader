@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""端到端验收（v2.7.51 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
+"""端到端验收（v2.7.52 更新）：用 Edge 无头加载真实 App，注入状态后断言结构与行为。
 
 覆盖：
   · 摄入圆环模块 / 餐次模块 已移除（DOM 中不存在，且 render() 能跑完不抛错）
@@ -428,6 +428,81 @@ window.addEventListener('load', function () {
       state.user.weight = 78; render();
       switchTab('market');
     } catch (e) { out.uiErr51 = String((e && e.message) || e); }
+    // ================= v2.7.52：Hero 排版 / 单边柱趋势 / 评级 Hero 化 / tab 顺序与彩色图标 =================
+    try {
+      state.user.startWeight = 80; state.user.weight = 78; state.user.targetWeight = 70;
+      switchTab('holdings');
+      state.body = { bodyFat: 19.4, bmi: 24.4 };
+      render();
+      var hero4 = document.getElementById('acct-card');
+      // A) 红色氛围光已删（.hero::after 无内容）
+      out.ui52NoGlow = getComputedStyle(hero4, '::after').content === 'none';
+      // B) 大数字排版收紧 + 右侧说明改两行右对齐
+      var num4 = document.getElementById('acct-rate'), cap4 = document.getElementById('acct-cap');
+      var ncs4 = getComputedStyle(num4);
+      out.ui52NumSize = ncs4.fontSize;
+      out.ui52NumSpacing = ncs4.letterSpacing;
+      var k4 = cap4.querySelector('.k'), v4 = cap4.querySelector('.v');
+      out.ui52CapTwoLine = !!(k4 && v4) && k4.getBoundingClientRect().bottom <= v4.getBoundingClientRect().top + 1;
+      out.ui52CapRight = getComputedStyle(cap4).alignItems === 'flex-end';
+      // C) 净热量趋势：单边柱（全部贴同一条基线向上），只有绿(缺口)/红(超额)
+      state.diet = []; state.exercise = [];
+      var d4, over4;
+      for (d4 = 12; d4 >= 1; d4--) {
+        over4 = (d4 % 3 === 0);                       // 每 3 天一次爆表 → 应该有红柱
+        state.diet.push({ id: 't52d' + d4, date: addDaysStr(today, -d4), name: '饭',
+                          kcal: over4 ? 4300 : 1350 + d4 * 12, meal: '午餐', time: '12:00' });
+        state.exercise.push({ id: 't52e' + d4, date: addDaysStr(today, -d4), name: '跑步',
+                              kcal: over4 ? 90 : 820 + d4 * 9, min: 40, met: 8 });
+      }
+      render();
+      var bars4 = document.querySelectorAll('#trend rect'), bi4;
+      out.ui52BarCount = bars4.length;
+      var base4 = -1;
+      for (bi4 = 0; bi4 < bars4.length; bi4++) {
+        var yy4 = +bars4[bi4].getAttribute('y'), hh4 = +bars4[bi4].getAttribute('height');
+        if (yy4 + hh4 > base4) base4 = yy4 + hh4;      // 最低边 = 基线
+      }
+      var allBase = bars4.length > 0, colSet = {}, hSet = {};
+      for (bi4 = 0; bi4 < bars4.length; bi4++) {
+        var b4 = bars4[bi4], y4 = +b4.getAttribute('y'), h4 = +b4.getAttribute('height');
+        if (Math.abs((y4 + h4) - base4) > 0.5) allBase = false;   // 每根柱底都落在同一条基线上 → 单边柱
+        if (y4 < 0) allBase = false;                              // 不许越过画布顶 → 没有上下分叉
+        colSet[b4.getAttribute('fill')] = 1;
+        hSet[Math.round(h4)] = 1;
+      }
+      out.ui52BarsBaseline = allBase;
+      out.ui52BarColors = Object.keys(colSet).sort().join(',');
+      out.ui52BarHeights = Object.keys(hSet).length;
+      switchTab('market');
+      // D) 持仓评级 → Hero 款式
+      switchTab('holdings'); render();
+      var hr4 = document.getElementById('hr-card');
+      out.ui52HrHero = !!hr4 && hr4.className.indexOf('hero') >= 0 && hr4.className.indexOf('hr-hero') >= 0;
+      out.ui52HrNoCard = !!hr4 && getComputedStyle(hr4).borderTopWidth === '0px';
+      var gr4 = document.getElementById('holdings-rating-text');
+      out.ui52HrGradeBig = !!gr4 && parseFloat(getComputedStyle(gr4).fontSize) >= 26;
+      out.ui52HrGradeText = gr4 ? gr4.textContent : '';
+      out.ui52HrFat = g('hr-fat');
+      out.ui52HrBmi = g('hr-bmi');
+      var lab4 = hr4 ? hr4.querySelector('.hero-lab') : null;
+      out.ui52HrNoDupName = !!lab4 && !!out.ui52HrGradeText
+                            && lab4.textContent.indexOf(out.ui52HrGradeText) < 0;
+      out.ui52HrDescNoDup = g('holdings-rating-desc').indexOf('19.4%') < 0;
+      switchTab('market');
+      // E) tab 顺序 + 交易彩色图标
+      var tabs4 = [];
+      document.querySelectorAll('.tabbar > div').forEach(function (x) { tabs4.push(x.getAttribute('data-tab')); });
+      out.ui52TabOrder = tabs4.join(',');
+      var tico4 = document.querySelector('.tabbar .ico-trade svg');
+      out.ui52TradeIconColorful = !!tico4
+        && tico4.innerHTML.indexOf('#e2703f') >= 0        // 鸡腿肉（暖橙）
+        && tico4.innerHTML.indexOf('#c9d7ec') >= 0        // 哑铃配重片（钢蓝）
+        && tico4.innerHTML.indexOf('#f4efe2') >= 0        // 骨头（奶白）
+        && tico4.innerHTML.indexOf('currentColor') < 0;   // 不是线稿图标
+      out.ui52TradeIconTag = tico4 ? tico4.tagName.toLowerCase() : '';
+      out.ui52OtherIconsLine = document.querySelectorAll('.tabbar .ico svg[stroke="currentColor"]').length;
+    } catch (e) { out.uiErr52 = String((e && e.message) || e); }
     out.ok = true;
   } catch (e) {
     out.ok = false;
@@ -573,7 +648,8 @@ def run():
     chk('Hero 内距收窄到 10px（旧版 16px）', r.get('uiHeroPadTop') == '10px', r.get('uiHeroPadTop'))
     chk('Hero 总高收窄到 130~210px（旧版实测 275px；含下限防页面隐藏时 0 假通过）',
         isinstance(r.get('uiHeroHeight'), (int, float)) and 130 <= r.get('uiHeroHeight') <= 210, r.get('uiHeroHeight'))
-    chk('大数字随收窄降到 42px（仍是页面最大号）', r.get('uiHeroNumSize') == '42px', r.get('uiHeroNumSize'))
+    chk('大数字为 42px→44px（v2.7.52 排版收紧后仍是页面最大号）',
+        r.get('uiHeroNumSize') in ('42px', '44px'), r.get('uiHeroNumSize'))
     chk('大数字与「止盈进度 · 已盈」并成一行、说明靠右',
         r.get('uiHeroMidRow') and r.get('uiCapAlign') == 'right' and r.get('uiCapRightOfNum') is True,
         str(r.get('uiCapRightOfNum')))
@@ -587,6 +663,33 @@ def run():
     chk('目标输入行紧跟 Hero 之后 / 可展开可收起',
         r.get('uiTwRowUnderHero') and r.get('uiTwOpens51') and r.get('uiTwCloses51'))
     chk('v2.7.51 注入块无异常', not r.get('uiErr51'), r.get('uiErr51'))
+
+    # ===== v2.7.52：Hero 排版 / 单边柱趋势 / 评级 Hero 化 / tab 顺序与彩色交易图标 =====
+    chk('账户总览红色氛围光已删（.hero::after 无内容）', r.get('ui52NoGlow'))
+    chk('止盈进度大数字 44px + 字距收紧（-2.4px）',
+        r.get('ui52NumSize') == '44px' and r.get('ui52NumSpacing') == '-2.4px',
+        str(r.get('ui52NumSize')) + ' / ' + str(r.get('ui52NumSpacing')))
+    chk('右侧「止盈进度 / 已盈」拆两行且右对齐（排版不再散）',
+        r.get('ui52CapTwoLine') and r.get('ui52CapRight'),
+        str(r.get('ui52CapTwoLine')) + ' / ' + str(r.get('ui52CapRight')))
+    chk('净热量趋势柱全部贴同一条基线向上生长（单边柱，不再 0 轴上下分叉）',
+        r.get('ui52BarsBaseline'), r.get('ui52BarCount'))
+    chk('趋势柱只有绿(缺口 #00c896)/红(超额 #ff3b47)两色',
+        r.get('ui52BarColors') == '#00c896,#ff3b47', r.get('ui52BarColors'))
+    chk('趋势柱长短随数值变化（非等长柱）', (r.get('ui52BarHeights') or 0) > 1, r.get('ui52BarHeights'))
+    chk('持仓评级升格 Hero 款（.hero.hr-hero + 去边框）',
+        r.get('ui52HrHero') and r.get('ui52HrNoCard'))
+    chk('评级名升为大字（≥26px）', r.get('ui52HrGradeBig'), r.get('ui52HrGradeText'))
+    chk('体脂/BMI 提到右上角且描述行不再重复读数',
+        (r.get('ui52HrFat') or '').endswith('%') and bool(r.get('ui52HrBmi')) and r.get('ui52HrDescNoDup'),
+        str(r.get('ui52HrFat')) + ' / ' + str(r.get('ui52HrBmi')))
+    chk('顶部标签不再重复评级名', r.get('ui52HrNoDupName'))
+    chk('tab 顺序 = 行情/持仓/交易/龙虎榜/我的（交易居中）',
+        r.get('ui52TabOrder') == 'market,holdings,trade,leaderboard,profile', r.get('ui52TabOrder'))
+    chk('交易图标为彩色矢量（鸡腿橙肉 + 奶白骨头 + 钢蓝哑铃，非线稿）',
+        r.get('ui52TradeIconColorful') and r.get('ui52TradeIconTag') == 'svg', r.get('ui52TradeIconTag'))
+    chk('其余 4 个 tab 图标保持线性同款', r.get('ui52OtherIconsLine') == 4, r.get('ui52OtherIconsLine'))
+    chk('v2.7.52 注入块无异常', not r.get('uiErr52'), r.get('uiErr52'))
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))

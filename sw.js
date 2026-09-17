@@ -4,7 +4,7 @@
    （原型为单文件内联 HTML，应用壳只需缓存 index.html + 图标）
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-2.7.51';
+const CACHE_VERSION = 'jianpan-2.7.52';
 const APP_SHELL = [
   './',
   './index.html',

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.51"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.52"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -299,6 +299,9 @@ body {
 .tabbar > div { text-align:center; color:var(--muted); font-size:11px; cursor:pointer; }
 .tabbar > div.on { color:var(--red); }
 .tabbar .ico { width:22px; height:22px; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; }
+/* 居中位（交易）图标：彩色矢量，略放大 1px 拿到视觉权重 —— 彩色比线性图标“重”，
+   同尺寸会显得比邻居小，这是光学补偿不是偏心 */
+.tabbar .ico-trade svg { width:23px; height:23px; }
 
 /* 弹层 */
 .sheet-mask { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:50; display:none; align-items:flex-end; }
@@ -512,7 +515,9 @@ body {
 
 /* 持仓评级 */
 .hr-chart { margin-top:6px; }
-.hr-desc { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:11px; color:var(--muted2); line-height:1.7; }
+/* v2.7.52：持仓评级升格为 Hero 款式，与账户总览同款卡片语言 */
+.hr-grade{position:relative;font-size:30px;font-weight:600;line-height:1.15;letter-spacing:-.6px;}
+.hr-desc { margin-top:10px; padding:10px 0 12px; border-top:1px dashed rgba(255,255,255,.07); font-size:11px; color:var(--muted2); line-height:1.7; }
 .hr-desc b { font-weight:600; }
 
 /* 身体档案 · 人体模型可视化 */
@@ -568,21 +573,23 @@ body {
 .idline{height:2px;width:44px;border-radius:2px;margin-top:10px;background:linear-gradient(90deg,var(--red),rgba(255,59,71,.15));}
 
 .hero{position:relative;margin:12px 14px 0;padding:10px 15px 0;background:var(--panel);border-radius:14px;overflow:hidden;}
-.hero::after{content:'';position:absolute;top:-46px;left:-20px;right:-20px;height:120px;background:radial-gradient(60% 100% at 22% 100%,rgba(255,59,71,.13),transparent 70%);pointer-events:none;}
+/* v2.7.52：删掉红色氛围光（.hero::after）——深色卡上这层红晕看着像脏了，主数字自身已是红/绿染色，不需要再铺环境光 */
 .hero-top{position:relative;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
 .hero-lab{font-size:11px;color:var(--muted2);letter-spacing:.4px;line-height:1.4;}
 .hero-lab b{font-weight:500;}
 .hero-badge{flex:none;font-size:10px;line-height:1.4;color:var(--muted2);padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);white-space:nowrap;}
 .hero-badge--btn{cursor:pointer;color:#ffb066;background:rgba(255,159,67,.12);border-color:rgba(255,159,67,.34);}
 .hero-badge--btn:active{opacity:.6;}
-.hero-mid{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:4px;}
-.hero-num{position:relative;font-family:var(--mono);font-size:42px;font-weight:500;line-height:1;letter-spacing:-1px;font-variant-numeric:tabular-nums;}
-.hero-num .pc{font-size:20px;margin-left:2px;}
+.hero-mid{position:relative;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:5px;}
+.hero-num{position:relative;font-family:var(--mono);font-size:44px;font-weight:600;line-height:.9;letter-spacing:-2.4px;font-variant-numeric:tabular-nums;}
+.hero-num .pc{position:relative;top:-16px;margin-left:1px;font-size:15px;font-weight:500;letter-spacing:0;}
 .hero-num.up{color:#ff3b47;}
 .hero-num.down{color:#00c896;}
 .hero-num.flat{color:#9aa8be;}
-.hero-cap{position:relative;flex:none;font-size:11px;color:var(--muted);text-align:right;}
-.hero-cap b{color:var(--muted2);font-weight:600;}
+.hero-cap{position:relative;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;}
+.hero-cap .k{font-size:10px;color:var(--muted2);letter-spacing:.3px;}
+.hero-cap .v{font-size:11px;color:var(--muted);}
+.hero-cap b{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums;}
 .hero-track{position:relative;height:3px;border-radius:2px;background:rgba(255,255,255,.07);margin:8px 0 0;overflow:hidden;}
 .hero-track i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,rgba(255,59,71,.55),var(--red));transition:width .45s ease;}
 .hero-remain{position:relative;margin-top:6px;font-size:11px;line-height:1.4;color:#ff9f43;}
@@ -761,7 +768,7 @@ body {
     <section class="page" id="page-holdings" data-page-node-id="sZh2FcuAb7qaEDE2zUmr4J">
       <div class="pagetitle"><div class="k">PORTFOLIO · 持仓</div><div class="t">我的仓位</div><div class="idline"></div></div>
 
-      <!-- 账户总览 Hero（v2.7.47 新增 / v2.7.50 升格 / v2.7.51 收窄）
+      <!-- 账户总览 Hero（v2.7.47 新增 / v2.7.50 升格 / v2.7.51 收窄 / v2.7.52 去氛围光+排版收紧）
            持仓页只留这一张「我在赢」的主卡：主数字 + 止盈进度 + 距目标一句话 + 三行账本。
            「持仓明细」已删（与下面三行账本同口径重复），目标体重输入行挂在本卡下方。 -->
       <div class="hero" id="acct-card">
@@ -792,7 +799,7 @@ body {
       </div>
 
       <div class="pcard pcard--green">
-        <div class="pcard-hd"><span class="t">净热量趋势</span><span class="m" id="trend-sub">缺口为负</span></div>
+        <div class="pcard-hd"><span class="t">净热量趋势</span><span class="m" id="trend-sub">绿 = 缺口 · 红 = 超额</span></div>
         <div id="trend"></div>
       </div>
 
@@ -824,8 +831,19 @@ body {
         <div style="color:#9aa8be;font-size:12px;" data-page-node-id="yQludB7uo2qBCDpCSrekaT">今日净热量为正，K 线翻红。建议增加运动或控制晚餐。</div>
       </div>
 
-      <div class="card hr-card" data-page-node-id="wUBdKQjJg9CLKKNhliOBRs">
-        <div class="card-title" data-page-node-id="H9R868fLJr7WcfqqK1QLZF"><span class="t" data-page-node-id="vaY00WiABTQG7wI88Kqc3i">持仓评级</span><span class="m" id="holdings-rating-text" data-page-node-id="XXz3ZUm19DeqQKc5fDT1cE">当前评级：--</span></div>
+      <!-- 持仓评级（v2.7.52 升格为 Hero 款式）：大字评级名 + 右侧体脂/BMI 指标 + 九宫格定位 -->
+      <div class="hero hr-hero" id="hr-card" data-page-node-id="wUBdKQjJg9CLKKNhliOBRs">
+        <div class="hero-top">
+          <span class="hero-lab" data-page-node-id="vaY00WiABTQG7wI88Kqc3i">持仓评级</span>
+          <span class="hero-badge">体脂 × BMI</span>
+        </div>
+        <div class="hero-mid">
+          <div class="hr-grade" id="holdings-rating-text" data-page-node-id="XXz3ZUm19DeqQKc5fDT1cE">--</div>
+          <div class="hero-cap">
+            <span class="v"><b id="hr-fat">--</b> <span class="k">体脂率</span></span>
+            <span class="v"><b id="hr-bmi">--</b> <span class="k">BMI</span></span>
+          </div>
+        </div>
         <div class="hr-chart" id="holdings-rating" data-page-node-id="8zcHSw0ONjAvgXVSzjbHj2"></div>
         <div class="hr-desc" id="holdings-rating-desc" data-page-node-id="KQKkfVEaMjjqkqFtx7RUwE">--</div>
       </div>
@@ -1230,11 +1248,14 @@ body {
     <div class="on" data-tab="market" onclick="switchTab('market')" data-page-node-id="x37snLkKqPcSGKbpXMqPBK">
       <div class="ico" data-page-node-id="lAURc09bNwaqCEzbz17Fzy"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5l5-5.5 3.5 3.5L21 6.5"/><circle cx="21" cy="6.5" r="1.7" fill="currentColor" stroke="none"/></svg></div>行情
     </div>
-    <div data-tab="trade" onclick="switchTab('trade')" data-page-node-id="PM8pXPShG5irNGTwR8hDoT">
-      <div class="ico" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5v17"/><path d="M16 3.5v17"/><rect x="5" y="8" width="6" height="6.5" rx="1.3"/><rect x="13" y="9.5" width="6" height="6.5" rx="1.3"/></svg></div>交易
-    </div>
     <div data-tab="holdings" onclick="switchTab('holdings')" data-page-node-id="cONaClihcuBJkKQRgaG9QC">
       <div class="ico" data-page-node-id="Cpbsi48ysqrvpykHXF9SLL"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12.5" rx="2.5"/><path d="M9 7.5V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8v1.7"/><path d="M3 13h18"/></svg></div>持仓
+    </div>
+    <div data-tab="trade" onclick="switchTab('trade')" data-page-node-id="PM8pXPShG5irNGTwR8hDoT">
+      <!-- 交易图标（v2.7.52）：彩色「鸡腿 × 哑铃」交叉成 X
+           = 做多做空两条腿：鸡腿(吃) 与 哑铃(练) 一横一竖，交叉才是这个 App 的全部动作。
+           纯矢量手绘，不引位图（22px 下位图会糊、还带底色边） -->
+      <div class="ico ico-trade" data-page-node-id="KD6KpxV7YldkRSF9Olm3QN"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><g transform="translate(12 12) scale(1.22) translate(-12 -12)"><g transform="rotate(45 12 12) translate(-1.4 0)"><rect x="8.2" y="3.2" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="8.2" y="17.4" width="7.6" height="3.4" rx="1.7" fill="#c9d7ec"/><rect x="10.6" y="6.6" width="2.8" height="10.8" rx="1.4" fill="#7f90ad"/></g><g transform="rotate(-45 12 12) translate(1.4 0)"><rect x="10.8" y="4.6" width="2.4" height="5.2" rx="1.2" fill="#f4efe2"/><circle cx="12" cy="3.7" r="2.1" fill="#f4efe2"/><path d="M10.7 9.2h2.6l2.4 7.2a3.7 3.7 0 0 1-7.4 0Z" fill="#e2703f"/></g></g></svg></div>交易
     </div>
     <div data-tab="leaderboard" onclick="switchTab('leaderboard')" data-page-node-id="jJLPTbnEKemO0sS2SkJr5b">
       <div class="ico" data-page-node-id="amyIU316UQlQJ1cCFJtlGc"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 5.5H4.2v1.8A3.2 3.2 0 0 0 7.4 10.5"/><path d="M17 5.5h2.8v1.8A3.2 3.2 0 0 1 16.6 10.5"/><path d="M12 13v3.2"/><path d="M8.6 20h6.8"/><path d="M9.4 16.5h5.2L18 20H6l2.6-3.5Z"/></svg></div>龙虎榜
@@ -3217,13 +3238,16 @@ function renderHoldingsRating() {
   const bmi = Math.max(0, Math.min(32, bmiRaw));
   const type = getBodyType(bmiRaw, fatRaw);
 
+  // v2.7.52 Hero 化：评级名升为大字（#holdings-rating-text 即大字节点），体脂/BMI 收进右上角
   const head = document.getElementById('holdings-rating-text');
-  head.textContent = '当前评级：' + type.name;
+  head.textContent = type.name;
   head.style.color = type.color;
+  const fatEl = document.getElementById('hr-fat'), bmiEl = document.getElementById('hr-bmi');
+  if (fatEl) fatEl.textContent = fatRaw.toFixed(1) + '%';
+  if (bmiEl) bmiEl.textContent = bmiRaw.toFixed(1);
   const descEl = document.getElementById('holdings-rating-desc');
   if (descEl) descEl.innerHTML =
-    `体脂 <b style="color:#fff">${fatRaw.toFixed(1)}%</b> · BMI <b style="color:#fff">${bmiRaw.toFixed(1)}</b>` +
-    `　<span style="color:${type.color}">${type.range}</span><br>${type.desc}`;
+    `<span style="color:${type.color}">${type.range}</span><br>${type.desc}`;
 
   const L = 46, T = 14, W = 286, H = 186;
   const F0 = 0, F1 = 40, M0 = 15, M1 = 35;
@@ -4085,22 +4109,24 @@ function renderTrend() {
   const days = [];
   for (let d = from; d <= todayS; d = addDaysStr(d, 1)) days.push(d);
   const pts = days.map(d => ({ d, net: dailyNet(d), has: hasRecord(d) }));
-  // 柱状图：0 线为基准，净缺口(负/绿)向下，净超支(正/红)向上；单日记录也会显示
-  const W = 340, H = 112, padT = 20, padB = 22;
+  // 柱状图（v2.7.52 改版）：全部柱贴在同一条基线上向上生长，柱长 = |净热量|
+  //   绿 = 净缺口（消耗 > 摄入，减重方向）｜红 = 净超额（摄入 > 消耗，增重方向）
+  //   为什么删掉「0 轴中分、上下分叉」：上下分叉时视觉重心被 0 轴劈成两半，
+  //   一眼看不出这周是「连续达标」还是「连续爆表」；贴底单边柱让柱长直接等于强度，
+  //   「谁更长谁更强」是零学习成本的读法。
+  const W = 340, H = 118, padT = 14, padB = 20;
   const innerH = H - padT - padB;
   const real = pts.filter(p => p.has);
   const absMax = Math.max(50, Math.ceil(Math.max.apply(null, real.map(p => Math.abs(p.net))) / 50) * 50);
-  const unit = innerH / 2 / absMax;      // 每 kcal 对应像素（上下各 absMax 刻度）
-  const zeroY = padT + innerH / 2;
+  const unit = innerH / absMax;          // 每 kcal 对应像素（最高柱顶到 padT）
+  const baseY = H - padB;                // 基线（所有柱的起点）
   const N = days.length;
   // 舒适槽宽固定 26px：数据少时柱贴左排列（首柱在最左、右侧留白等后续记录），不居中不拉伸；超容量才压缩
   const slot = (N * 26 <= W) ? 26 : W / N;
   const bw = Math.min(38, Math.max(4, slot * 0.6));
   const labStep = N <= 14 ? 1 : Math.ceil(N / 14);   // x 标签抽稀
   let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;">';
-  svg += '<line x1="0" y1="' + zeroY + '" x2="' + W + '" y2="' + zeroY + '" stroke="#2a3142" stroke-width="1"/>';
-  svg += '<text x="2" y="' + (padT - 5) + '" fill="#5a6478" font-size="8">+' + absMax + '</text>';
-  svg += '<text x="2" y="' + (H - padB + 11) + '" fill="#5a6478" font-size="8">-' + absMax + '</text>';
+  svg += '<line x1="0" y1="' + baseY + '" x2="' + W + '" y2="' + baseY + '" stroke="#2a3142" stroke-width="1"/>';
   pts.forEach((p, i) => {
     const today = p.d === todayS;
     if (p.has) {
@@ -4108,12 +4134,7 @@ function renderTrend() {
       const deficit = p.net < 0;                       // 净缺口=减重达标
       const col = deficit ? '#00c896' : '#ff3b47';
       const barH = Math.max(2, Math.abs(p.net) * unit);
-      const y = deficit ? zeroY : zeroY - barH;
-      svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + barH + '" rx="3" fill="' + col + '" opacity="' + (today ? 1 : 0.7) + '"/>';
-      if (barH > 14) {
-        const vy = deficit ? zeroY + barH + 9 : zeroY - barH - 5;
-        svg += '<text x="' + (x + bw / 2) + '" y="' + vy + '" text-anchor="middle" fill="' + col + '" font-size="8">' + (deficit ? '-' : '+') + Math.abs(p.net) + '</text>';
-      }
+      svg += '<rect x="' + x + '" y="' + (baseY - barH) + '" width="' + bw + '" height="' + barH + '" rx="3" fill="' + col + '" opacity="' + (today ? 1 : 0.85) + '"/>';
     }
     // X 轴标签：今天标「今」，其余按 labStep 抽稀标日期
     if ((i % labStep === 0) || (today && p.has)) {
@@ -4200,13 +4221,13 @@ function renderAccount() {
     elRate.innerHTML = shown.toFixed(1) + '<span class="pc">%</span>';
     // v2.7.50：不再显示「上限 xx kg」——上限是内部计算量，上屏只会让人疑惑
     // v2.7.51：这段挪到进度条上方右侧；「+xx kg」按盈亏染色（红=盈利 / 绿=亏损 / 灰=打平）
-    if (elCap) elCap.innerHTML = '止盈进度 · 已盈 <b style="color:' + PROFIT_C[tone] + '">'
-      + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b>';
+    if (elCap) elCap.innerHTML = '<span class="k">止盈进度</span><span class="v">已盈 <b style="color:'
+      + PROFIT_C[tone] + '">' + (profit >= 0 ? '+' : '') + profit.toFixed(1) + ' kg</b></span>';
     if (elBar) { elBar.style.width = shown.toFixed(1) + '%'; elBar.style.background = GRAD[tone]; }
   } else {
     // 目标不低于建仓价（没有减重空间）→ 退回显示累计浮盈千克
     elRate.innerHTML = (profit >= 0 ? '+' : '') + profit.toFixed(1) + '<span class="pc"> kg</span>';
-    if (elCap) elCap.textContent = '累计浮盈';
+    if (elCap) elCap.innerHTML = '<span class="k">累计浮盈</span>';
     if (elBar) { elBar.style.width = '0%'; elBar.style.background = GRAD[tone]; }
   }
 
