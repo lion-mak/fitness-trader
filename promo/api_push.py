@@ -202,8 +202,14 @@ def main():
               '并执行 git reset --hard origin/master（无损，内容完全相同）。')
 
     print('\n=== verify live ===')
-    ok = True
+    # ⛔ 别再把期望版本号写死在这里。曾写成 if found != '2.7.31': ok = False，
+    #    于是 2.7.32 之后每一轮推送都报 RESULT=CHECK —— 假警报久了就没人看了。
+    #    正确口径：线上三处（ver.txt / index.html app-version / sw.js CACHE_VERSION）
+    #    彼此一致，且等于本地 ver.txt。
+    want = io.open(os.path.join(ROOT, 'ver.txt'), encoding='utf-8').read().strip()
+    got = {}
     for path, key in [('ver.txt', None), ('index.html', 'app-version'), ('sw.js', 'CACHE_VERSION')]:
+        got[path] = None
         for attempt in range(6):
             try:
                 req = urllib.request.Request(LIVE + path + '?v=' + str(int(time.time())))
@@ -214,16 +220,17 @@ def main():
                     txt = r.read().decode('utf-8', 'replace')
                 m = re.search(r"content=\"([\d.]+)\"", txt) if key else None
                 found = m.group(1) if m else re.search(r"jianpan-([\d.]+)", txt).group(1) if 'CACHE_VERSION' in txt else txt.strip()[:12]
+                got[path] = found
                 print('  %-12s -> %s' % (path, found))
-                if found != '2.7.31':
-                    ok = False
                 break
             except Exception as e:
                 if attempt == 5:
                     print('  %-12s -> 读取失败 %s' % (path, e))
-                    ok = False
                 else:
                     time.sleep(10)
+    ok = bool(want) and all(v == want for v in got.values())
+    if not ok:
+        print('  ⚠️ 线上三处未全部等于本地 ver.txt=%s（GitHub Pages 重建有延迟，稍后重跑本脚本复查）' % want)
     print('\nRESULT=' + ('OK' if ok else 'CHECK'))
     return 0 if ok else 1
 

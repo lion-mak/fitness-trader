@@ -1,17 +1,19 @@
 /* ============================================
    减盘 · Service Worker
    离线缓存应用壳，使 App 可"安装"到手机主屏幕并离线使用
-   （原型为单文件内联 HTML，应用壳只需缓存 index.html + 图标）
+
+   ⚠️ 预缓存清单 = 首访必下。加文件前先问「这次访问真的用得到吗」：
+   · 1.04 MB 的 icon.png（1024²/未优化）曾在这里，现已换成 180/192/512 三档共 81 KB；
+   · 2.43 MB 的 trading-floor-full.png 在交易大厅删除后已零引用，却仍被每次首访下载 —— v2.7.56 移除；
+   · 身体成分那两张人体图只有打开对应页面才用得到，改由下面的 fetch 处理器按需缓存。
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-2.7.55';
+const CACHE_VERSION = 'jianpan-2.7.56';
 const APP_SHELL = [
   './',
   './index.html',
-  './assets/icon.png',
-  './assets/body_male.png',
-  './assets/body_female.png',
-  './assets/trading-floor-full.png',
+  './manifest.json',
+  './assets/icon-192.png',
   './js/nutrition-engine.js',
   './js/food-store.js',
   './data/foods.json',

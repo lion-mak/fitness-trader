@@ -925,6 +925,112 @@ def run():
     chk('行情页头部可点击元素只剩头像（openProfileEdit）',
         r.get('ui55HdrOnclicks') == 1, r.get('ui55HdrOnclickWhat'))
     chk('v2.7.55 注入块无异常', not r.get('uiErr55'), r.get('uiErr55'))
+    # ===== v2.7.56：首访体积体检（预缓存清单 = 每个新访客必下）=====
+    # 起因：2.43 MB 的 trading-floor-full.png 在 v2.7.49 删掉交易大厅后就零引用了，
+    # 但仍留在 sw.js 的 APP_SHELL 里 —— 每个新访客白下 2.43 MB。
+    import gzip as _gz
+    import json as _json
+    import os as _os
+    ROOT = _os.path.dirname(SRC)
+    _sw = io.open(_os.path.join(ROOT, 'sw.js'), encoding='utf-8').read()
+    _i = _sw.find('APP_SHELL = [')
+    _shell = re.findall(r"'([^']+)'", _sw[_i:_sw.find('];', _i)])
+    _shell = [p for p in _shell if p != './']
+    chk('预缓存清单不再包含已删除的交易大厅底图',
+        not any('trading-floor' in p for p in _shell), ','.join(_shell))
+    chk('预缓存清单不再包含未压缩的 1024 图标', 'assets/icon.png' not in _shell, ','.join(_shell))
+    chk('两张人体图已移出预缓存（改为打开对应页面时按需缓存）',
+        not any('body_' in p for p in _shell), ','.join(_shell))
+
+    # ① 清单里每个文件都必须真实存在 —— cache.addAll() 只要有一个 404，
+    #    整个 install 直接 reject，Service Worker 装不上、离线全废。这是最阴的一类回归。
+    _missing = [p for p in _shell
+                if not _os.path.exists(_os.path.join(ROOT, p.lstrip('./').replace('/', _os.sep)))]
+    chk('预缓存清单里每个文件都真实存在（否则 cache.addAll 整单失败、SW 装不上）',
+        not _missing, '缺失: ' + ','.join(_missing))
+
+    # ② 清单里的资源必须被运行时真的引用 —— 防再次出现「死资源被预缓存」。
+    #    引用源要搜全：index.html（含内联 JS）+ manifest.json + js/*.js（foods.json 就是
+    #    food-store.js 里 DATA_URL 拼出来的，光搜 index.html 会误判成孤儿）。
+    #    index.html 自己豁免：它是入口，天生不被别人引用。
+    _ix = io.open(SRC, encoding='utf-8', newline='').read()
+    _mf = io.open(_os.path.join(ROOT, 'manifest.json'), encoding='utf-8').read()
+    _refs = _ix + _mf
+    for _js in sorted(_os.listdir(_os.path.join(ROOT, 'js'))):
+        if _js.endswith('.js'):
+            _refs += io.open(_os.path.join(ROOT, 'js', _js), encoding='utf-8').read()
+    _orphan = [p for p in _shell
+               if _os.path.basename(p) not in ('index.html',)
+               and _os.path.basename(p) not in _refs]
+    chk('预缓存清单里的资源都被运行时引用（index.html / manifest.json / js/*.js，无死资源）',
+        not _orphan, '孤儿: ' + ','.join(_orphan) if _orphan else '无')
+
+    # ③ manifest 与 apple-touch-icon 指向的图标必须存在，且 sizes 与真实像素一致
+    _mfj = _json.loads(_mf)
+    _icons = _mfj.get('icons', [])
+    _icon_bad = []
+    _declared = []
+    for _ic in _icons:
+        _fp = _os.path.join(ROOT, _ic['src'].replace('/', _os.sep))
+        if not _os.path.exists(_fp):
+            _icon_bad.append(_ic['src'] + '(缺文件)')
+            continue
+        try:
+            from PIL import Image as _Im
+            _w, _h = _Im.open(_fp).size
+        except Exception as _e:
+            _icon_bad.append(_ic['src'] + '(读不了:%s)' % _e)
+            continue
+        if 'sizes' in _ic and _ic['sizes'] != 'any' and _ic['sizes'] != '%dx%d' % (_w, _h):
+            _icon_bad.append('%s 声明 %s 实际 %dx%d' % (_ic['src'], _ic['sizes'], _w, _h))
+        if (_w, _h) != (180, 180) and _w < 192:
+            _icon_bad.append('%s 仅 %dpx（Chrome 要求之一 ≥192）' % (_ic['src'], _w))
+        _declared.append('%s %s %s' % (_ic['src'], _ic['sizes'], _ic.get('purpose', '')))
+    chk('manifest 图标文件存在 / sizes 与实际像素一致 / ≥192px',
+        not _icon_bad, ' | '.join(_declared + _icon_bad))
+    chk('manifest 提供 maskable 图标（Android 自适应图标）',
+        any(_ic.get('purpose') == 'maskable' for _ic in _icons),
+        ' | '.join(_declared))
+    _atc = re.search(r'rel="apple-touch-icon"\s+href="([^"]+)"', _ix)
+    chk('apple-touch-icon 指向的文件存在',
+        bool(_atc) and _os.path.exists(_os.path.join(ROOT, _atc.group(1).replace('/', _os.sep))),
+        _atc.group(1) if _atc else '未找到 link 标签')
+
+    # ④ 首访传输量预算（文本按 gzip 计，GitHub Pages 会压缩）
+    _TEXT = ('.html', '.js', '.json', '.css', '.txt', '.svg')
+    _tot = 0
+    _detail = []
+    for _p in _shell:
+        _fp = _os.path.join(ROOT, _p.lstrip('./').replace('/', _os.sep))
+        if not _os.path.exists(_fp):
+            continue
+        _raw = open(_fp, 'rb').read()
+        _n = len(_gz.compress(_raw, 6)) if _p.endswith(_TEXT) else len(_raw)
+        _tot += _n
+        _detail.append('%s %.0fKB' % (_os.path.basename(_p), _n / 1024.0))
+    chk('首访预缓存总量 ≤ 400 KB（当前 %.0f KB）' % (_tot / 1024.0), _tot <= 400 * 1024,
+        ' + '.join(_detail))
+    # ⚠️ 这里必须跳过不存在的文件：缺失由上面 ① 单独报，这里若直接 getsize 会抛
+    #    FileNotFoundError 把整个 e2e 打断（负控时实测到：注入死资源后 RESULT 行都没输出）。
+    _big = []
+    for _p in _shell:
+        if not _p.endswith(('.png', '.jpg', '.webp')):
+            continue
+        _fp = _os.path.join(ROOT, _p.lstrip('./').replace('/', _os.sep))
+        if _os.path.exists(_fp) and _os.path.getsize(_fp) > 200 * 1024:
+            _big.append('%s %.0fKB' % (_p, _os.path.getsize(_fp) / 1024.0))
+    chk('首访预缓存里没有单个超过 200 KB 的图片（图片一旦大就说明该按需加载）',
+        not _big, ','.join(_big) if _big else ','.join(p for p in _shell if p.endswith('.png')))
+
+    # ⑤ 版本号三处一致（index.html / sw.js / ver.txt）
+    _ver_ix = re.search(r'app-version" content="([^"]+)"', _ix)
+    _ver_sw = re.search(r"CACHE_VERSION = 'jianpan-([\d.]+)'", _sw)
+    _ver_txt = io.open(_os.path.join(ROOT, 'ver.txt'), encoding='utf-8').read().strip()
+    _vs = [_ver_ix.group(1) if _ver_ix else None, _ver_sw.group(1) if _ver_sw else None, _ver_txt]
+    chk('版本号三处一致（index.html / sw.js / ver.txt）', len(set(_vs)) == 1 and _vs[0], str(_vs))
+    chk('sw.js 预缓存清单 = ' + str(len(_shell)) + ' 项（清单膨胀会直接拖慢首访）',
+        len(_shell) <= 8, ','.join(_shell))
+
 
     # ===== v2.7.47：账户总览 / 复盘周报月报 / 数据迁移口 =====
     chk('账户总览卡片已渲染（v2.7.47）', r.get('acctExists'))
