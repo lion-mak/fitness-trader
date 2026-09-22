@@ -218,6 +218,88 @@ function runPass(idx, label, seed) {
   log();
 }
 
+/* ============================================================
+ * 第 3 遍：导入验收 —— 检验「先把数据导进来」这个决定到底成不成立
+ *
+ * 前两遍只证明「不抛错」。这一遍证明**导入的数据真的被页面用上了**：
+ * 走真实的 lib/migrate.js 导入链路，然后重跑页面，断言页面 data 里的
+ * 是真实数字（用户第 1 眼看到的那个），而不是内部变量。
+ * 少了这一遍，「先把数据导进来，后面迁移就有数据可用」只是口头承诺。
+ * ============================================================ */
+function runImportPass() {
+  LAST_LABEL.v = '第3遍';
+  ctxStats.total = 0; ctxStats.fillText = 0; ctxStats.fillRect = 0;
+  ctxStats.measureText = 0; ctxStats.stroke = 0; ctxStats.arc = 0;
+  Object.keys(storage).forEach((k) => { delete storage[k]; });
+  captured.app = null; captured.pages.length = 0; calls.length = 0;
+  freshRequire();
+
+  log('════════ 第 3 遍：导入验收（走真实导入链路，再看页面是否用上）════════');
+  log();
+
+  step('require app.js（空机启动，模拟全新安装）', () => {
+    require(path.join(MINI, 'app.js'));
+    if (!captured.app) throw new Error('app.js 没有调用 App()');
+  });
+  step('app.onLaunch()', () => { captured.app.onLaunch.call(captured.app); });
+
+  const migrate = require(path.join(MINI, 'lib/migrate.js'));
+  const TEXT = JSON.stringify({ __app: 'fitness-trader', __schema: 1, state: realState });
+
+  let got = null;
+  step('用户点「从剪贴板导入」→ migrate.parse + applyImport（真实存档）', () => {
+    got = migrate.applyImport(migrate.parse(TEXT));
+  });
+  log('        导入结果：' + migrate.summary(got));
+  log('        体积 ' + got.kb + ' KB / 健康币 ' + got.coins + ' / ' + got.rank + ' Lv' + got.level);
+  log();
+
+  step('断言 · 导入条数与存档源一致（饮食/运动/体重）', () => {
+    if (got.diet !== realState.diet.length) throw new Error('饮食 ' + got.diet + ' ≠ ' + realState.diet.length);
+    if (got.exercise !== realState.exercise.length) throw new Error('运动 ' + got.exercise + ' ≠ ' + realState.exercise.length);
+    if (got.weight !== realState.weightLog.length) throw new Error('体重 ' + got.weight + ' ≠ ' + realState.weightLog.length);
+  });
+
+  // 行情页：首屏该显示真实体重，且 K 线不能是空态
+  captured.pages.length = 0;
+  require(path.join(MINI, 'pages/market/market.js'));
+  const mk = makeInstance(captured.pages[0]);
+  step('market.onLoad() + onReady()', () => {
+    if (typeof mk.onLoad === 'function') mk.onLoad.call(mk, {});
+    if (typeof mk.onReady === 'function') mk.onReady.call(mk);
+  });
+  const wantWeight = (realState.user && realState.user.weight) + ' kg';
+  step('断言 · 行情页顶部显示真实体重（' + wantWeight + '）', () => {
+    if (mk.data.weightText !== wantWeight) {
+      throw new Error('weightText = ' + JSON.stringify(mk.data.weightText) + '，期望 ' + JSON.stringify(wantWeight));
+    }
+  });
+  step('断言 · 行情页 K 线不是空态（48 条体重已进来）', () => {
+    if (mk.data.empty) throw new Error('走了空态：' + mk.data.emptyMsg);
+  });
+  log('        ' + String(mk.data.period).toUpperCase() + 'K · ' + mk.data.ma7Lab + ' / ' + mk.data.ma30Lab);
+  log('        canvas 调用记账：共 ' + ctxStats.total + ' 次（用导入的数据重画）');
+  if (ctxStats.total === 0) log('  ⚠️ 导入数据后 K 线一次都没画 —— 数据没走到绘制路径，要查');
+  log();
+
+  // 我的页：体检卡必须显示导入进来的数字（这是用户确认「导入成功」的依据）
+  captured.pages.length = 0;
+  require(path.join(MINI, 'pages/me/me.js'));
+  const me = makeInstance(captured.pages[0]);
+  step('me.onLoad()', () => { if (typeof me.onLoad === 'function') me.onLoad.call(me, {}); });
+  step('断言 · 我的页体检卡显示真实数字（饮食/运动/体重/健康币）', () => {
+    const m = {};
+    (me.data.cells || []).forEach((c) => { m[c.lab] = c.v; });
+    if (m['饮食'] !== realState.diet.length) throw new Error('饮食格 = ' + m['饮食'] + '，期望 ' + realState.diet.length);
+    if (m['运动'] !== realState.exercise.length) throw new Error('运动格 = ' + m['运动'] + '，期望 ' + realState.exercise.length);
+    if (m['体重'] !== realState.weightLog.length) throw new Error('体重格 = ' + m['体重'] + '，期望 ' + realState.weightLog.length);
+    if (m['健康币'] !== realState.coins) throw new Error('健康币格 = ' + m['健康币'] + '，期望 ' + realState.coins);
+  });
+  log('        体检卡：' + (me.data.cells || []).map((c) => c.lab + ' ' + c.v).join(' · '));
+  log('        跨度：' + me.data.spanText);
+  log();
+}
+
 log('# 小程序启动链路 + 首屏绘制 冒烟测试（mock wx，无云环境）');
 log();
 
@@ -232,6 +314,7 @@ try {
 
 runPass(1, '空存档（全新用户）', null);
 if (realState) runPass(2, '真实存档（96 天记录）', realState);
+if (realState) runImportPass();
 
 // 延迟输出：让 SelectorQuery / rAF 之类的异步回调有机会抛错并被 uncaughtException 抓到
 setTimeout(function () {
@@ -242,7 +325,7 @@ setTimeout(function () {
     log('RESULT=FAIL —— ' + errors.length + ' 处抛错：');
     errors.forEach((e) => log('  · [' + e.name + '] ' + (e.err && e.err.message)));
   } else {
-    log('RESULT=OK —— 两遍启动链路 + 5 个页面 onLoad/onReady 全部无异常');
+    log('RESULT=OK —— 三遍（空存档 / 真实存档 / 导入验收）+ 5 个页面生命周期全部无异常');
   }
   const text = lines.join('\n') + '\n';
   fs.writeFileSync(OUT, text, 'utf8');
