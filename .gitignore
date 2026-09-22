@@ -26,5 +26,7 @@ promo/_e2eprofile*/
 # 宣传图/截图成品与可再生的中间数据（体积大，随时可用脚本重跑）
 promo/*.png
 promo/*.json
+# 像素比对脚本（mp_kline_compare.py）生成的临时对照页，可随时重跑
+promo/_*.html
 # 内部商业/技术规划文档（含策略信息，不入公开仓库）
 健身交易员-*.md
