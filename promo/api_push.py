@@ -228,9 +228,19 @@ def main():
                     print('  %-12s -> 读取失败 %s' % (path, e))
                 else:
                     time.sleep(10)
-    ok = bool(want) and all(v == want for v in got.values())
-    if not ok:
-        print('  ⚠️ 线上三处未全部等于本地 ver.txt=%s（GitHub Pages 重建有延迟，稍后重跑本脚本复查）' % want)
+    # ⚠️ 区分「读取失败」与「版本不一致」—— 两者含义完全不同，混在一起报会误导：
+    #    本段是**直连**（下面主动清空代理），而沙箱直连 github.io 被阻断 ⇒ 读取必然失败。
+    #    这是已知现象，不代表部署失败；真正的复核要走代理 curl（见 promo/_v56check.py、SKILL.md）。
+    failed = [p for p, v in got.items() if v is None]
+    mismatched = [p for p, v in got.items() if v is not None and v != want]
+    ok = bool(want) and not failed and not mismatched
+    if failed and not mismatched:
+        print('  ⚠️ 线上读取失败（%s）—— 本段为直连，沙箱直连 github.io 被阻断，这是已知现象，'
+              '**不代表部署失败**。' % ','.join(failed))
+        print('     线上复核请改走代理 curl（见 promo/_v56check.py 或 SKILL.md「推送后必做核验」）。')
+    elif mismatched:
+        print('  ⚠️ 线上与本地 ver.txt=%s 不一致：%s（GitHub Pages 重建有延迟，隔十几秒重跑本脚本复查）'
+              % (want, ','.join('%s=%s' % (p, got[p]) for p in mismatched)))
     print('\nRESULT=' + ('OK' if ok else 'CHECK'))
     return 0 if ok else 1
 
