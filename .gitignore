@@ -23,6 +23,11 @@ promo/_*.txt
 # 端到端验收测试的临时页与浏览器 profile（e2e_test.py 生成）
 _e2e.html
 promo/_e2eprofile*/
+# 小程序调试用的本机中间产物（开发者工具 asar 抽取物 / 其缓存快照 / 探针回滚快照）
+# 都是一次性、可再生、且体积大（_cache_backup 约 1 MB），不入仓
+promo/_asar/
+promo/_cache_backup/
+promo/_probe_backup/
 # 宣传图/截图成品与可再生的中间数据（体积大，随时可用脚本重跑）
 promo/*.png
 promo/*.json

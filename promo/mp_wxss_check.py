@@ -5,8 +5,9 @@ mp_wxss_check.py —— 用【微信开发者工具自带的真编译器 wcsc.ex
 
 为什么必须有这个脚本：
   mp_lint.py 只做静态文本检查（括号配平 / import 路径 / 标签配平），**不做真编译**，
-  因此漏掉了 `* { }` 通配符选择器这类「文本看着合法、编译器判死」的错误 ——
-  2026-09-22 开发者工具报「编译 .wxss 文件错误」导致整包白屏，就是它放过去的。
+  因此漏掉了两类「文本看着合法、编译器判死」的错误：
+    ① `* { }` 通配符选择器（WXSS 不支持）            —— 2026-09-22 白屏事故 A
+    ② 页面里的 `@import` 指向的文件没进编译单元       —— 2026-09-22 白屏事故 B
   ⇒ 结论：样式改动必须过真编译器，静态检查不能替代。
 
 wcsc 位置：<开发者工具>/resources/app.asar.unpacked/node_modules/wcc-exec/wcsc.exe
@@ -14,22 +15,32 @@ wcsc 位置：<开发者工具>/resources/app.asar.unpacked/node_modules/wcc-exe
 调用要点（2026-09-22 实测定稿，踩过的坑都在这）：
   1. **没有 CLI 帮助可读**：`wcsc` 不打印错误，`-h`/`--version` 才打印 usage。
   2. **输出编码是 GBK/ANSI**（不是 UTF-8）⇒ 必须 `decode("gbk")`。
-  3. **stdout 是编译产物，不是错误**：把 stdout 当报错会把 PASS 的文件误判成 FAIL
-     （产物里带 `%%HERESUFFIX%%` 前缀，那是 wcsc 给 IDE 用的占位）。
-     判错只看 **stderr 里以 `ERR:` 开头的行**。
-  4. **`@import` 的文件必须作为参数一起传进来**，且 root 在前、被 import 的在后：
-       wcsc -pc 2 <root.wxss> <imported.wxss>
-     否则报假警报 `path `..\..\x.wxss` not found`。
-  5. **路径用正斜杠、相对 miniprogram/ 更稳**（反斜杠会被 wcsc 渲染成 `////` 畸形路径）；
+  3. **stdout 是编译产物，不是错误**：把 stdout 当报错会把 PASS 的文件误判成 FAIL。
+     判错只看 **stderr 里以 `ERR:` 开头的行**。（产物里也含 "error" 字样，
+     所以**不要**拿 `ERR|error` 去正则匹配 stdout —— 这坑骗过我一次。）
+  4. **路径用正斜杠、相对 miniprogram/ 更稳**（反斜杠会被 wcsc 渲染成 `////` 畸形路径），
      配合 `cwd=miniprogram`。
-  6. wcsc **每次只报第一个错**并退出 ⇒ 修完必须重跑，直到 0 错。
+  5. wcsc **每次只报第一个错**并退出 ⇒ 修完必须重跑，直到 0 错。
+  6. `-pc N` = page wxss files count，即「前 N 个文件是页面样式」。
+
+⭐ 两道主检（都是 2026-09-22 新增，对应上面两类事故）：
+  A. **工具等价整包编译** —— 按开发者工具构造编译单元的真实形状：
+       files = [各页 wxss ... , app.wxss]   pageCount = 页面数
+     **刻意不额外传任何 import 文件**，因为工具的编译单元里只有「app.wxss + 各页 wxss
+     + 它自己文件索引里剩下的 wxss」；索引是打开项目时建的，之后脚本新增的文件
+     （尤其新目录）不在其中 ⇒ 被 import 的文件进不了清单 ⇒
+     `path ... not found from ...` ⇒ 整包编译失败 ⇒ 白屏。
+     这道闸就是把这个失败模式在本地提前复现。
+  B. **页面禁写 @import** —— 由上一条推出的工程规矩：共享样式写 app.wxss 末尾的
+     适配层（由 mp_build.py 追加），页面 wxss 只放本页增量。命中直接 FAIL。
 
 用法：
   python promo/mp_wxss_check.py
-  退出码 0 = 全部通过；1 = 有编译错误
+  退出码 0 = 全部通过；1 = 有编译错误；2 = 脚本自身异常
   报告落盘 promo/_wxss_check_out.txt
 """
 import io
+import json
 import os
 import re
 import subprocess
@@ -56,6 +67,20 @@ def find_wxss():
     return sorted(hits)
 
 
+def read_pages():
+    """从 app.json 读页面列表 —— 工具构造编译单元时用的就是这份清单。
+
+    顺带一说：**不要把 styles/ 之类的共享目录加进 pages**，那会让它被当成页面样式。
+    """
+    p = os.path.join(MINI, u"app.json")
+    try:
+        cfg = json.loads(io.open(p, encoding="utf-8").read())
+        return list(cfg.get(u"pages", []))
+    except Exception as e:
+        log(u"⚠️ 读 app.json 失败：%s" % e)
+        return []
+
+
 def resolve_imports(rel, seen=None):
     """递归收集 rel 的 @import 依赖（相对 miniprogram/ 的 posix 相对路径）。"""
     if seen is None:
@@ -76,13 +101,10 @@ def resolve_imports(rel, seen=None):
     return seen
 
 
-def compile_one(rel):
-    """返回 (ok, err_text, product)。product 仅 app.wxss 用来抽标签清单。"""
-    deps = resolve_imports(rel)
-    # root 在前，被 import 的在后（顺序在实测中重要）
-    args = [u"-pc", str(len(deps))] + deps
+def _run(args):
+    """跑一次 wcsc，返回 (ok, err_text, product)。"""
     try:
-        p = subprocess.run([WCSC] + args, capture_output=True, timeout=90, cwd=MINI)
+        p = subprocess.run([WCSC] + args, capture_output=True, timeout=120, cwd=MINI)
     except Exception as e:
         return False, u"EXEC FAIL: %s" % e, u""
     err = (p.stderr or b"").decode("gbk", "replace")
@@ -91,6 +113,54 @@ def compile_one(rel):
     if bad or p.returncode != 0:
         return False, (u"\n".join(bad) or err.strip() or u"rc=%s" % p.returncode), prod
     return True, u"", prod
+
+
+def compile_one(rel):
+    """单文件编译（不注入 import 依赖 ⇒ 有 @import 就会暴露缺文件）。"""
+    return _run([u"-pc", u"1", rel])
+
+
+def compile_tool_shape(rel_pages):
+    """按开发者工具的**真实形状**整包编译：各页 wxss 在前、app.wxss 在后，pageCount=页数。
+
+    刻意不传任何 import 文件 —— 见文件头「两道主检 A」。
+    返回 (ok, err_text, missing)：missing 是 app.json 里列了但文件不存在的页。
+    """
+    missing = []
+    files = []
+    for p in rel_pages:
+        rel = u"./" + p + u".wxss"
+        if os.path.isfile(os.path.join(MINI, (p + u".wxss").replace(u"/", os.sep))):
+            files.append(rel)
+        else:
+            missing.append(rel)
+    if os.path.isfile(os.path.join(MINI, u"app.wxss")):
+        files.append(u"./app.wxss")
+    if not files:
+        return True, u"", missing
+    ok, err, _prod = _run([u"-pc", u"%d" % len(rel_pages)] + files)
+    return ok, err, missing
+
+
+def strip_comments(s):
+    """剥掉 CSS 注释 —— 否则文件里那句「不要写 @import」的**说明文字**会被自己的
+    禁令扫描当成违规（假警报），而注释本来也不可能有 import 语义。"""
+    return re.sub(r"/\*.*?\*/", u"", s, flags=re.S)
+
+
+def import_ban():
+    """扫描所有 .wxss 里的 @import（先剥注释）：页面 wxss 命中即 FAIL，app.wxss 命中给警告。"""
+    page_hits, app_hits = [], []
+    for rel in find_wxss():
+        raw = io.open(os.path.join(MINI, rel.replace(u"/", os.sep)), encoding="utf-8",
+                      errors="replace").read()
+        s = strip_comments(raw)
+        if u"@import" not in s:
+            continue
+        for m in re.finditer(r'@import[^;]*;', s):
+            stmt = u" ".join(m.group(0).split())[:90]
+            (app_hits if rel == u"app.wxss" else page_hits).append((rel, stmt))
+    return page_hits, app_hits
 
 
 def tag_scan(product):
@@ -131,21 +201,52 @@ def main():
     log()
 
     files = find_wxss()
+    pages = read_pages()
     bad = []
+
+    # ── 主检 A：工具等价整包编译 ──
+    log(u"## A. 工具等价整包编译（各页 wxss + app.wxss，pageCount=%d，不额外传 import）" % len(pages))
+    ok, err, missing = compile_tool_shape(pages)
+    for rel in missing:
+        log(u"[FAIL] app.json 里列了这个页面但文件不存在：%s" % rel)
+        bad.append((u"(缺页)", rel))
+    if ok:
+        log(u"[ OK ] 整包编译通过（工具不会报「编译 .wxss 文件错误」）")
+    else:
+        log(u"[FAIL] 整包编译失败 —— 开发者工具会报「编译 .wxss 文件错误」并整包白屏")
+        for l in err.split(u"\n"):
+            log(u"        %s" % l.strip())
+        bad.append((u"(整包)", err))
+
+    # ── 主检 B：页面禁写 @import ──
+    log()
+    log(u"## B. @import 禁令（共享样式必须写 app.wxss 末尾的适配层）")
+    page_hits, app_hits = import_ban()
+    if page_hits:
+        log(u"[FAIL] 以下页面 .wxss 写了 @import（会让工具的文件清单缺文件 ⇒ 整包编译失败）：")
+        for rel, stmt in page_hits:
+            log(u"        %s : %s" % (rel, stmt))
+        bad.append((u"(@import 禁令)", u"%d 处" % len(page_hits)))
+    else:
+        log(u"[ OK ] 没有页面 .wxss 使用 @import")
+    for rel, stmt in app_hits:
+        log(u"⚠️  app.wxss 里有 @import（全局层原则上也不需要，建议内联）：%s" % stmt)
+
+    # ── 逐文件编译（抓单文件语法错） ──
+    log()
+    log(u"## C. 逐文件编译（单文件语法/选择器语法）")
     for rel in files:
         ok, err, prod = compile_one(rel)
-        deps = resolve_imports(rel)
-        note = u" [+import %s]" % u", ".join(deps[1:]) if len(deps) > 1 else u""
         if ok:
-            log(u"[ OK ] %s%s" % (rel, note))
+            log(u"[ OK ] %s" % rel)
         else:
-            log(u"[FAIL] %s%s" % (rel, note))
+            log(u"[FAIL] %s" % rel)
             for l in err.split(u"\n"):
                 log(u"        %s" % l.strip())
             bad.append((rel, err))
 
     log()
-    log(u"共 %d 个 .wxss，失败 %d 个" % (len(files), len(bad)))
+    log(u"共 %d 个 .wxss，失败项 %d" % (len(files), len(bad)))
 
     # ── 附加：静默失效的标签选择器清单 ──
     log()
@@ -171,7 +272,7 @@ def main():
         log(u"RESULT=FAIL")
     else:
         log()
-        log(u"RESULT=OK —— 全部 .wxss 通过官方编译器")
+        log(u"RESULT=OK —— 整包/逐文件均通过官方编译器，且无页面 @import")
     flush(1 if bad else 0)
 
 

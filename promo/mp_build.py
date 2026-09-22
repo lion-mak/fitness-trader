@@ -395,10 +395,46 @@ REPL = [
 ]
 for pat, rep in REPL:
     wxss = re.sub(pat, rep, wxss)
+# ────────────────────────────────────────────────────────────────
+# 5b. 小程序适配层 —— 追加在 PWA 样式**之后**（同权重覆盖 PWA 规则）
+#
+# 为什么必须有这一块，而不是让各页自己 @import 一个共享文件：
+#   2026-09-22 事故：4 个页面写 `@import "../../styles/scaffold.wxss"`，
+#   开发者工具报「编译 .wxss 文件错误」→ 整包编译失败 → 页面全白、tab 图标破图。
+#   实测（用工具自带的 wcsc.node 复刻它的编译参数，逐项对照）：
+#     · files 里**含** styles/scaffold.wxss  → 编译通过
+#     · files 里**缺** styles/scaffold.wxss  → 抛 path `../../styles/scaffold.wxss` not found
+#       （4 条报错对 4 个写了 @import 的页面，一一对应）
+#   而工具的 WXSS 编译单元 = 「app.wxss + 各页 wxss + 它自己文件索引里剩下的 wxss」，
+#   索引是打开项目时建的 —— 之后用脚本新增的文件（尤其新目录 styles/）不在其中，
+#   于是 import 目标永远进不了清单 ⇒ 跨文件 @import 在本工程是**脆弱依赖**。
+#   ⇒ 定稿：**共享样式一律写进 app.wxss（本块），页面 wxss 一律不写 @import**。
+#     好处不只是绕开索引问题：app.wxss 本来就是全局层，语义上也更对。
+#   ⚠️ mp_wxss_check.py 现在把「页面里出现 @import」直接判 FAIL，别写回去。
+#
+# 内容约定：
+#   1) PWA 的 .page 有 80px 底部留白（给自绘底栏让位），小程序用原生 tabBar ⇒ 去掉
+#   2) PWA 用 HTML 标签承载的语义（<small>/<b>…），小程序无该标签、选择器静默失效
+#      ⇒ 在这里用 class 补等价规则（.s / .kt-v …），页面里直接用 class
+ADAPT = u"""
+
+/* ════════════════════════════════════════════════════════════════
+   小程序适配层（由 promo/mp_build.py 追加，勿手改 —— 会被覆盖）
+   共享样式写这里；页面 .wxss 只放本页增量，且**不要写 @import**。
+   ════════════════════════════════════════════════════════════════ */
+
+/* PWA 的 .page 留 80px 底部给自绘底栏；小程序用原生 tabBar，去掉这段空白 */
+.page { padding-bottom: 0; }
+
+/* PWA 顶栏副标题用 <small>（小程序无此标签），改用 .s */
+.pheader .lt .id { font-size:15px; font-weight:500; color:#fff; }
+.pheader .lt .s { display:block; color:var(--muted); font-size:10px; font-weight:400; }
+"""
+
 wxss = (u"/* app.wxss —— 由 promo/mp_build.py 从 PWA index.html 的 <style> 自动生成，勿手工编辑。\n"
         u" * WXSS 是 CSS 子集，故整体搬迁；已就地替换掉小程序不支持的特性（见脚本 REPL 表）。\n"
-        u" * 页面级微调请写在各页 .wxss，不要改本文件（会被覆盖）。\n"
-        u" */\n") + wxss.strip() + u"\n"
+        u" * 页面级微调请写在各页 .wxss，不要改本文件（会被覆盖）；共享样式写文件末尾的适配层。\n"
+        u" */\n") + wxss.strip() + u"\n" + ADAPT
 
 # ────────────────────────────────────────────────────────────────
 # 6. 写出

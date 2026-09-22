@@ -7,10 +7,14 @@ mp_scaffold.py —— 生成尚未迁移的页面骨架（占位）。
 也便于最后一次性清理。
 
 生成：
-  miniprogram/styles/scaffold.wxss   骨架共用样式（各页 @import，迁完即删）
   miniprogram/pages/<name>/<name>.{json,wxml,wxss,js}   × 4 页
 
 已迁移的 market 页不在本脚本管辖内。
+
+⚠️ 2026-09-22 改版：**不再生成 styles/scaffold.wxss，各页也不再 @import**。
+   原因见 mp_build.py 里 ADAPT 那段注释（开发者工具的文件索引滞后 ⇒ 被 import 的
+   文件进不了 WXSS 编译单元 ⇒ 整包编译失败、白屏）。共享样式一律写 app.wxss，
+   骨架临时样式内联到各页 wxss（本页迁完时随本页一起删，反而更好清理）。
 """
 import io, os
 
@@ -59,16 +63,13 @@ PAGES = [
     },
 ]
 
-WXSS_COMMON = u"""/* scaffold.wxss —— 未迁移页面的骨架共用样式。
-   ⚠️ 全功能迁完后请连同各页 @import 一起删除，不要留在正式版里。 */
-
-/* PWA 的 .page 有 80px 底部留白（自绘底栏用），小程序用原生 tabBar，不需要 */
+WXSS_TPL = u"""/* %(name)s页（骨架）—— 只写本页增量。
+   ⚠️ 不要写 @import：跨文件依赖在本工程是脆弱点（开发者工具的文件索引滞后会让
+   被 import 的文件进不了 WXSS 编译单元 ⇒ 整包编译失败 ⇒ 白屏，2026-09-22 事故）。
+   全局适配在 app.wxss，本页要用的骨架样式直接内联在下面。 */
 .page { padding-bottom: 0; }
 
-.pheader .lt .id { font-size:15px; font-weight:500; color:#fff; }
-.pheader .lt .s { display:block; color:var(--muted); font-size:10px; font-weight:400; }
-
-/* 模块清单 */
+/* ---- 搬迁进度卡（临时，本页迁完即删）---- */
 .mod-row {
   display:flex; align-items:center; gap:8px; padding:8px 0;
   font-size:12px; border-top:1px solid var(--border);
@@ -150,11 +151,6 @@ Page({
 });
 """
 
-WXSS_TPL = u"""/* %(name)s页（骨架）—— 只写增量；公共样式在 app.wxss */
-@import "../../styles/scaffold.wxss";
-"""
-
-
 def w(path, content):
     d = os.path.dirname(path)
     if d and not os.path.isdir(d):
@@ -164,7 +160,6 @@ def w(path, content):
 
 
 made = []
-made.append(("styles/scaffold.wxss", w(os.path.join(MINI, "styles", "scaffold.wxss"), WXSS_COMMON)))
 
 for p in PAGES:
     base = os.path.join(MINI, "pages", p["dir"])
