@@ -198,8 +198,14 @@ def main():
         io.open(marker, 'w', encoding='utf-8').write(
             json.dumps({'local': head, 'remote': commit['sha'], 'at': time.strftime('%Y-%m-%d %H:%M:%S')}))
         print('已写标记：', marker)
-        print('修复方式：github.com 恢复后，deploy_push.py 会自动检测「本地与远端内容一致但 sha 不同」'
-              '并执行 git reset --hard origin/master（无损，内容完全相同）。')
+        print('修复方式：github.com 恢复后，deploy_push.py 会自动检测「本地与远端内容一致但 sha 不同」')
+        print('          并执行 git rebase origin/master 收敛 —— rebase 靠 patch-id 丢掉「内容已存在」'
+              '的等价提交，零丢失。')
+        # ⚠️ 这两行原本写的是「并执行 git reset --hard origin/master（无损，内容完全相同）」——
+        #    与 deploy_push.py 的 selfheal() 实现对不上（它跑的是 rebase），而且
+        #    reset --hard 会丢掉本地未推送的提交，**不是无损操作**。
+        #    照着一句错的提示敲命令是真会出事的（skill 里也专门写了「⛔ 不要在 rebase 前手写 reset --hard」），
+        #    故按实际实现改正。
 
     print('\n=== verify live ===')
     # ⛔ 别再把期望版本号写死在这里。曾写成 if found != '2.7.31': ok = False，
