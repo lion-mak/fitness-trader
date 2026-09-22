@@ -14,6 +14,9 @@ mp_lint.py —— 小程序工程静态检查（编译前把关）
   6. WXML 里 bind*/catch* 绑定的方法名，在同名 .js 里确实定义了
   7. WXSS 的 @import 目标存在
   8. require() 的相对路径存在
+  9. 🔴 **WXSS 真编译**（调用 mp_wxss_check.py → 开发者工具自带的 wcsc.exe）
+     —— 新增于 2026-09-22，因为 1~8 全是静态检查，**放过了 `* { }` 通配符选择器**，
+        导致开发者工具「编译 .wxss 文件错误」整包白屏。静态检查不能替代真编译。
 
 用法：python promo/mp_lint.py
 """
@@ -152,6 +155,27 @@ for p in js_files:
             err(os.path.relpath(p, MINI), "require 路径不存在：%s" % spec)
 oks.append("require 相对路径全部有效")
 
+# ---------- 9. WXSS 真编译（wcsc，开发者工具自带编译器）----------
+# 🔴 这一项是 2026-09-22 补的，之前【漏了它】：
+#    静态检查看不出 `* { margin:0 }` 这类「文本完全合法、编译器判死」的写法，
+#    结果是开发者工具报「编译 .wxss 文件错误」→ **整包白屏 + tabBar 图标全变破图**
+#    （图标加载不了只是连带现象，别去查图标）。
+#    ⇒ 教训：样式改动必须过真编译器；静态检查**不能**替代真编译。
+PROMO = os.path.dirname(os.path.abspath(__file__))
+WXSS_CHECK = os.path.join(PROMO, "mp_wxss_check.py")
+if os.path.isfile(WXSS_CHECK):
+    r = subprocess.run([sys.executable, WXSS_CHECK], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    if r.returncode == 0:
+        oks.append("WXSS 全部通过官方编译器 wcsc")
+    else:
+        detail = [l.strip() for l in (r.stdout or "").split("\n")
+                  if l.strip().startswith("[FAIL]") or l.strip().startswith("ERR")]
+        err("WXSS", "真编译失败：%s（完整报告 promo/_wxss_check_out.txt）"
+            % (" / ".join(detail) if detail else "见报告"))
+else:
+    warn("WXSS", "未找到 mp_wxss_check.py —— 跳过了真编译，静态检查不能替代它！")
+
 # ---------- 报告 ----------
 out = []
 out.append("mp_lint 报告 —— 小程序工程静态检查")
@@ -174,7 +198,7 @@ if errs:
     out.append("")
     out.append("RESULT=FAIL")
 else:
-    out.append("【错误】0 项 —— 工程结构完整，可以编译")
+    out.append("【错误】0 项 —— 工程结构完整，且已通过官方 wcsc 编译器")
     out.append("")
     out.append("RESULT=OK")
 

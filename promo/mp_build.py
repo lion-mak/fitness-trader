@@ -357,6 +357,31 @@ calc_js = header + "".join(body_parts) + footer
 wxss = css
 wxss = wxss.replace(":root {", "page {", 1)
 wxss = wxss.replace("body {", "page {", 1)
+
+# 🔴 通配符选择器 `*` —— WXSS **不支持**，wcsc 直接报
+#    `unexpected token *`（行首列首），**整包编译失败 ⇒ 全站白屏**。
+#    2026-09-22 事故：开发者工具报「编译 .wxss 文件错误」，5 个 tab 图标全是破图、页面全白，
+#    根因就是这一行 `* { margin:0; padding:0; box-sizing:border-box; }`。
+#    ⚠️ 不能只删掉：小程序默认 box-sizing 是 content-box，PWA 全局 border-box，
+#    删了布局会整体错位 ⇒ 必须**展开成小程序真实标签列表**（WXSS 只认 element 选择器）。
+WXSS_TAGS = (u"page, view, scroll-view, swiper, swiper-item, cover-view, text, rich-text, "
+             u"image, canvas, button, input, textarea, label, picker, picker-view, slider, "
+             u"switch, navigator, form, checkbox, radio, progress, icon, video, map, "
+             u"open-data, web-view, editor, ad, official-account")
+n_star = len(re.findall(r"(?m)^\*\s*\{", wxss))
+wxss = re.sub(r"(?m)^\*\s*\{", WXSS_TAGS + u" {", wxss, count=1)
+if n_star != 1:
+    print(u"⚠️  警告：源 CSS 里 `* {` 出现 %d 次（预期 1）—— 请检查是否还有未展开的通配符选择器"
+          u"（多出来的会继续让 wcsc 报错）" % n_star)
+
+# 把展开用的标签清单落盘：mp_wxss_check.py 靠它把「我加进去的合法标签」从
+# 「PWA 独有的 HTML 标签（在小程序里静默失效）」里排除掉，避免清单变成噪音。
+# ⚠️ 落盘要保持 WXSS_TAGS **原样**（含 ", " 分隔）—— 负控脚本要拿它精确匹配
+#    生成出来的那一行；两边格式一旦不一致，负控就会「验证了个寂寞」（2026-09-22 踩过）。
+_tagfile = os.path.join(os.path.dirname(os.path.abspath(__file__)), u"_wxss_tags.txt")
+with io.open(_tagfile, "w", encoding="utf-8", newline="") as fh:
+    fh.write(WXSS_TAGS)
+
 REPL = [
     # PWA 专属 / 小程序不支持 —— 逐条替换（每条都写明为什么）
     (r"backdrop-filter:\s*blur\([^)]*\);", ""),        # 小程序不支持；该处底色 alpha .92，改实色无视觉差
