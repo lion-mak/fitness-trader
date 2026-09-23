@@ -252,6 +252,17 @@ DE_DOM = {
          u"    __fire('celebrate', { date: dateStr, net: net, streak: state.limitUpStreak });"),
         (r"(?m)^[ \t]*var cb=document\.getElementById\('celeb'\).*$", u""),
     ],
+    # drawCard 同理（2026-09-23）：它 99% 是纯计算（扣币 / 抽卡 / 十连保底 / 满星返币 /
+    # 记 totalDraws / 落盘），只有收尾两行是「开结果弹层 + 重绘图鉴」。
+    # ⚠️ 但**不能**就这么留着 —— 自动生成的钩子空壳只转发 arguments[0]：
+    #     showGachaResult(results, refundTotal) → __fire('showGachaResult', results)
+    #   ⇒ refundTotal 被静默丢掉，「满星重复卡已转化 +N 币」那一句永远不显示，
+    #     而币其实已经加进 state 了（账对得上、界面少一句话，最难查的一类）。
+    #     换成单对象钩子把两个参数一起传出去。
+    "drawCard": [
+        (r"(?m)^[ \t]*showGachaResult\(results, refundTotal\);[ \t]*\n[ \t]*renderGacha\(\);[ \t]*$",
+         u"  __fire('gachaResult', { results: results, refundTotal: refundTotal });"),
+    ],
 }
 de_dom_done = []
 for _f in funcs:
@@ -548,6 +559,17 @@ ADAPT = u"""
    ⚠️ 写成固定 21px 而不是 line-height:1.5：1.5 只是 21/14 的巧合，字号一改就漂；
       这里要表达的是「与 PWA <select> 的内容盒同高」。 */
 .field .pick { line-height: 21px; }
+
+/* 同上一类：抽卡页的两个大按钮（.gacha-btn）与里程碑领取按钮（.ms-btn）在 PWA 里也是
+   <button>，小程序换成 <view> 后行高从 UA 值变成继承的 1.6。
+   ⚠️ 值必须是 **1.333**，不是 1.3 —— ⑥c 实测（2026-09-23）：
+      写 1.3 时 `.gacha-btn` 高 61.8 vs PWA 63（dh=-1.2），把整卡与后续卡片全顶偏 1.2px；
+      反推 PWA 的 UA 行盒：.big(15px) → 20px、.cost(11px) → 15px，比值正是 4/3。
+      改 1.333 后 .big 19.995→20、.cost 14.66→15、.ms-btn 12×1.333=16 ⇒ 两端对齐。
+   ⚠️ 与 .confirm(1.333) 同源；.ghost-btn 那条是 1.3（当年按 36.9 vs 37 的残差定的），
+      两者不冲突：它们字号与容器不同，各自按实测值收敛。 */
+.gacha-btn { line-height: 1.333; }
+.ms-btn { line-height: 1.333; }
 """
 
 wxss = (u"/* app.wxss —— 由 promo/mp_build.py 从 PWA index.html 的 <style> 自动生成，勿手工编辑。\n"

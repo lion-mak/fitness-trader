@@ -424,4 +424,9 @@ const summary = (fails.length ? 'RESULT=FAIL (' + fails.length + ')' : 'RESULT=O
 out(summary);
 out('='.repeat(78));
 fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf-8');
+/* ⚠️ 明细必须**同时**打到 stdout：out() 只攒进 lines（落文件），
+   而 _run_all_asserts.py 的「独立数 ✗ 行」读的是 stdout ⇒ 不补这一行，
+   那道「假 OK 守卫」对本题就是**空转**的（数到 0 看着像通过，实际压根没读到）。
+   收尾写法与 mp_me_test.js 保持一致。 */
+console.log(lines.join('\n'));
 process.exit(fails.length ? 1 : 0);

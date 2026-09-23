@@ -35,13 +35,25 @@ GATES = {
     "food":      (NODE, "mp_food_test.js",      [], 10),
     "migrate":   (NODE, "mp_migrate_test.js",   [], 10),
     "market":    (NODE, "mp_market_test.js",    [], 16),
+    "trade":     (NODE, "mp_trade_test.js",     [], 12),
+    "board":     (NODE, "mp_board_test.js",     [], 12),
+    "me":        (NODE, "mp_me_test.js",        [], 12),
+    "ach":       (NODE, "mp_ach_test.js",       [], 12),
+    "gacha":     (NODE, "mp_gacha_test.js",     [], 12),
     "smoke":     (NODE, "mp_smoke.js",          [], 14),
     "kline":     (VENV, "mp_kline_compare.py",  [], 14),
     "rectmp":    (VENV, "mp_rect_market.py",    [], 30),
+    # ⑥b/⑥c 需要开发者工具已拉起（9420），不在默认集合里
+    "recttrade": (VENV, "mp_rect_trade.py",     [], 30),
+    "rectboard": (VENV, "mp_rect_board.py",     [], 30),
+    "rectme":    (VENV, "mp_rect_me.py",        [], 30),
+    "rectach":   (VENV, "mp_rect_ach_gacha.py", [], 30),
     "negwxss":   (PY,   "negctl_wxss.py",       [], 14),
     "negfoods":  (PY,   "negctl_foods.py",      [], 14),
+    "negach":    (PY,   "negctl_ach_gacha.py",  [], 18),
 }
-DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "smoke"]
+# ⚠️ 新页面/新套件上线后**必须往这里加**：默认集合漏了某套 = 那套再没人跑。
+DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "smoke"]
 
 
 def run(name):

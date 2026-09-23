@@ -30,6 +30,12 @@ const MINI = 'E:\\WeChatProjects\\jianpan\\miniprogram';
 const OUT = path.join(__dirname, '_smoke_out.txt');
 const LAST_LABEL = { v: '' };
 
+/* 第 2 遍要逐个跑生命周期的页面。子页也放进来：「新页面上线即白屏」这类事故
+   只有这一遍能挡住（漏写 class="page active" / require 路径错 / onLoad 读空对象…）。
+   2026-09-23 补上一直缺席的 coins/level，并加上新复刻的 achievements/gacha。 */
+const PAGE_LIST = ['market', 'holdings', 'trade', 'board', 'me',
+                   'coins', 'level', 'achievements', 'gacha'];
+
 const lines = [];
 const errors = [];
 const calls = [];
@@ -193,7 +199,9 @@ function runPass(idx, label, seed) {
   log('云：' + (captured.app.globalData.cloudReady ? '已初始化' : '未初始化（预期：mock 无 wx.cloud）'));
   log();
 
-  const PAGES = ['market', 'holdings', 'trade', 'board', 'me'];
+  /* ⚠️ 子页也要进来：「新页面上线即白屏」这类事故只有这一遍能挡住
+     （漏写 class="page active" / require 路径错 / onLoad 里读空对象...）。 */
+  const PAGES = PAGE_LIST;
   for (const name of PAGES) {
     captured.pages.length = 0;
     const p = path.join(MINI, 'pages', name, name + '.js');
@@ -1067,7 +1075,7 @@ setTimeout(function () {
     log('RESULT=FAIL —— ' + errors.length + ' 处抛错：');
     errors.forEach((e) => log('  · [' + e.name + '] ' + (e.err && e.err.message)));
   } else {
-    log('RESULT=OK —— 三遍（空存档 / 真实存档 / 导入验收）+ 5 个页面生命周期全部无异常');
+    log('RESULT=OK —— 三遍（空存档 / 真实存档 / 导入验收）+ ' + PAGE_LIST.length + ' 个页面生命周期全部无异常');
   }
   const text = lines.join('\n') + '\n';
   fs.writeFileSync(OUT, text, 'utf8');
