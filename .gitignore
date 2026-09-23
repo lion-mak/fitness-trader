@@ -19,6 +19,7 @@ promo/_edgeprofile*/
 promo/_*.js
 # 调试/清理用的临时脚本（一次性的像素水印清理、核验脚本等，不入仓）
 promo/_*.py
+promo/_*.css
 promo/_*.txt
 # 端到端验收测试的临时页与浏览器 profile（e2e_test.py 生成）
 _e2e.html
@@ -31,6 +32,8 @@ promo/_probe_backup/
 # 宣传图/截图成品与可再生的中间数据（体积大，随时可用脚本重跑）
 promo/*.png
 promo/*.json
+# 对拍用的截图与对照页（随时可用 mp_auto_shot.js / mp_rect_*.py 重跑）
+promo/_shots/
 # 像素比对脚本（mp_kline_compare.py）生成的临时对照页，可随时重跑
 promo/_*.html
 # 内部商业/技术规划文档（含策略信息，不入公开仓库）

@@ -230,6 +230,44 @@ SKIP_DECL = lambda d: (
 consts = [d for d in decls if d["kind"] == "decl" and not SKIP_DECL(d)]
 skipped_decls = [d for d in decls if d["kind"] == "decl" and SKIP_DECL(d)]
 funcs = [d for d in decls if d["kind"] == "func"]
+
+# ────────────────────────────────────────────────────────────────
+# 2b. DE_DOM —— 把「只沾了一点 DOM」的函数还原成纯计算函数
+#
+# 为什么需要这一步（2026-09-22 实测踩到的真坑）：
+#   settleDay() 里 99% 是状态计算（连板计数、发币、加经验、幂等锚），
+#   只有末尾两行在显示一个视觉反馈（把缺口数字塞进涨停庆祝层）。
+#   DARK 判据看到 document.getElementById 就把它整只判成「渲染档」⇒ 变成 no-op 空壳
+#   ⇒ **币、连板、经验一分不发**，而且不报错、页面看着正常，是纯静默失效。
+#   app.js 明明调了 checkDayRollover()，但里面调的 settleDay/saveState 全是空壳。
+#
+# 处理方式：把 DOM 那两行换成一次钩子调用，函数就回到纯计算档，
+#   于是它的逻辑**一字不改**地被抽进 calc.js（而不是变成空壳）。
+#   ⚠️ 替换后必须收敛校验：DARK 痕迹没清干净就直接报错退出，
+#      否则会「以为修好了、其实又生成了个空壳」—— 这正是这个坑最难查的地方。
+# ⚠️ 只在**确实无法在纯函数层表达**才加进来；能整体搬就整体搬。
+DE_DOM = {
+    "settleDay": [
+        (r"(?m)^[ \t]*var ce=document\.getElementById\('celeb-net'\).*$",
+         u"    __fire('celebrate', { date: dateStr, net: net, streak: state.limitUpStreak });"),
+        (r"(?m)^[ \t]*var cb=document\.getElementById\('celeb'\).*$", u""),
+    ],
+}
+de_dom_done = []
+for _f in funcs:
+    if _f["name"] not in DE_DOM:
+        continue
+    for _pat, _rep in DE_DOM[_f["name"]]:
+        _f["body"], _n = re.subn(_pat, _rep, _f["body"])
+        if _n == 0:
+            raise SystemExit(u"❌ DE_DOM 的规则没命中 %s：%s —— 源函数改了？请同步更新 mp_build.py"
+                             % (_f["name"], _pat))
+    _left = DARK.search(_f["body"])
+    if _left:
+        raise SystemExit(u"❌ DE_DOM 未能清干净 %s 的 DOM 痕迹（还残留 %r）"
+                         % (_f["name"], _left.group(0)))
+    de_dom_done.append(_f["name"])
+
 pure = [f for f in funcs if not DARK.search(f["body"])]
 dirty = [f for f in funcs if DARK.search(f["body"])]
 # 可变（let/var）顶层声明的名字 —— 列进报告，便于人工确认没有把状态变量当常量搬走
@@ -246,6 +284,11 @@ Infinity NaN undefined null true false this arguments return var let const funct
 new typeof instanceof void delete in of if else for while do switch case break continue
 try catch finally throw class extends super yield async await
 """.split())
+
+# 宿主注入的三个符号（在生成出来的 calc.js 头部定义，不是从 PWA 抽出来的）。
+# 不列进来的话它们会掉进「② 找不到定义的名字」那一栏，把真问题淹掉 ——
+# DE_DOM 用它把渲染行换成钩子调用，必然会出现 __fire。
+KNOWN_GLOBAL |= {"__fire", "bindState", "bindHooks"}
 
 CMT_RE = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 STR_RE = re.compile(r"'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"|`(?:[^`\\]|\\.)*`", re.S)
@@ -345,8 +388,30 @@ for f in pure:
 
 # 导出：所有常量名 + 纯函数名 + 被内核调用的钩子同名（页面层要能覆盖它们）
 exports = sorted(kept_names | set(NEEDS_RENDER) | {"bindState", "bindHooks", "NutritionEngine"})
+
+# 🔴 顶层「可变原始值」变量必须用 getter 导出，⛔不能用 `X: X`。
+#    为什么：`X: X` 是**值快照** —— 取 module.exports 的那一刻就把当前值抄进去了。
+#    内核里 `trendRange = r` / `lbRange = 'month'` / `switchTab('holdings')` 改的是**模块内的
+#    那个 let 绑定**，而 exports 上的副本纹丝不动 ⇒ 页面侧读到的永远是初始值。
+#    2026-09-22 实测踩坑：持仓页 `calc.trendRange` 恒为 'all'，切档后 tab 高亮与副标题都不跟着变，
+#    但柱子却按新档位重画了（setTrendRange 内部确实改了内核那份）—— 表现为「点了没反应」。
+#    getter 每次读取才求值，两条视图从此永远一致。
+LIVE_VARS = {"trendRange", "lbRange", "historyRange", "curTab", "curBodyIdx",
+             "ocrFilled", "ocrBusy", "klineGeom"}
+_live = sorted(LIVE_VARS & set(exports))
+_missing_live = sorted(LIVE_VARS - set(exports))
+for _n in _missing_live:   # 收敛校验：名单里的名字必须真被抽取到了，否则说明摘录范围变了
+    if not re.search(r"(?m)^(?:let|var)\s+%s\s*=" % _n, MAIN_JS):
+        raise SystemExit(u"❌ LIVE_VARS 里的 %s 既没被导出、也不在源里 —— 名单过期了" % _n)
+
 footer = u"\n/* ---- 导出 ---- */\nmodule.exports = {\n"
-footer += "".join(u"  %s: %s,\n" % (n, n) for n in exports if re.match(r"^[A-Za-z_$][\w$]*$", n))
+for n in exports:
+    if not re.match(r"^[A-Za-z_$][\w$]*$", n):
+        continue
+    if n in LIVE_VARS:
+        footer += u"  get %s() { return %s; },\n" % (n, n)
+    else:
+        footer += u"  %s: %s,\n" % (n, n)
 footer += u"};\n"
 
 calc_js = header + "".join(body_parts) + footer
@@ -413,9 +478,12 @@ for pat, rep in REPL:
 #   ⚠️ mp_wxss_check.py 现在把「页面里出现 @import」直接判 FAIL，别写回去。
 #
 # 内容约定：
-#   1) PWA 的 .page 有 80px 底部留白（给自绘底栏让位），小程序用原生 tabBar ⇒ 去掉
+#   1) PWA 的 .page 有 80px 底部留白 —— **要保留**（理由见下面 .page 那段注释）
 #   2) PWA 用 HTML 标签承载的语义（<small>/<b>…），小程序无该标签、选择器静默失效
 #      ⇒ 在这里用 class 补等价规则（.s / .kt-v …），页面里直接用 class
+#   3) PWA 靠 CSS `display:none` 做「默认收起」的组件（.kw-row/.kline-tip/.hist-tip…），
+#      小程序侧显隐一律交给 wx:if ⇒ 适配层要把 display:none 改回可用值，
+#      否则标签渲染出来就带着 none，**永远展不开**（2026-09-22 踩过两次）
 ADAPT = u"""
 
 /* ════════════════════════════════════════════════════════════════
@@ -423,12 +491,63 @@ ADAPT = u"""
    共享样式写这里；页面 .wxss 只放本页增量，且**不要写 @import**。
    ════════════════════════════════════════════════════════════════ */
 
-/* PWA 的 .page 留 80px 底部给自绘底栏；小程序用原生 tabBar，去掉这段空白 */
-.page { padding-bottom: 0; }
+/* ⚠️ 这 80px **要保留**。
+   旧注释写的理由是「PWA 的 80px 是给自绘底栏占位，小程序用原生 tabBar 故去掉」——
+   前半句对、结论错：PWA 的 .tabbar 是 .app 的 flex 子元素（flex-shrink:0），
+   **已经在 .screen 之外**，.screen 高度本来就不含底栏 ⇒ 这 80px 是「内容滚到底之后的
+   视觉呼吸」，不是给底栏留的布局补偿。
+   实测（2026-09-22 元素级对拍 mp_rect_compare.py）：抹成 0 之后小程序滚到底时
+   最后一行紧贴底栏，而 PWA 还有 80px 留白 —— 两端 scrollHeight 正好差这 80px。
+   （小程序原生 tabBar 会自己占掉页面可视区，所以这里不用再加底栏高度。） */
+.page { padding-bottom: 80px; }
 
 /* PWA 顶栏副标题用 <small>（小程序无此标签），改用 .s */
 .pheader .lt .id { font-size:15px; font-weight:500; color:#fff; }
 .pheader .lt .s { display:block; color:var(--muted); font-size:10px; font-weight:400; }
+
+/* 🔴 .kw-row（快速记录输入行）—— PWA 靠 `display:none` 做「默认收起」，
+   JS 里再改 style.display='flex' 展开。小程序侧**不能照搬**：
+   页面改用 wx:if / class 控制「在不在」，标签一旦渲染出来就已经带着
+   `display:none` ⇒ 怎么点都出不来（2026-09-22 实测：行情页「⚖️ 记体重」
+   点开是空的，行高为 0，看着像没反应）。
+   ⇒ 在适配层把默认值改成 flex，显隐交给 wx:if。
+   ⚠️ 加 `.show` 类也认（允许两种写法），语义一致。 */
+.kw-row { display:flex; }
+
+/* 🔴 小程序的 <input> **内容盒会塌成 0** —— 这条不修，所有表单都比 PWA 矮一截。
+   ⑥c 实测（2026-09-23，我的页身体档案）：
+     PWA `.field input` 高 43px（padding 22 + border 2 + 文本行盒 19）
+     小程序 `.field .inp` 高 24px（**只剩 padding 22 + border 2，内容盒 0**）
+   7 个输入框每个矮 19px ⇒ `.edit-fields` 整整短 111.2px，下游 .bmr-box / .bmr-tip /
+   .confirm.sell 全部连坐偏移 —— 而且页面看着「没坏」，只是比 PWA 紧凑。
+   ⚠️ 不能只在小程序里写 `.inp` 的样式：PWA 的规则挂在 `.field input` 上，
+      将来交易页录入口（同样的表单）会再踩一次 ⇒ 修在全局层。
+   ⚠️ 这里给的是**总高**（全局 `*` 展开后 box-sizing:border-box 已对 input 生效），
+      所以 43 = 22 + 2 + 19 一步到位，不用再算行高。 */
+.field input { height: 43px; }
+
+/* 🔴 PWA 的 .confirm 是 <button>，UA 默认行高 ≈ 1.333（不是继承页面的 1.6）。
+   小程序把它换成 <view> 后继承页面 line-height:1.6 ⇒ 实测高 52 vs 48。
+   金币页的 .gap-note 因此整体下移 4px（连坐）。
+   ⚠️ .mini-btn 不受影响：PWA 自己在源码里就写了 line-height:1.3（作者早知道这个坑）。 */
+.confirm { line-height: 1.333; }
+
+/* 同上：PWA 的 .ghost-btn 也是 <button>（龙虎榜复盘卡的「换一换/分享」）。
+   板页曾在本页 wxss 里补过 .rv-acts .ghost-btn{line-height:1.3}（36.9 vs 37），
+   既然是同类问题，统一收到这里，页面不再各自打补丁。 */
+.ghost-btn { line-height: 1.3; }
+
+/* 🔴 PWA 的 <select> 在小程序里换成 picker 里的 <view>，**内容盒高度不同**。
+   ⑥c 实测（2026-09-23，我的页身体档案的两个下拉）：
+     PWA `.field select` 高 45px（padding 22 + border 2 + UA 内容盒 21）
+        ⚠️ <select> 的 UA 行高不是 normal 的 1.15 —— Chrome 对 14px 字号给的内容盒正好 21px，
+           不能按 line-height 推算，只能用实测值。
+     小程序 `.field .pick` 高 46.4px（padding 22 + border 2 + 继承行高 1.6 ⇒ 14×1.6 = 22.4）
+   ⇒ 每个下拉行高 1.4px，我的页两个下拉共 2.8px，`.edit-fields` 之后的 .bmr-* 系与
+     .confirm.sell 全部连坐下移 2.8px（8 项超阈值）。
+   ⚠️ 写成固定 21px 而不是 line-height:1.5：1.5 只是 21/14 的巧合，字号一改就漂；
+      这里要表达的是「与 PWA <select> 的内容盒同高」。 */
+.field .pick { line-height: 21px; }
 """
 
 wxss = (u"/* app.wxss —— 由 promo/mp_build.py 从 PWA index.html 的 <style> 自动生成，勿手工编辑。\n"
@@ -455,6 +574,154 @@ ne_m = re.sub(r"\}\)\(\);\s*$", "})();\n\nmodule.exports = NutritionEngine;\n", 
 if "module.exports" not in ne_m:
     ne_m += "\nmodule.exports = NutritionEngine;\n"
 emit(os.path.join(MINI, "lib", "nutrition-engine.js"), ne_m, u"纯计算引擎（原样 + 导出）")
+
+# ────────────────────────────────────────────────────────────────
+# 6a. data/py-initials.json → data/py-initials.js
+#
+# 汉字 → 拼音首字母表（1119 条 / 10.9 KB）。PWA 里由 FoodStore 懒 fetch，
+# 只服务一个用途：给**自建食物**算拼音首字母（库里的食物本来就有现成的 py/ini 字段）。
+# ⇒ 量很小，直接内联成模块，让 FoodStore 同步可用。
+# ⚠️ 少了它不会报错：initialsOf() 会静默返回空串 ⇒ 自建食物搜不到拼音
+#    （而中文名搜索照常），属于「看着正常其实坏了一半」的那类。
+pi_path = os.path.join(ROOT, "data", "py-initials.json")
+if os.path.isfile(pi_path):
+    pi = json.loads(read(pi_path))
+    pi_js = (u"/* data/py-initials.js —— 由 promo/mp_build.py 从 data/py-initials.json 生成。\n"
+             u" * 汉字→拼音首字母表，只给自建食物算 ini 用（库里食物自带 py/ini）。\n"
+             u" */\nmodule.exports = " % ()
+             + json.dumps(pi, ensure_ascii=False, separators=(",", ":")) + u";\n")
+    emit(os.path.join(MINI, "data", "py-initials.js"), pi_js,
+         u"拼音首字母表 %d 字" % len(pi))
+else:
+    print(u"⚠️  警告：data/py-initials.json 不存在 —— 自建食物的拼音搜索会静默失效")
+
+# ────────────────────────────────────────────────────────────────
+# 6b. js/food-store.js → lib/food-store.js（食物搜索 / 索引层）
+#
+# 为什么必须迁它：交易页的「加食物」、大盘云图、今日板块全读它
+#   （search / byName / categories / toGrams），是那三块的共同前置。
+#   ⇒ 它是「按依赖排顺序」里的第 1 块，不做它后面几块只能对着空列表做。
+#
+# 三处适配（其余逐字节照搬）：
+#   1) 数据源：小程序不能 fetch 本地 json ⇒ 两个 data/*.json 已转成同步 require 的 JS 模块
+#   2) 自建食物：localStorage → wx.getStorageSync/setStorageSync（键名照旧，
+#      且兼容 PWA 留下的 JSON 串形态 —— 迁移过来能直接读）
+#   3) load() 简化：数据同步就绪，不需要「懒加载 + 失败降级」两段式；FALLBACK 分支保留
+# ⚠️ score / search / buildIndex / initialsOf / toGrams 一行不改 ——
+#    搜索排序口径必须与 PWA 一致，否则两端搜同一个词得到不同结果。
+fs_src = read(os.path.join(ROOT, "js", "food-store.js"))
+
+FOODSTORE_REPL = [
+    (r"var DATA_URL = 'data/foods\.json';[\r\n]+[ \t]*var PY_URL = 'data/py-initials\.json';",
+     u"var DATA = require('../data/foods.js');       // 由 mp_build.py 从 data/foods.json 生成\n"
+     u"  var PY = require('../data/py-initials.js');   // 由 mp_build.py 从 data/py-initials.json 生成"),
+
+    # DATA_URL 随数据源一起消失（小程序没有「url」这个概念）。
+    # 实测 PWA 侧没有任何地方读 FoodStore.DATA_URL（只在本文件内部用于 fetch），
+    # 所以不需要留兼容壳 —— 留着反而是个「指向不存在文件的常量」这种假线索。
+    (r"    DATA_URL: DATA_URL,\n", u""),
+
+    (r"var raw = localStorage\.getItem\(CUSTOM_KEY\);[\r\n]+"
+     r"[ \t]*var arr = raw \? JSON\.parse\(raw\) : \[\];[\r\n]+"
+     r"[ \t]*return Array\.isArray\(arr\) \? arr : \[\];",
+     u"var raw = wx.getStorageSync(CUSTOM_KEY);\n"
+     u"      // PWA 存的是 JSON 串；从 PWA 迁移过来的可能就是这个形态，一并认\n"
+     u"      if (typeof raw === 'string') raw = raw ? JSON.parse(raw) : [];\n"
+     u"      return Array.isArray(raw) ? raw : [];"),
+
+    (r"try \{ localStorage\.setItem\(CUSTOM_KEY, JSON\.stringify\(list\)\); \} catch \(e\) \{\}",
+     u"try { wx.setStorageSync(CUSTOM_KEY, list); } catch (e) {}"),
+
+    # 导出补三项：供 lib/migrate.js 把自建食物一起搬（PWA 的迁移码默认不含它）
+    (r"    toGrams: toGrams\n  \};",
+     u"    toGrams: toGrams,\n"
+     u"    /* 以下三项是 mp_build.py 加的（PWA 不导出）—— 供 lib/migrate.js 搬自建食物 */\n"
+     u"    CUSTOM_KEY: CUSTOM_KEY,\n"
+     u"    loadCustom: loadCustom,\n"
+     u"    saveCustom: saveCustom\n  };"),
+]
+
+# load() 整段替换（懒加载两段式 → 同步就绪；FALLBACK 分支保留）
+FS_LOAD_RE = re.compile(r"/\* ---------- 加载 ---------- \*/.*?function ready\(\) \{ return load\(\); \}", re.S)
+FS_LOAD_NEW = u"""/* ---------- 加载（小程序适配：数据已内联为 JS 模块，同步就绪） ---------- */
+
+function applyData(json) {
+  meta = json.meta || null;
+  var list = (json.foods || []).slice();
+  // 自建食物排在最前，便于优先命中（与 PWA 一致）
+  var custom = loadCustom();
+  foods = custom.concat(list);
+  buildIndex();
+  status.state = 'ready';
+  status.source = 'json';
+  status.count = foods.length;
+  return status;
+}
+
+/**
+ * 同步就绪版的 load()。保留 Promise 形态是为了与 PWA 调用方（FoodStore.ready().then(...)）
+ * 完全兼容 —— 页面代码两边可以长得一样。
+ * ⚠️ 失败时仍降级到 FALLBACK，不抛异常：FALLBACK 分支是「功能不能整块消失」的保证。
+ */
+function load() {
+  if (status.state === 'ready') return Promise.resolve(status);
+  if (loadingPromise) return loadingPromise;
+
+  loadingPromise = new Promise(function (resolve) {
+    try {
+      pyMap = PY || {};
+      if (!DATA || !DATA.foods || !DATA.foods.length) throw new Error('食物库模块为空');
+      resolve(applyData(DATA));
+    } catch (err) {
+      foods = loadCustom().concat(FALLBACK.map(function (f, i) {
+        var c = JSON.parse(JSON.stringify(f));
+        c.id = 'fb' + (i + 1);
+        c.alc = c.alc || 0;
+        c.conv = c.conv || [];
+        c.py = ''; c.ini = '';
+        return c;
+      }));
+      buildIndex();
+      status.state = 'ready';
+      status.source = 'fallback';
+      status.error = String(err && err.message || err);
+      status.count = foods.length;
+      resolve(status);
+    }
+  });
+
+  return loadingPromise;
+}
+
+function ready() { return load(); }"""
+
+fs_m = fs_src
+for _pat, _rep in FOODSTORE_REPL:
+    fs_m, _n = re.subn(_pat, _rep, fs_m)
+    if _n != 1:
+        raise SystemExit(u"❌ food-store 适配规则命中 %d 次（预期 1）：%s" % (_n, _pat[:70]))
+fs_m, _n = FS_LOAD_RE.subn(FS_LOAD_NEW, fs_m)
+if _n != 1:
+    raise SystemExit(u"❌ food-store 的「加载」整段替换命中 %d 次（预期 1）" % _n)
+
+fs_js = (u"/* lib/food-store.js —— 由 promo/mp_build.py 从 js/food-store.js 生成，勿手工编辑。\n"
+         u" * 食物搜索 / 索引层。搜索相关函数与 PWA 逐字节一致；差异只在「数据源 / 自建食物落盘 /\n"
+         u" * 加载方式」三处小程序适配，逐条写在文件末尾的适配说明里。\n"
+         u" */\n") + fs_m.rstrip() + u"\n"
+
+fs_js += (u"\n/* ============================================================\n"
+          u" * 小程序适配说明（与 PWA 的差异，逐条列明）\n"
+          u" *   1) 数据源：不再 fetch，data/foods.js + data/py-initials.js 同步 require\n"
+          u" *   2) 自建食物：localStorage → wx.setStorageSync（键名 jianpan_custom_foods_v1 不变，\n"
+          u" *      getStorageSync 兼容 PWA 留下的 JSON 串形态 ⇒ 迁移过来能直接读）\n"
+          u" *   3) load() 简化：数据同步就绪，不再需要「懒加载 + 失败降级」两段式；\n"
+          u" *      FALLBACK 分支保留，失败时功能不整块消失\n"
+          u" *   4) 多导出 CUSTOM_KEY / loadCustom / saveCustom，供 lib/migrate.js 搬自建食物\n"
+          u" * ⚠️ 除以上四点，score / search / buildIndex / initialsOf / toGrams 与 PWA 逐字节一致\n"
+          u" *    —— 搜索排序口径必须一致，否则用户在两端搜同一个词会得到不同结果。\n"
+          u" * ============================================================ */\n"
+          u"module.exports = FoodStore;\n")
+emit(os.path.join(MINI, "lib", "food-store.js"), fs_js, u"食物搜索层（同步数据源 + wx storage）")
 
 # foods.json → data/foods.js
 #
@@ -507,6 +774,10 @@ lines.append(u"")
 lines.append(u"【函数分档】")
 lines.append(u"  纯计算 %3d 个 → lib/calc.js（与 PWA 逐字节一致）" % len(pure))
 lines.append(u"  渲染   %3d 个 → 不抽取，由 pages/ 重写" % len(dirty))
+if de_dom_done:
+    lines.append(u"  ↗ 其中 %d 个是 DE_DOM 从「渲染档」救回「纯计算档」的（DOM 行换成钩子调用）：" % len(de_dom_done))
+    for n in de_dom_done:
+        lines.append(u"      · %s" % n)
 lines.append(u"")
 lines.append(u"【可变顶层声明（let/var）】%d 个 —— 逐个确认它们不是「状态持有者」：" % len(mutable))
 if mutable:

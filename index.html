@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.56"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.57"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5434,7 +5434,6 @@ function renderBmrBox() {
     b = NutritionEngine.bmr(getUserProfile());
     t = NutritionEngine.tdee(getUserProfile());
   } catch (e) { return; }
-  const missing = b.missing || [];
   const advice = (b.advice || []).filter(function (a) { return /未填|缺失|只能/.test(a); });
   el.innerHTML =
     '<div class="bmr-row"><div class="bmr-cell"><div class="bmr-v">' + b.value + '<small>kcal/天</small></div><div class="bmr-l">基础代谢 BMR</div>' +
@@ -5442,7 +5441,11 @@ function renderBmrBox() {
     '<div class="bmr-cell"><div class="bmr-v">' + t.value + '<small>kcal/天</small></div><div class="bmr-l">每日总消耗 TDEE</div>' +
     '<div class="bmr-f">TDEE = BMR × ' + t.pal + '（' + t.activityName + '）</div><div class="bmr-f">误差：' + t.error + '</div></div></div>' +
     (advice.length ? '<div class="bmr-tip">⚠ 降级提示：' + advice.join('；') + '</div>' : '') +
-    (missing.indexOf('bodyFat') < 0 ? '<div class="bmr-tip">✓ 已填体脂率，采用 Katch-McArdle（误差 ' + b.error + '）</div>' : '');
+    /* 判定必须看 b.lbm（内核 js/nutrition-engine.js：bodyFat 非 null 时才有值），
+       ⛔不能用 b.missing.indexOf('bodyFat')：体脂率是可选字段，缺失只进 advice、**不进 missing**
+       ⇒ 旧写法恒为真，未填体脂时同一屏会打出「⚠ 未填体脂率，只能使用 Mifflin-St Jeor」
+       与「✓ 已填体脂率，采用 Katch-McArdle」两句互相矛盾的文案。 */
+    (b.lbm !== null ? '<div class="bmr-tip">✓ 已填体脂率，采用 Katch-McArdle（误差 ' + b.error + '）</div>' : '');
 }
 document.querySelectorAll('#f-bf,#f-rhr,#f-act,#f-gender,#f-age,#f-height,#f-weight').forEach(function (inp) {
   inp.addEventListener('input', renderBmrBox);

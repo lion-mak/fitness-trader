@@ -110,6 +110,26 @@ try {
   process.exit(2);
 }
 
+/* ---------- 导入后的「成就补发额」——独立算，不调 progress.js ----------
+ * importPayload 会**补判成就**（导入的是别处的历史，本机从没为它判过）⇒ 健康币 = 存档币 + 补发额。
+ * 差额本身可以独立算出来：把「存档里没标 true、导入后标了 true」的成就挑出来，
+ * 按 `ACHIEVEMENTS` 的 reward 求和 —— 只读数据表，不调被测实现（progress.sync）。
+ * ⚠️ 别把 `eq(got.coins, MOCK_STATE.coins)` 改回写死的 10850：那样只能证明「今天恰好是这个数」；
+ *    算出来的差额还能顺带管住「补发项集合是否变了」。
+ * 📌 PWA 侧实测真值（playwright，见 promo/_probe_pwa_state.py）：同一份 mock 灌进 PWA
+ *    ⇒ 8640 → **10850**、ach 真值 26 ⇒ 两端同值（补发额 2210）。 */
+function achGain(calcMod, beforeAch, afterAch) {
+  let sum = 0;
+  Object.keys(afterAch || {}).forEach((k) => {
+    if (afterAch[k] && !(beforeAch || {})[k]) {
+      const a = calcMod.ACHIEVEMENTS.find((x) => x.id === k);
+      if (a) sum += a.reward;
+    }
+  });
+  return sum;
+}
+const PWA_COINS_AFTER_IMPORT = 10850;
+
 log('数据迁移单元测试 —— lib/migrate.js / lib/store.js');
 log('='.repeat(78));
 log('工程：' + MINI);
@@ -260,7 +280,11 @@ head('5. 真实导入 —— 用 PWA 真实存档走完整链路');
   eq('导入后 · 运动条数 = 88', got.exercise, MOCK_STATE.exercise.length);
   eq('导入后 · 体重条数 = 48', got.weight, MOCK_STATE.weightLog.length);
   eq('导入后 · 天数（独立实现对照）', got.days, EXPECT_DAYS);
-  eq('导入后 · 健康币', got.coins, MOCK_STATE.coins);
+  const gain = achGain(ctx.calc, MOCK_STATE.ach, store.get().ach);
+  eq('导入后 · 健康币 = 存档 ' + MOCK_STATE.coins + ' + 成就补发 ' + gain,
+    got.coins, MOCK_STATE.coins + gain);
+  eq('导入后 · 补发额与 PWA 实测一致（' + PWA_COINS_AFTER_IMPORT + '）',
+    got.coins, PWA_COINS_AFTER_IMPORT);
   eq('导入后 · 段位（exp ' + MOCK_STATE.exp + ' → Lv'
     + (Math.floor(MOCK_STATE.exp / 100) + 1) + '）', got.rank,
     (function () {
@@ -310,7 +334,12 @@ head('6. 替换语义 —— 本机有数据时导入，结果只由存档决定
   eq('导入前本机饮食 2 笔', migrate.survey(store.get()).diet, 2);
   const got = migrate.applyImport(migrate.parse(MOCK_TEXT));
   eq('导入后饮食 = 存档的 388 笔（不是 390）', got.diet, MOCK_STATE.diet.length);
-  eq('导入后健康币 = 存档的 ' + MOCK_STATE.coins + '（不是本机 99999）', got.coins, MOCK_STATE.coins);
+  /* ⚠️ 「不是本机 99999」这条不变（那才是本测试的意图）；
+     但「= 存档的 8640」不再成立 —— 导入会补判成就（见 achGain 注释）。 */
+  eq('导入后健康币 ≠ 本机 99999（本机余额没残留）', got.coins !== 99999, true);
+  eq('导入后健康币 = 存档 ' + MOCK_STATE.coins + ' + 成就补发 '
+    + achGain(ctx.calc, MOCK_STATE.ach, store.get().ach),
+    got.coins, MOCK_STATE.coins + achGain(ctx.calc, MOCK_STATE.ach, store.get().ach));
   eq('本机自定义常吃未残留', (store.get().usuals || []).filter(u => u.name === '本机常吃').length, 0);
   eq('本机脏数据未残留', (store.get().diet || []).filter(d => /本机脏数据/.test(d.name)).length, 0);
 }
@@ -327,6 +356,10 @@ head('7. 写入失败 → 必须回滚，本机数据一条不能少');
   s.diet.push({ date: '2026-09-20', name: '唯一的宝贵记录', kcal: 500 });
   s.coins = 1234;
   store.save();
+  /* ⚠️ 基线取在 save() **之后**：save() 会顺带补判成就并发币（那条饮食记录已满足 leek/tryorder），
+     1234 会变成 1234+140。「回滚」要保证的是**回到导入前的那一刻**，不是回到某个写死的数字；
+     下一条「与导入前逐字节一致」才是真正的主断言。 */
+  const coinsBeforeImport = store.get().coins;
   const beforeText = JSON.stringify(store.snapshotRaw());
 
   // 让下一次 setStorageSync 抛错（模拟存储配额满）
@@ -341,7 +374,7 @@ head('7. 写入失败 → 必须回滚，本机数据一条不能少');
   const after = store.snapshotRaw();
   eq('回滚后本机饮食仍是 1 笔', (after.diet || []).length, 1);
   eq('回滚后那条宝贵记录还在', (after.diet || [])[0].name, '唯一的宝贵记录');
-  eq('回滚后健康币仍是 1234', after.coins, 1234);
+  eq('回滚后健康币仍是导入前的 ' + coinsBeforeImport, after.coins, coinsBeforeImport);
   eq('回滚后 storage 与导入前逐字节一致', JSON.stringify(after), beforeText);
 }
 
@@ -456,7 +489,8 @@ head('10. 往返一致性 —— 导入后导出，条数与内容不漂移');
   eq('导出 · 饮食条数', r1.diet, MOCK_STATE.diet.length);
   eq('导出 · 运动条数', r1.exercise, MOCK_STATE.exercise.length);
   eq('导出 · 体重条数', r1.weight, MOCK_STATE.weightLog.length);
-  eq('导出 · 健康币', r1.coins, MOCK_STATE.coins);
+  eq('导出 · 健康币 = 导入后的值（含成就补发）',
+    r1.coins, MOCK_STATE.coins + achGain(ctx.calc, MOCK_STATE.ach, store.get().ach));
   eq('导出 · 段位', r1.rank, migrate.survey(MOCK_STATE).rank);
 
   // 再把导出的东西导回去，条数必须不变（幂等）
