@@ -215,7 +215,8 @@ try:
     if miss:
         p("未测到的项（%d）：%s" % (len(miss), ", ".join(miss)))
     p()
-    p("RESULT=" + ("OK" if not bad else "CHECK"))
+    p("RESULT=" + ("OK" if (not bad and not miss) else
+                   "FAIL → 超阈值 %d 个 / 未测到 %d 个" % (len(bad), len(miss))))
 finally:
     if seeded:
         r = run_node("_seed_mp.js", ["restore"])
@@ -224,3 +225,6 @@ finally:
 
 io.open(os.path.join(HERE, "_rect_market_cmp.txt"), "w", encoding="utf-8").write("\n".join(OUT))
 print("写出 promo/_rect_market_cmp.txt")
+# ⚠️ 原来这里没有退出码（且上面那行打印的是非标准 "CHECK"）⇒ mp_gates.py 判退出码 ⇒ 这道闸永远 ✅。
+#    2026-09-23 审计发现整族 rect 闸都缺退出码，统一补上。（bad/miss 是模块级变量，此处仍在作用域内）
+sys.exit(0 if (not bad and not miss) else 1)

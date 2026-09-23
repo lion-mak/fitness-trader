@@ -200,4 +200,12 @@ except Exception as e:      # noqa: BLE001
 io.open(os.path.join(HERE, "_rect_trade_cmp.txt"), "w", encoding="utf-8").write("\n".join(OUT))
 p()
 p("写出 promo/_rect_trade_cmp.txt")
-p("RESULT=OK")
+# ⚠️ 这里原先是硬编码 `p("RESULT=OK")` —— 而 mp_gates.py 判的是**退出码**，
+#    于是这道闸**无论差多少都报 ✅**（2026-09-23 审计发现整族都是这个毛病：
+#    rect_{trade,board,compare} 硬编码 OK、market 打非标准 "CHECK"、me/ach_gacha 打 FAIL 但退出 0）。
+#    修法：按实际超阈值数出结论，「留白自检失败」也算失败，最后给非零退出码。
+_blank_bad = any(("❌ 不一致" in x) or ("自检失败" in x) for x in OUT)
+_ok = (len(bad) == 0) and not _blank_bad
+p("RESULT=" + ("OK" if _ok else
+               "FAIL → 超阈值 %d 个 / 留白自检 %s" % (len(bad), "❌" if _blank_bad else "✅")))
+sys.exit(0 if _ok else 1)

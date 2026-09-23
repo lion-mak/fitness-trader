@@ -72,11 +72,53 @@ class Scanner:
             return True
         return False
 
+    def _skip_template(self, i):
+        """模板串：`…${ expr }…`。i 指向起始反引号，返回到闭合反引号之后。
+
+        🔴 `_skip_template` 存在的唯一理由（2026-09-23 实测的静默丢失）：
+        旧实现把反引号当普通引号 —— `if c in "\\"'`":`，扫到下一个反引号就收尾。
+        但 PWA 里**模板串可以嵌套**（`${simple ? '' : `…`}` 这种写法，renderBodyDetail 与
+        renderBodyTrend 都这么写），内层反引号会让外层**提前收尾**⇒ 外层函数体被截短、
+        紧接着的 HTML 文本被当成代码参与括号配平 ⇒ 括号深度错位。
+        后果不是报错，而是紧随其后的顶层声明被判成「被上一个声明包住的嵌套声明」**静默丢掉**
+        （parse_top_level 里那句 `if out and it["start"] < out[-1]["end"]: continue`）——
+        实测吞掉 bodyLogValue / weightLogBmiPoints / renderBodyTrend 三个函数，
+        其中前两个是**纯计算**、本该一字不差地进内核（body-detail 页的趋势图数据全靠它们）。
+        ⇒ `${ }` 里是**代码**，必须递归按代码扫（可再套字符串 / 模板串 / 正则）。
+        """
+        s, n = self.s, self.n
+        i += 1
+        while i < n:
+            ch = s[i]
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == "`":
+                return i + 1
+            if ch == "$" and i + 1 < n and s[i + 1] == "{":
+                i += 2
+                depth = 1
+                while i < n and depth > 0:
+                    j = self.skip_noncode(i)
+                    if j != i:
+                        i = j
+                        continue
+                    if s[i] == "{":
+                        depth += 1
+                    elif s[i] == "}":
+                        depth -= 1
+                    i += 1
+                continue
+            i += 1
+        return n
+
     def skip_noncode(self, i):
         """若 s[i] 起是字符串/模板串/注释/正则则返回其结束位置，否则原样返回 i"""
         s, n = self.s, self.n
         c = s[i]
-        if c in "\"'`":
+        if c == "`":
+            return self._skip_template(i)
+        if c in "\"'":
             q = c
             i += 1
             while i < n:
@@ -230,6 +272,18 @@ SKIP_DECL = lambda d: (
 consts = [d for d in decls if d["kind"] == "decl" and not SKIP_DECL(d)]
 skipped_decls = [d for d in decls if d["kind"] == "decl" and SKIP_DECL(d)]
 funcs = [d for d in decls if d["kind"] == "func"]
+
+# 🔴 收敛校验：FUNC_RE 命中的顶层 function 必须**一个不少**地落进 decls。
+#    为什么要这道闸：parse_top_level 会用「被前一个声明包住 ⇒ 是嵌套 function，丢掉」这条规则，
+#    这本身是对的；但只要扫描器的括号配平被搞错，**真·顶层函数也会被这条规则静默吃掉** ——
+#    不报错、不提示，只是内核里少几个函数（用到时才 ReferenceError 或功能静默缺失）。
+#    2026-09-23 实测：模板串嵌套（`${x ? '' : `…`}`）让外层提前收尾 ⇒ 吞掉 3 个函数，
+#    其中 bodyLogValue / weightLogBmiPoints 是纯计算、本该一字不改地进内核。
+#    这里把「静默丢失」升级成「构建期报错」。误报已实测为 0（239 命中 / 239 保留）。
+_func_hits = [m.group(1) for m in FUNC_RE.finditer(MAIN_JS)]
+_swallowed = sorted(set(_func_hits) - {d["name"] for d in funcs})
+if _swallowed:
+    raise SystemExit(u"❌ 有顶层函数被括号配平吞掉了（扫描器 bug？）：%s" % u", ".join(_swallowed))
 
 # ────────────────────────────────────────────────────────────────
 # 2b. DE_DOM —— 把「只沾了一点 DOM」的函数还原成纯计算函数
@@ -570,6 +624,67 @@ ADAPT = u"""
       两者不冲突：它们字号与容器不同，各自按实测值收敛。 */
 .gacha-btn { line-height: 1.333; }
 .ms-btn { line-height: 1.333; }
+
+/* ════════════════════════════════════════════════════════════════
+   交易页录入口 6 弹层（2026-09-23 ⑥c 对拍 mp_rect_trade_modals.py）
+   ════════════════════════════════════════════════════════════════ */
+
+/* 🔴 就是上面 `.field input` 那条注释里预言的「第二次」：食物搜索框同病。
+   PWA `.searchbox input` 高 45px（padding 24 + border 2 + 文本行盒 19），
+   小程序只剩 26px（**内容盒塌成 0**，只剩 padding + border）。
+   ⚠️ 45 是**总高**（box-sizing:border-box 已生效），别和 `.field input` 的 43 抄成同值 ——
+      两者差 2px 是因为 `.searchbox input` 上下 padding 是 12px、`.field input` 是 11px。 */
+.searchbox input { height: 45px; }
+
+/* 🔴 `.usual-toggle` 的上边距：PWA 里这 9px 挂在**外层 wrapper 的 inline style** 上
+   （`<div style="margin-top:9px;" id="fs-usual">`，innerHTML 才是按钮本身），
+   小程序没有这层 wrapper ⇒ 必须搬到元素自身。
+   ⚠️ 2026-09-23 实况：页面 .wxss 里曾写过 `.fs-usual{margin-top:9px}`，但 wxml 的元素类名是
+      `.usual-toggle` ⇒ **规则名没对上、静默失效**（全工程仅此一处引用 fs-usual）。
+      ⑥c 实测：缺失时份量弹层从该行起下游全部上移，sheet 高 604.7 vs PWA 618。 */
+.usual-toggle { margin-top: 9px; }
+
+/* 🔴 PWA 的 `.fs-macros .mkv div:first-child / div:last-child` —— 小程序对面是 <view>，
+   **标签选择器静默失效** ⇒ 宏量格的数值与单位都退回默认字号（⑥c 实测 .fs-macros 高 65.2 vs PWA 54.4）。
+   修法与 `.s` / `.kt-v` 同：页面里给两个子元素加 class，规则改挂 class。
+   ⚠️ 不要试图写 `view:first-child` —— WXSS 支持的选择器只有
+      `.class` / `#id` / `element` / `element,element` / `::after` / `::before`，
+      伪类不在清单里，写错会让 wcsc 整包编译失败（白屏），这是本项目最贵的一种错。 */
+.fs-macros .mkv .mv { font-size:14px; font-weight:600; color:#fff; }
+.fs-macros .mkv .ml { font-size:10px; color:var(--muted2); margin-top:2px; }
+
+/* 🔴 PWA 的 `.ghost-btn` 是 `<button>` = **inline-block**，小程序换成 <view> 后变块级 ——
+   这不只影响行高（行高那条在上面），还会改变**外边距合并**规则。
+   ⑥c 实测（2026-09-23，运动列表弹层）链路是：
+     · 列表项 `.result-item` 自带 `margin-bottom:8px`（PWA index.html:139）；
+     · `.results` 不是滚动容器时，末项那个 8px **穿透出去** ⇒ `.results` 的有效下边距 = 8；
+     · PWA 的按钮是**行内级**，行内级不参与相邻外边距合并 ⇒ 实际间距 = 8 + 10（自身 margin-top）= **18**；
+     · 小程序的块级 `<view>` ⇒ 合并取 max(8,10) = **10** ⇒ 按钮凭空高 8px，底部留白也随之差 8。
+   ⇒ 恢复行内级。⚠️ 限定在 `.sheet` 内：
+      · `#food-results` 是滚动容器（BFC）⇒ 那 8px 留在内部、间距 10 —— 两端本来就对，
+        加这条不会改变它（行内级 + 10 = 10），所以同一个规则能同时满足两种情形；
+      · 板页的 `.ghost-btn` 在 flex 容器里（flex 项会被块化）⇒ 不受影响；
+      · `.sheet` 目前全工程只有交易页在用（已 grep 确认），波及面可控。 */
+.sheet .ghost-btn { display: inline-block; }
+
+/* 🔴 `input[type=time]` 在 Chrome 里的 UA 内容盒是 **21px**（与 `<select>` 同源），
+   不是文本输入的 19px ⇒ PWA 里这个框高 **45px**；被上面 `.field input{height:43px}` 统一压成 43 后，
+   **每个时间输入少 2px**。
+   ⑥c 实测（2026-09-23）：份量 / 运动录入 / 记录编辑 三个弹层各含 1 个时间输入，三个都恰好差 2.0px；
+   而食物搜索、运动列表、自建运动（无时间输入）差 0 —— 一一对应。
+   ⚠️ 45 = 22(padding 上下各 11) + 2(border) + 21，别抄成 43。
+   ⚠️ 选择器必须写成 `.field .inp-time`：`.field input` 的特异性 (0,1,1) 压过单类 (0,1,0)，
+      写成 `.inp-time` 会被上面那条覆盖而**静默失效**。
+   ⚠️ 也不用 `input[type="time"]` —— WXSS 支持的选择器只有
+      `.class`/`#id`/`element`/`element,element`/`::after`/`::before`，属性选择器不在清单里。 */
+.field .inp-time { height: 45px; }
+
+/* 🔴 `.sheet h3`（弹层标题）在小程序里**不可能命中** —— 没有 <h3> 这个标签。
+   交易页当年是自己在 trade.wxss 里补了一条同名同值的 `.sheet-h`；身体成分录入弹层
+   是第二个用它的地方 ⇒ 上收到适配层，页面不用再各写一份（写两份就是两个真相，
+   改一处另一处不跟）。⚠️ `<label>` 能直接用是因为它是小程序的真实组件；
+   `<h3>`/`<p>`/`<b>`/`<span>` 都不是 ⇒ 一律要换 class。 */
+.sheet .sheet-h { font-size:16px; font-weight:500; }
 """
 
 wxss = (u"/* app.wxss —— 由 promo/mp_build.py 从 PWA index.html 的 <style> 自动生成，勿手工编辑。\n"

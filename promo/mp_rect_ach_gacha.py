@@ -387,6 +387,9 @@ def main():
     io.open(os.path.join(HERE, "_rect_ach_gacha_cmp.txt"), "w", encoding="utf-8").write("\n".join(OUT))
     p("写出 promo/_rect_ach_gacha_cmp.txt")
     p("RESULT=%s" % ("OK" if any_bad == 0 else "FAIL"))
+    # ⚠️ 原来 main() 返回 None ⇒ 退出码恒为 0 ⇒ mp_gates.py 判退出码 ⇒ 这道闸永远 ✅（假保证）。
+    #    2026-09-23 审计整族 rect 闸时统一补上（trade/board/compare 是硬编码 OK、market 打 "CHECK"）。
+    return 0 if any_bad == 0 else 1
 
 
-main()
+sys.exit(main())

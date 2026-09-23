@@ -94,3 +94,31 @@ print("成就图标已生成 → %s" % OUTDIR)
 for k, s in out:
     print("    %-14s %7.2f KB" % ("ach-%s.png" % k, s / 1024.0))
 print("  合计 %d 个 / %.1f KB（主包增量）" % (len(out), total / 1024.0))
+
+# ---------- 3) 涨停仪式的奖杯图标（同理：PWA 是内联 <svg>，小程序必须烘焙成 PNG） ----------
+# 锚点是 `#celeb .trophy` 里那颗 52×52 的 svg —— 从 index.html 抠出来，⛔ 不手抄 path。
+# 只烘 svg 本身（透明底）：琥珀色圆底由 `.trophy` 的 CSS 提供，两边保持一致的分工。
+mt = re.search(r'<div class="trophy"[^>]*>\s*(<svg.*?</svg>)\s*</div>', html_src, re.S)
+if not mt:
+    sys.exit("找不到 #celeb .trophy 里的 <svg>（涨停仪式结构被改过？）")
+trophy_svg = re.sub(r'\s*data-page-node-id="[^"]*"', '', mt.group(1))
+if 'viewBox="0 0 24 24"' not in trophy_svg:
+    sys.exit("抠出来的 trophy svg 不像 24×24 图标：%s" % trophy_svg[:80])
+TROPHY_PX = 52        # 与 svg 的 width/height 属性一致（`.celeb .trophy` 里那颗）
+TROPHY_OUT = os.path.join(r"E:\WeChatProjects\jianpan\miniprogram\images", "celeb-trophy.png")
+
+trophy_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  html,body { margin:0; padding:0; background:transparent; }
+</style></head><body>
+<div id="trophy" style="width:%dpx;height:%dpx;display:flex;align-items:center;justify-content:center;">
+%s
+</div></body></html>""" % (TROPHY_PX, TROPHY_PX, trophy_svg)
+
+with sync_playwright() as p:
+    b = launch(p)
+    page = b.new_page(viewport={"width": 120, "height": 120}, device_scale_factor=DPR)
+    page.set_content(trophy_html)
+    page.locator("#trophy").screenshot(path=TROPHY_OUT, omit_background=True)
+    b.close()
+print("涨停奖杯图标已生成 → %s（%d×%d，%.1f KB）"
+      % (TROPHY_OUT, TROPHY_PX * DPR, TROPHY_PX * DPR, os.path.getsize(TROPHY_OUT) / 1024.0))

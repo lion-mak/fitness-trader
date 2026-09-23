@@ -40,20 +40,33 @@ GATES = {
     "me":        (NODE, "mp_me_test.js",        [], 12),
     "ach":       (NODE, "mp_ach_test.js",       [], 12),
     "gacha":     (NODE, "mp_gacha_test.js",     [], 12),
+    "body":      (NODE, "mp_body_test.js",      [], 12),
+    "celeb":     (NODE, "mp_celeb_test.js",     [], 14),
     "smoke":     (NODE, "mp_smoke.js",          [], 14),
     "kline":     (VENV, "mp_kline_compare.py",  [], 14),
     "rectmp":    (VENV, "mp_rect_market.py",    [], 30),
     # ⑥b/⑥c 需要开发者工具已拉起（9420），不在默认集合里
     "recttrade": (VENV, "mp_rect_trade.py",     [], 30),
+    "recttrademodals": (VENV, "mp_rect_trade_modals.py", [], 40),
+    "rectbody":  (VENV, "mp_rect_body.py",      [], 36),
     "rectboard": (VENV, "mp_rect_board.py",     [], 30),
     "rectme":    (VENV, "mp_rect_me.py",        [], 30),
     "rectach":   (VENV, "mp_rect_ach_gacha.py", [], 30),
     "negwxss":   (PY,   "negctl_wxss.py",       [], 14),
     "negfoods":  (PY,   "negctl_foods.py",      [], 14),
     "negach":    (PY,   "negctl_ach_gacha.py",  [], 18),
+    # ⑥c 交易页 6 弹层的**专属负控**（也依赖 IDE：它靠改 app.wxss 制造回归再跑对拍）
+    "negtrademodals": (PY, "negctl_trade_modals.py", [], 14),
 }
 # ⚠️ 新页面/新套件上线后**必须往这里加**：默认集合漏了某套 = 那套再没人跑。
-DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "smoke"]
+DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "body", "celeb", "smoke"]
+# 默认集合跑完 ≠ 全绿：下面这些**依赖开发者工具**的闸要单独跑（IDE 在跑 + 端口能 arm 时）：
+#   recttrade / recttrademodals / rectbody / rectboard / rectme / rectach   （⑥c 元素级 rect 对拍）
+#   rectmp（行情页）/ kline（分时线）/ b2 像素差分（mp_holdings_compare.py）
+#   negtrademodals                                              （⑥c 弹层的专属负控）
+# ⚠️ 2026-09-23 审计结论：这族 rect 脚本原先**全都没有非零退出码**（trade/board/compare 还硬编码
+#    RESULT=OK、market 打 "CHECK"）⇒ 驱动器只看退出码 ⇒ **它们过去不可能红**。已统一补齐，
+#    并给交易页弹层配了负控证明「改坏了真的会红、且只红在相关弹层」。
 
 
 def run(name):

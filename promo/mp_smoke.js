@@ -32,9 +32,11 @@ const LAST_LABEL = { v: '' };
 
 /* 第 2 遍要逐个跑生命周期的页面。子页也放进来：「新页面上线即白屏」这类事故
    只有这一遍能挡住（漏写 class="page active" / require 路径错 / onLoad 读空对象…）。
-   2026-09-23 补上一直缺席的 coins/level，并加上新复刻的 achievements/gacha。 */
+   2026-09-23 补上一直缺席的 coins/level，并加上新复刻的 achievements/gacha；
+   同日再补 body-detail（身体成分详情子页 —— 它的 onLoad 带 query.idx 解析，
+   少放一次就没人验过它读空 query 会不会崩）。 */
 const PAGE_LIST = ['market', 'holdings', 'trade', 'board', 'me',
-                   'coins', 'level', 'achievements', 'gacha'];
+                   'coins', 'level', 'achievements', 'gacha', 'body-detail'];
 
 const lines = [];
 const errors = [];

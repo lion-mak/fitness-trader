@@ -325,7 +325,109 @@ mk.refresh();
 must(ctxStats.total > 50, '分时图 canvas 真画了（绘制调用远超空转）', ctxStats.total + ' 次');
 must(ctxStats.fillText > 0, '画布上写下了文字（刻度/标签/封死涨停）', String(ctxStats.fillText));
 
-/* ---------------- H. 空存档（全新用户） ---------------- */
+/* ---------------- I. 负控：改净热量口径，徽章必须跟着变 ---------------- */
+sec('I. 负控 · 净热量口径');
+const netNow = calc.totals().net;
+const clsNow = mk.data.sectorBadgeCls;
+/* 负控：注入一笔超大饮食，使净热量由负翻正 → 徽章应从 bull 变 bear，
+   证明 computeSectors 读的是活口径（calc.totals()），不是常量缓存。
+   ⚠️ todayDiet() 返回 filter 副本，push 不进真 state；须直接 push 进 seed.diet
+      （mock 下 storage['jianpan_v2'] 与 seed 是同一引用）。 */
+seed.diet.push({ id: 'rx', type: 'food', name: '大餐', kcal: 5000, date: calc.todayStr(), time: '22:00', ts: null });
+mk.refresh();
+const clsAfter = mk.data.sectorBadgeCls;
+must(clsAfter !== clsNow || (netNow < -50 && calc.totals().net > -50 && clsAfter !== 'bull'),
+  '负控 · 注入超大饮食后净热量翻正、板块徽章分类改变（证明读的是活口径）',
+  '前 ' + clsNow + ' / 后 ' + clsAfter);
+
+/* ---------------- J. 录入口（RecordActions）实测 ----------------
+ * ⚠️ 这是 2026-09-25 挖出的真缺口：mini 的 awardRecordCoins 被降成纯 UI 钩子后，
+ *    「记录得币」逻辑在迁移中整个丢了（PWA index.html:2000 的 coinToday/coins 累加没了）。
+ *    下面的断言独立现算期望发币数（受当日剩余额度限制），验证：写 diet/exercise +
+ *    发币(coinToday/coins) + 打卡(lastRecordDate) + 我的常吃频次(bumpFoodFreq) + 落盘(store.save)。
+ * ⚠️ 必须用 store.get() 取「活 state」断言：loadState 会建合并对象（merged !== seed），
+ *    progress.sync 还会重指派 diet/exercise 数组 ⇒ seed.diet 是过期孤儿，读它会假失败。 */
+sec('J. 录入口 · 写盘 + 发币 + 打卡 + 频次');
+const STORE = require(path.join(MINI, 'lib/store.js'));
+const RecordActions = require(path.join(MINI, 'lib/record-actions.js'));
+const appRef = captured.app;
+const S0 = STORE.get();
+const coinsBeforeJ = S0.coins;
+const coinTodayBeforeJ = S0.coinToday || 0;
+const dietLenBefore = S0.diet.length;
+const freqBefore = (S0.foodFreq && S0.foodFreq['米饭']) ? S0.foodFreq['米饭'].n : 0;
+const awardBefore = appRef.globalData.lastAward;
+
+const testFood = { name: '米饭', unit: '份', gram: 100, kcal: 116, p: 2.6, f: 0.3, c: 25.9, src: 'db' };
+const frec = RecordActions.addFoodRecord(testFood, { qty: 1, mode: '份', time: '12:30' });
+const S1 = STORE.get();
+must(frec && frec.id && S1.diet.length === dietLenBefore + 1,
+  'addFoodRecord：写入 diet（长度 ' + dietLenBefore + '→' + S1.diet.length + '）');
+must(calc.todayDiet().some((r) => r.id === frec.id), 'addFoodRecord：新记录落在今日 diet');
+must(appRef.globalData.lastAward && appRef.globalData.lastAward.kind === 'food',
+  'addFoodRecord：触发 awardRecordCoins 钩子（lastAward.kind=food）');
+const grantedFood = Math.max(0, Math.min(calc.COIN_PER_FOOD, calc.COIN_DAILY_CAP - coinTodayBeforeJ));
+must(S1.coinToday === coinTodayBeforeJ + grantedFood,
+  'addFoodRecord：coinToday 增加 = 实际发币(' + grantedFood + ')', 'coinToday ' + coinTodayBeforeJ + '→' + S1.coinToday);
+must(S1.coins >= coinsBeforeJ + grantedFood,
+  'addFoodRecord：coins 增加 ≥ 实际发币(' + grantedFood + ')', 'coins ' + coinsBeforeJ + '→' + S1.coins);
+const freqAfter = (S1.foodFreq && S1.foodFreq['米饭']) ? S1.foodFreq['米饭'].n : 0;
+must(freqAfter > freqBefore, 'addFoodRecord：我的常吃频次 bumpFoodFreq 自增（' + freqBefore + '→' + freqAfter + '）');
+must(S1.lastRecordDate === calc.todayStr(), 'addFoodRecord：bumpStreak 更新 lastRecordDate=今日');
+must(storage['jianpan_v2'] && storage['jianpan_v2'].diet.length === S1.diet.length,
+  'addFoodRecord：store.save 落盘（storage 与 live 长度一致）');
+
+/* 运动 */
+const coinsBeforeEx = S1.coins;
+const coinTodayBeforeEx = S1.coinToday || 0;
+const exLenBefore = S1.exercise.length;
+const testEx = { name: '跑步', met: 7, cat: '有氧' };
+const erec = RecordActions.addExerciseRecord(testEx, { minutes: 30, intensity: '中', time: '20:00' });
+const S2 = STORE.get();
+must(erec && erec.id && S2.exercise.length === exLenBefore + 1,
+  'addExerciseRecord：写入 exercise（长度 ' + exLenBefore + '→' + S2.exercise.length + '）');
+must(calc.todayExercise().some((r) => r.id === erec.id), 'addExerciseRecord：新记录落在今日 exercise');
+must(appRef.globalData.lastAward && appRef.globalData.lastAward.kind === 'ex',
+  'addExerciseRecord：钩子 kind=ex');
+const grantedEx = Math.max(0, Math.min(calc.COIN_PER_EX, calc.COIN_DAILY_CAP - coinTodayBeforeEx));
+must(S2.coinToday === coinTodayBeforeEx + grantedEx,
+  'addExerciseRecord：coinToday 增加 = 实际发币(' + grantedEx + ')', 'coinToday→' + S2.coinToday);
+must(S2.coins >= coinsBeforeEx + grantedEx,
+  'addExerciseRecord：coins 增加 ≥ 实际发币(' + grantedEx + ')');
+must(storage['jianpan_v2'].exercise.length === S2.exercise.length, 'addExerciseRecord：落盘');
+
+/* ---------------- K. 负控 · 坏副本不应写盘/发币 ---------------- */
+sec('K. 负控 · 坏副本（food=null / 非法 id）');
+const S3 = STORE.get();
+const dietLenK = S3.diet.length;
+const coinsK = S3.coins;
+const awardK = appRef.globalData.lastAward;
+const badRet = RecordActions.addFoodRecord(null, { qty: 1, mode: '份' });
+must(badRet === null, '负控·food=null 返回 null');
+const S3b = STORE.get();
+must(S3b.diet.length === dietLenK, '负控·food=null 不写 diet');
+must(S3b.coins === coinsK, '负控·food=null 不发币');
+must(appRef.globalData.lastAward === awardK, '负控·food=null 不触发发币钩子');
+
+const editBad = RecordActions.saveRecordEdit('__no_such_id__', 'food', 999, '08:30');
+must(editBad === false, '负控·saveRecordEdit 非法 id 返回 false');
+must(STORE.get().diet.length === dietLenK, '负控·saveRecordEdit 非法 id 不改任何记录');
+
+/* 合法 id 改值落盘（正向，验证 saveRecordEdit 真生效） */
+const tgt = STORE.get().diet.find((r) => r.id === frec.id);
+const kcalBeforeEdit = tgt.kcal, timeBeforeEdit = tgt.time;
+const okEdit = RecordActions.saveRecordEdit(frec.id, 'food', 999, '08:30');
+must(okEdit === true, 'saveRecordEdit 合法 id 返回 true');
+const S4 = STORE.get();
+must(tgt.kcal === 999 && tgt.manualKcal === true, 'saveRecordEdit：改 kcal=999 且标记 manualKcal');
+must(tgt.time === '08:30' && tgt.ts === calc.tsFromHM('08:30'),
+  'saveRecordEdit：改 time + 重算 ts', 'time ' + timeBeforeEdit + '→' + tgt.time);
+must(S4.diet.find((r) => r.id === frec.id).kcal === 999, 'saveRecordEdit：落盘');
+
+/* ---------------- H. 空存档（全新用户） ----------------
+ * ⚠️ 必须放在 J/K 之后：H 会 fresh() 清 require 缓存并重建 calc/store 模块实例，
+ *    若 H 在 J/K 之前跑，测试顶层的 const calc 仍是旧实例，与 store.get() 新实例错位
+ *    （calc.todayDiet 读旧实例、store.get 读新实例），J/K 的「记录落在今日」断言会假失败。 */
 sec('H. 空存档（全新用户）');
 const emptySeed = calc.defaultState();
 const mk2 = boot(emptySeed);
@@ -335,21 +437,6 @@ must(mk2.data.sectorsLong.length === 0, '无饮食 ⇒ long 列空');
 must(mk2.data.sectorsShort.length === 1 && mk2.data.sectorsShort[0].type === 'bmr',
   'short 列只剩基础代谢一块（基础代谢常驻）');
 must(/待第一笔/.test(mk2.data.badgeText), '空存档徽章走「待第一笔」', mk2.data.badgeText);
-
-/* ---------------- I. 负控：改净热量口径，徽章必须跟着变 ---------------- */
-sec('I. 负控 · 净热量口径');
-const netNow = calc.totals().net;
-const clsNow = mk.data.sectorBadgeCls;
-/* 负控：注入一笔超大饮食，使净热量由负翻正 → 徽章应从 bull 变 bear，
-   证明 computeSectors 读的是活口径（calc.totals()），不是常量缓存。
-   ⚠️ todayDiet() 返回 filter 副本，push 不进真 state；须直接 push 进 seed.diet
-      （mock 下 storage['jianpan_v2'] 与 calc.state 是同一引用）。 */
-seed.diet.push({ id: 'rx', type: 'food', name: '大餐', kcal: 5000, date: calc.todayStr(), time: '22:00', ts: null });
-mk.refresh();
-const clsAfter = mk.data.sectorBadgeCls;
-must(clsAfter !== clsNow || (netNow < -50 && calc.totals().net > -50 && clsAfter !== 'bull'),
-  '负控 · 注入超大饮食后净热量翻正、板块徽章分类改变（证明读的是活口径）',
-  '前 ' + clsNow + ' / 后 ' + clsAfter);
 
 /* ---------------- 汇总 ---------------- */
 out('');
