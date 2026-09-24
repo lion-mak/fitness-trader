@@ -123,7 +123,7 @@ say('');
     ok('data/foods.js 可 require', false, e.message);
   }
   eq('GAP 档位数', calc.GAP_TIERS.length, 7);
-  eq('段位数', calc.RANKS.length, 8);
+  eq('段位数', calc.RANKS.length, 11);
   eq('卡牌数', calc.CARDS.length, 15);
   eq('热量换算 7700', calc.KCAL_PER_KG_FAT, 7700);
   eq('1 斤折算 3850', calc.KCAL_PER_JIN_FAT, 3850);
@@ -222,14 +222,16 @@ say('');
   const tw = calc.currentTargetW();
   ok('止盈目标有值', typeof tw === 'number' && tw > 0 && tw < 75.5, `实际 ${tw}`);
 
-  /* --- 2.11 等级：经验 → 段位（100 经验一档，8 段位）--- */
+  /* --- 2.11 等级：经验 → 段位（100 经验一档，11 段位）--- */
   const r0 = calc.currentRank();
   ok('currentRank 结构 {lv, rank}', !!r0 && typeof r0.lv === 'number' && !!r0.rank && !!r0.rank.name,
     JSON.stringify(r0));
-  eq('exp=0 → lv1 → 散户', r0.rank.name, '散户');
+  eq('exp=0 → lv1 → 韭菜', r0.rank.name, '韭菜');
   const expBak = state.exp;
   state.exp = 100; eq('exp=100 → lv2', calc.currentRank().lv, 2);
-  state.exp = 1700; eq('exp=1700 → lv18 → 股神', calc.currentRank().rank.name, '股神');
+  /* 早期节奏：100 经验（≈首日「3 餐 + 1 次运动 + 一次涨停」）就脱离韭菜 ⇒ 新用户的正反馈 */
+  state.exp = 100; eq('exp=100 → lv2 → 散户', calc.currentRank().rank.name, '散户');
+  state.exp = 2900; eq('exp=2900 → lv30 → 股神（封顶）', calc.currentRank().rank.name, '股神');
   state.exp = expBak;
 
   /* --- 2.12 抽卡概率：跑 40000 次统计分布，验证 70/25/5 --- */

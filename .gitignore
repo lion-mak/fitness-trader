@@ -34,6 +34,14 @@ promo/*.png
 promo/*.json
 # 对拍用的截图与对照页（随时可用 mp_auto_shot.js / mp_rect_*.py 重跑）
 promo/_shots/
+# 段位卡素材：v4 那批（像素搞怪·脏惨风）已被 Mak 否掉 —— 改由他从外部出图后替换
+# ⚠️ 新图就位后**删掉下面两行**让素材入库：生图有随机性，源图丢了就不可复现
+assets/ranks/
+promo/rank_src/
+# 段位卡的生图中间产物与原始大图（_pixel3 / _pixel4 两批试验图）
+promo/_pixel*/
+promo/_fonts/
+promo/_rank_ref/
 # 像素比对脚本（mp_kline_compare.py）生成的临时对照页，可随时重跑
 promo/_*.html
 # 内部商业/技术规划文档（含策略信息，不入公开仓库）

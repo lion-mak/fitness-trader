@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.57"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.58"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1822,14 +1822,17 @@ const EXP_LIMITUP = 30;         // 涨停经验
 
 /* ---- 操盘手段位（等级成长体系）---- */
 const RANKS = [
-  { name:'散户', minLv:1,  color:'#9aa8be', desc:'起步 · 从记第一笔开始' },
-  { name:'小散', minLv:3,  color:'#5ac8fa', desc:'连续记录，养成习惯' },
-  { name:'中户', minLv:5,  color:'#5ac8fa', desc:'稳定达标，控制热量' },
-  { name:'大户', minLv:7,  color:'#00c896', desc:'持续减脂，初见成效' },
-  { name:'游资', minLv:9,  color:'#00c896', desc:'高频运动，缺口为王' },
-  { name:'机构', minLv:11, color:'#c586c0', desc:'专业级自律，模式成型' },
-  { name:'庄家', minLv:14, color:'#ffb800', desc:'掌控节奏，稳定盈利' },
-  { name:'股神', minLv:17, color:'#ff3b47', desc:'登顶健交所，封神' },
+  { name:'韭菜', minLv:1,  color:'#3fbf57', desc:'刚入场 · 从记第一笔开始' },
+  { name:'散户', minLv:2,  color:'#7c8da6', desc:'起步 · 习惯正在形成' },
+  { name:'小散', minLv:4,  color:'#33a6b8', desc:'连续记录 · 攒出本金' },
+  { name:'中户', minLv:6,  color:'#3d7be0', desc:'稳定达标 · 控制热量' },
+  { name:'大户', minLv:8,  color:'#5b4bc4', desc:'持续减脂 · 初见成效' },
+  { name:'牛散', minLv:10, color:'#c08a2e', desc:'节奏自控 · 个人高手' },
+  { name:'游资', minLv:13, color:'#e8781e', desc:'高频运动 · 缺口为王' },
+  { name:'主力', minLv:16, color:'#c43a2e', desc:'节奏在手 · 走势由我' },
+  { name:'机构', minLv:20, color:'#8e44ad', desc:'专业自律 · 模式成型' },
+  { name:'庄家', minLv:24, color:'#4a4a57', desc:'掌控节奏 · 稳定盈利' },
+  { name:'股神', minLv:30, color:'#d4af37', desc:'登顶健交所 · 封神' },
 ];
 
 /* ============ 涨停抽卡 · 交易员图鉴 ============ */
@@ -5516,7 +5519,11 @@ function renderLevel() {
     : '已登顶，继续稳如泰山';
   document.getElementById('l-ranks').innerHTML = RANKS.map(function(r, idx) {
     const on = r.name === cr.rank.name;
-    const range = RANKS[idx + 1] ? 'lv ' + r.minLv + '–' + (RANKS[idx + 1].minLv - 1) : 'lv ' + r.minLv + '+';
+    /* 区间：hi=0 表无上限 ⇒ 'lv N+'；hi==lo（只有第一段）⇒ 'lv N'；否则 'lv lo–hi'。
+       原写法在 minLv 差 1 时会渲染出「lv 1–1」这种怪区间（11 段后第一段正是如此）。 */
+    const lo = r.minLv;
+    const hi = RANKS[idx + 1] ? RANKS[idx + 1].minLv - 1 : 0;
+    const range = !hi ? ('lv ' + lo + '+') : (hi === lo ? ('lv ' + lo) : ('lv ' + lo + '–' + hi));
     return '<div class="rank-row' + (on ? ' on' : '') + '" style="' + (on ? 'border-left-color:' + r.color + ';background:' + r.color + '14;' : '') + '">' +
       '<span class="dot" style="background:' + r.color + '"></span>' +
       '<span class="rn"' + (on ? ' style="color:' + r.color + '"' : '') + '>' + r.name + '</span>' +

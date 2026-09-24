@@ -44,9 +44,10 @@ function sec(t) { out(''); out('=== ' + t + ' ==='); }
  * ============================================================ */
 /* 段位表按 PWA RANKS 的「文字规则」重抄一份：lv ≥ minLv 的最后一段生效 */
 const RANK_SPEC = [
-  { name: '散户', minLv: 1 }, { name: '小散', minLv: 3 }, { name: '中户', minLv: 5 },
-  { name: '大户', minLv: 7 }, { name: '游资', minLv: 9 }, { name: '机构', minLv: 11 },
-  { name: '庄家', minLv: 14 }, { name: '股神', minLv: 17 },
+  { name: '韭菜', minLv: 1 }, { name: '散户', minLv: 2 }, { name: '小散', minLv: 4 },
+  { name: '中户', minLv: 6 }, { name: '大户', minLv: 8 }, { name: '牛散', minLv: 10 },
+  { name: '游资', minLv: 13 }, { name: '主力', minLv: 16 }, { name: '机构', minLv: 20 },
+  { name: '庄家', minLv: 24 }, { name: '股神', minLv: 30 },
 ];
 function lvOf(exp) { return Math.floor((exp || 0) / 100) + 1; }
 function rankOf(exp) {
@@ -234,7 +235,7 @@ function buildSeed(calc) {
   st.coins = 320;
   st.coinToday = 40;
   st.coinDate = todayStr();
-  st.exp = 250;                       // lv 3 ⇒ 小散
+  st.exp = 250;                       // lv 3 ⇒ 散户（新表 2–3）
   st.limitUpCount = 2;
   st.diet = [{ id: 'd1', name: '米饭', kcal: 300, date: todayStr(), time: '12:00', gram: 100, unit: 'g', qty: 1 },
              { id: 'd2', name: '鸡胸肉', kcal: 165, date: todayStr(), time: '19:00', gram: 100, unit: 'g', qty: 1 },
@@ -311,7 +312,7 @@ let seed = null, me = null, calc = null;
 
   must(d.statusBarHeight === 54, '状态栏留白取到真机值 54（三级兜底）', 'got ' + d.statusBarHeight);
   must(d.lv === R.lv && d.lv === 3, 'lv = floor(exp/100)+1 = 3', 'got ' + d.lv);
-  must(d.rankName === R.rank.name && d.rankName === '小散', '段位名按 minLv 判定 = 小散', 'got ' + d.rankName);
+  must(d.rankName === R.rank.name && d.rankName === '散户', '段位名按 minLv 判定 = 散户（lv3）', 'got ' + d.rankName);
   must(d.limitUpCount === 2, '持仓天数 = state.limitUpCount = 2', 'got ' + d.limitUpCount);
   must(d.dietCount === 3, '累计饮食 = diet.length = 3', 'got ' + d.dietCount);
   must(d.exCount === 1, '累计运动 = exercise.length = 1', 'got ' + d.exCount);
@@ -487,35 +488,36 @@ sec('G 段位页 level');
   must(d.hero.lv === R.lv && d.hero.lv === 3, 'lv = 3', 'got ' + d.hero.lv);
   must(d.expText === '250 经验', '经验文案 = 「250 经验」', d.expText);
   must(d.pct === pctOf(s3.exp) && d.pct === 50, '经验条 = 本段进度 50%（250%100）', 'got ' + d.pct);
-  must(d.tip === '距「中户」还差 250 经验', '距下一段 = next.minLv*100 − exp = 250', d.tip);
-  must(d.ranks.length === 8, '段位列表 8 行', 'got ' + d.ranks.length);
-  must(d.ranks[0].range === 'lv 1–2' && d.ranks[1].range === 'lv 3–4', '区间文案 lv a–b（en dash）',
+  must(d.tip === '距「小散」还差 150 经验', '距下一段 = next.minLv*100 − exp = 400−250 = 150', d.tip);
+  must(d.ranks.length === 11, '段位列表 11 行', 'got ' + d.ranks.length);
+  /* 区间文案：第一段只占一级（lv 1）⇒ 不能渲染成「lv 1–1」；普通段是 lv a–b */
+  must(d.ranks[0].range === 'lv 1' && d.ranks[1].range === 'lv 2–3', '区间文案 lv a–b（en dash）+ 单级段显示 lv N',
     d.ranks[0].range + ' / ' + d.ranks[1].range);
-  must(d.ranks[7].range === 'lv 17+', '末段文案 lv a+', d.ranks[7].range);
+  must(d.ranks[10].range === 'lv 30+', '末段文案 lv a+', d.ranks[10].range);
   const onRows = d.ranks.filter((r) => r.on);
   must(onRows.length === 1 && onRows[0].name === d.hero.name, '当前段位恰好 1 行高亮且与 hero 同名',
     JSON.stringify(onRows.map((r) => r.name)));
 
-  /* 负控 1：零经验 ⇒ 散户 / 0% / 距小散 300 */
+  /* 负控 1：零经验 ⇒ 韭菜 / 0% / 距散户 200（新表第二段 minLv=2） */
   const st = S().get();
   st.exp = 0;
   pg.refresh();
-  must(pg.data.hero.name === '散户' && pg.data.pct === 0 && pg.data.tip === '距「小散」还差 300 经验',
-    '负控 · exp=0 ⇒ 散户 / 0% / 距小散 300', pg.data.hero.name + ' ' + pg.data.pct + ' ' + pg.data.tip);
+  must(pg.data.hero.name === '韭菜' && pg.data.pct === 0 && pg.data.tip === '距「散户」还差 200 经验',
+    '负控 · exp=0 ⇒ 韭菜 / 0% / 距散户 200', pg.data.hero.name + ' ' + pg.data.pct + ' ' + pg.data.tip);
 
   /* 负控 2：顶段 ⇒ 已登顶、无下一段（这条同时守住「空存档也不能崩」） */
-  st.exp = 1700;
+  st.exp = 2900;                       // lv 30 ⇒ 股神（新表末段 minLv=30）
   pg.refresh();
   must(pg.data.hero.name === '股神' && pg.data.tip === '已登顶，继续稳如泰山',
-    '负控 · exp=1700（lv18）⇒ 股神 + 已登顶', pg.data.hero.name + ' / ' + pg.data.tip);
+    '负控 · exp=2900（lv30）⇒ 股神 + 已登顶', pg.data.hero.name + ' / ' + pg.data.tip);
   must(pg.data.ranks.filter((r) => r.on).length === 1, '负控 · 顶段仍只有 1 行高亮', '');
-  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态） */
-  st.exp = 600;                        // lv 7 ⇒ 大户
+  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态）—— 大户 minLv=8 */
+  st.exp = 700;                        // lv 8 ⇒ 大户
   pg.refresh();
-  must(pg.data.hero.name === '大户', '负控 · exp=600（lv7）⇒ 大户（边界含等号）', pg.data.hero.name);
-  st.exp = 599;                        // lv 6 ⇒ 中户
+  must(pg.data.hero.name === '大户', '负控 · exp=700（lv8）⇒ 大户（边界含等号）', pg.data.hero.name);
+  st.exp = 699;                        // lv 7 ⇒ 中户
   pg.refresh();
-  must(pg.data.hero.name === '中户', '负控 · exp=599（lv6）⇒ 中户（差 1 点就掉级）', pg.data.hero.name);
+  must(pg.data.hero.name === '中户', '负控 · exp=699（lv7）⇒ 中户（差 1 点就掉级）', pg.data.hero.name);
 }
 
 /* ---------- H：空存档 ---------- */
@@ -531,7 +533,7 @@ sec('H 空存档（三页都不抛错）');
   must(!err, '空存档 · 我的页 onLoad/onShow 不抛错', err && err.message);
   /* ⚠️ 内核 loadState() 有一条明确规则：「无历史记录时以当前真实体重作为唯一真实锚点（单点，非模拟数据）」
      ⇒ 真·空存档下体检卡是「天数 1 / 体重 1」，跨度=今天~今天。这不是脏数据，是内核设计。 */
-  must(meD && meD.spanText === todayStr() + ' ~ ' + todayStr() + ' · 散户 Lv1',
+  must(meD && meD.spanText === todayStr() + ' ~ ' + todayStr() + ' · 韭菜 Lv1',
     '空存档 · 体检跨度 = 今天~今天（唯一真实锚点）', meD && meD.spanText);
   must(meD && meD.cells.length === 6, '空存档 · 体检 6 格', meD && JSON.stringify(meD.cells));
   must(meD && meD.cells[0].v === 1 && meD.cells[3].v === 1 && meD.cells[1].v === 0 && meD.cells[2].v === 0,
@@ -543,7 +545,7 @@ sec('H 空存档（三页都不抛错）');
      （见 promo/_probe_pwa_coldstart_ach.py；小程序的 store.init 静默补发正是它的等价物） */
   must(meD && meD.cells[4].v === 50, '空存档 · 健康币 50（默认档案已减 2.7 斤 ⇒ 补发「解套成功」）',
     meD && JSON.stringify(meD.cells[4]));
-  must(meD && meD.lv === 1 && meD.rankName === '散户', '空存档 · lv1 散户',
+  must(meD && meD.lv === 1 && meD.rankName === '韭菜', '空存档 · lv1 韭菜',
     meD && (meD.lv + ' ' + meD.rankName));
   must(meD && meD.badges === 1 && meD.collectPct === 0, '空存档 · 勋章 1（只有 untie）/ 收集度 0%',
     meD && (meD.badges + ' / ' + meD.collectPct));
@@ -557,7 +559,7 @@ sec('H 空存档（三页都不抛错）');
   let lvD = null;
   try { lvD = bootPage(c0.defaultState(), 'pages/level/level.js').data; } catch (e) { err = e; }
   must(!err, '空存档 · 段位页不抛错', err && err.message);
-  must(lvD && lvD.hero.name === '散户' && lvD.pct === 0, '空存档 · 段位页散户 0%',
+  must(lvD && lvD.hero.name === '韭菜' && lvD.pct === 0, '空存档 · 段位页韭菜 0%',
     lvD && (lvD.hero.name + ' ' + lvD.pct));
 }
 
