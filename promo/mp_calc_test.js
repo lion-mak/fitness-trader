@@ -123,7 +123,16 @@ say('');
     ok('data/foods.js 可 require', false, e.message);
   }
   eq('GAP 档位数', calc.GAP_TIERS.length, 7);
-  eq('段位数', calc.RANKS.length, 11);
+  eq('段位数', calc.RANKS.length, 10);
+  // 段位门槛表**独立重抄一份**（不是从 calc 里读回来比自己）——
+  // v2.7.60 换代：11 段去掉「小散」，门槛同步重排。
+  // ⚠️ 单子改了必须同时改这里；index.html 的 RANKS 是唯一源头，mp_build.py 复制过来。
+  eq('段位门槛表（10 段 · 独立重抄）', JSON.stringify(calc.RANKS.map(r => r.minLv)),
+    JSON.stringify([1, 2, 4, 7, 10, 13, 16, 20, 24, 30]));
+  eq('段位名表（10 段 · 独立重抄）', calc.RANKS.map(r => r.name).join(','),
+    '韭菜,散户,中户,大户,牛散,游资,主力,机构,庄家,股神');
+  ok('段位表里已无「小散」（本轮就是删它）',
+    calc.RANKS.map(r => r.name).indexOf('小散') < 0);
   eq('卡牌数', calc.CARDS.length, 15);
   eq('热量换算 7700', calc.KCAL_PER_KG_FAT, 7700);
   eq('1 斤折算 3850', calc.KCAL_PER_JIN_FAT, 3850);
@@ -268,13 +277,19 @@ say('');
   eq('负控 · exp = null → lv1', calc.lvFromExp(null), 1);
   eq('负控 · exp = "250"（字符串）→ 按数值算 lv7', calc.lvFromExp('250'), 7);
 
-  /* 段位判定：minLv 表这一版没动，变的只是「多少经验换一级」 */
+  /* 段位判定：v2.7.60 换代后（11 段 → 10 段，去掉「小散」）门槛重排：
+     小散没了 ⇒ 中户门槛由 lv6 降到 lv4、大户由 lv8 降到 lv7（只降不升 ⇒ 零掉段）。
+     这里按**新表**逐条钉住边界（含「差 1 点」的两侧）。 */
   const expBak = state.exp;
   state.exp = 10;  eq('exp=10 → lv2 → 散户（≈两天常态记录：3 餐/天 + 1 次运动）',
     calc.currentRank().rank.name, '散户');
-  state.exp = 60;  eq('exp=60 → lv4 → 小散（约一周）', calc.currentRank().rank.name, '小散');
-  state.exp = 280; eq('exp=280 → lv8 → 大户（边界含等号）', calc.currentRank().rank.name, '大户');
-  state.exp = 279; eq('exp=279 → lv7 → 中户（差 1 点掉段）', calc.currentRank().rank.name, '中户');
+  state.exp = 60;  eq('exp=60 → lv4 → 中户（小散删掉后中户门槛降到 lv4）',
+    calc.currentRank().rank.name, '中户');
+  state.exp = 209; eq('exp=209 → lv6 → 中户（距大户门槛差 1 点）',
+    calc.currentRank().rank.name, '中户');
+  state.exp = 210; eq('exp=210 → lv7 → 大户（边界含等号）', calc.currentRank().rank.name, '大户');
+  state.exp = 280; eq('exp=280 → lv8 → 大户（牛散门槛 lv10 之前）',
+    calc.currentRank().rank.name, '大户');
   state.exp = 4350; eq('exp=4350 → lv30 → 股神（封顶）', calc.currentRank().rank.name, '股神');
   state.exp = expBak;
 

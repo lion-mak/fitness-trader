@@ -34,10 +34,11 @@ promo/*.png
 promo/*.json
 # 对拍用的截图与对照页（随时可用 mp_auto_shot.js / mp_rect_*.py 重跑）
 promo/_shots/
-# 段位卡素材：v4 那批（像素搞怪·脏惨风）已被 Mak 否掉 —— 改由他从外部出图后替换
-# ⚠️ 新图就位后**删掉下面两行**让素材入库：生图有随机性，源图丢了就不可复现
-assets/ranks/
-promo/rank_src/
+# 段位卡素材（v2.7.60 定稿，**已入库**）：
+#   promo/rank_src/         Mak 外部出图的 10 张原始 PNG（丢了不可复现，必须留）
+#   assets/ranks/           运行时 3x WebP（PWA 卡廊 + 小程序云存储上传源）
+#   小程序 images/ranks/    2.5x（420×600）兜底图，共 444KB（进主包，保证秒开）
+# 三处都由 promo/build_rank_assets.py 从源图重跑 ⇒ 想改尺寸/质量别手改素材。
 # 段位卡的生图中间产物与原始大图（_pixel3 / _pixel4 两批试验图）
 promo/_pixel*/
 promo/_fonts/

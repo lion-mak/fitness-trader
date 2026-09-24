@@ -33,6 +33,12 @@ wcsc 位置：<开发者工具>/resources/app.asar.unpacked/node_modules/wcc-exe
      这道闸就是把这个失败模式在本地提前复现。
   B. **页面禁写 @import** —— 由上一条推出的工程规矩：共享样式写 app.wxss 末尾的
      适配层（由 mp_build.py 追加），页面 wxss 只放本页增量。命中直接 FAIL。
+  D. **注释提前闭合**（2026-09-24 新增，对应白屏事故 C）—— WXSS 注释不嵌套，
+     注释体里出现「星号紧跟斜杠」会让注释在那里结束，余下文字被当样式解析 ⇒
+     `unexpected` + 整包白屏。最阴的形态是连写两个类名前缀（`.a-*` 紧跟斜杠接 `.b`）。
+     这道闸在**编译前**就静态拦下，并指认原始写法。
+  ⭐ 附带：A/C 报错会自动翻译成「出错那一行的原文 + 疑似注释提前闭合」，
+     省掉「拿到一个落在注释行中间的行:列去逐行删测」的过程。
 
 用法：
   python promo/mp_wxss_check.py
@@ -163,6 +169,75 @@ def import_ban():
     return page_hits, app_hits
 
 
+def comment_close_scan():
+    """扫「注释被提前闭合」—— WXSS/CSS 的注释**不嵌套**：注释体里一旦出现
+    「星号紧跟斜杠」，注释就在那里结束，余下文字被当样式解析 ⇒ wcsc 报 `unexpected`
+    ⇒ 整包编译失败 ⇒ 开发者工具白屏。
+
+    为什么单独立一道静态闸（编译器明明也能抓到）：
+      · wcsc 每次只报**第一个**错，且 行:列 落在**注释行中间**、字面上看着像「注释有问题」，
+        真正根因（注释提前断在这里）要反推才能看出来。
+      · 2026-09-24 我就是靠「逐行删测」才定位到，花了近一小时；而静态闸能直接指认原始写法。
+      · 最阴的形态是「并列类名前缀」写成 `.a-*` 紧跟斜杠再接 `.b` —— 写的人视觉上只看见
+        两个类名，完全想不到自己插了一个注释结束符。
+
+    判据：**跨行**注释的结束符之后、同一行还有非空内容 ⇒ 提前闭合。
+      同行内的紧凑写法（`/* 说明 */ .foo{}`）起止同行，天然不误报。
+    返回 [(rel, 行号, 该行原文)]。
+    """
+    hits = []
+    for rel in find_wxss():
+        src = io.open(os.path.join(MINI, rel.replace(u"/", os.sep)),
+                      encoding="utf-8", errors="replace").read()
+        lines = src.split(u"\n")
+        n = len(src)
+        i = 0
+        while i < n:
+            s = src.find(u"/*", i)
+            if s < 0:
+                break
+            e = src.find(u"*/", s + 2)
+            if e < 0:
+                hits.append((rel, src.count(u"\n", 0, s) + 1, u"（注释没有闭合）"))
+                break
+            if src.count(u"\n", 0, s) != src.count(u"\n", 0, e):
+                eol = src.find(u"\n", e)
+                eol = n if eol < 0 else eol
+                if src[e + 2:eol].strip():
+                    ln = src.count(u"\n", 0, e) + 1
+                    hits.append((rel, ln, lines[ln - 1].strip() if ln <= len(lines) else u""))
+            i = e + 2
+    return hits
+
+
+def explain_err(err):
+    """把 wcsc 的 `文件(行:列): unexpected` 翻译成可操作的话：打印该行原文，
+    并在列之前回溯找「星号紧跟斜杠」—— 命中就直接点明根因，不必再去逐行删测。"""
+    out = []
+    m = re.search(r"([\w./\-]+\.wxss)\((\d+):(\d+)\)", err)
+    if not m:
+        return out
+    rel, ln, col = m.group(1), int(m.group(2)), int(m.group(3))
+    if rel.startswith(u"./"):
+        rel = rel[2:]
+    path = os.path.join(MINI, rel.replace(u"/", os.sep))
+    if not os.path.isfile(path):
+        return out
+    lines = io.open(path, encoding="utf-8", errors="replace").read().split(u"\n")
+    if not (1 <= ln <= len(lines)):
+        return out
+    src = lines[ln - 1]
+    out.append(u"      ↳ 该行原文：%s" % src.strip()[:120])
+    # ⚠️ 报的是**字节列**（不是字符列）—— 中文行按字符数去数会错位
+    head = src.encode("utf-8")[:col - 1].decode("utf-8", "ignore")
+    p = head.rfind(u"*/")
+    if p >= 0:
+        out.append(u"      ⭐ 疑似注释【提前闭合】：本行第 %d 个字符处出现「星号紧跟斜杠」，" % (p + 1))
+        out.append(u"         注释在那里就结束了 ⇒ 其后的文字被当样式解析（所以才 unexpected）。")
+        out.append(u"         修法：把那个序列拆开（中间留空格），别把两个类名前缀连写。")
+    return out
+
+
 def tag_scan(product):
     """从编译产物里找出被 wcsc 转成 `wx-*` 的标签选择器。
 
@@ -216,6 +291,8 @@ def main():
         log(u"[FAIL] 整包编译失败 —— 开发者工具会报「编译 .wxss 文件错误」并整包白屏")
         for l in err.split(u"\n"):
             log(u"        %s" % l.strip())
+        for l in explain_err(err):
+            log(l)
         bad.append((u"(整包)", err))
 
     # ── 主检 B：页面禁写 @import ──
@@ -243,7 +320,24 @@ def main():
             log(u"[FAIL] %s" % rel)
             for l in err.split(u"\n"):
                 log(u"        %s" % l.strip())
+            for l in explain_err(err):
+                log(l)
             bad.append((rel, err))
+
+    # ── 主检 D：注释提前闭合（编译前静态拦截，比读编译器日志快两个数量级） ──
+    log()
+    log(u"## D. 注释提前闭合（注释体里出现「星号紧跟斜杠」会让注释在此断掉）")
+    c_hits = comment_close_scan()
+    if c_hits:
+        log(u"[FAIL] 以下位置跨行注释被提前闭合（余下文字会被当成样式解析）：")
+        for rel, ln, txt in c_hits:
+            log(u"        %s:%d  %s" % (rel, ln, txt[:110]))
+        log(u"        修法：把「星号紧跟斜杠」拆开（中间留空格），"
+            u"别在注释里连写两个类名前缀。")
+        log(u"        影响：不修则 wcsc 报 unexpected ⇒ 整包 .wxss 编译失败 ⇒ 白屏。")
+        bad.append((u"(注释提前闭合)", u"%d 处" % len(c_hits)))
+    else:
+        log(u"[ OK ] 没有注释被提前闭合（跨行注释的结束符后均为空行尾）")
 
     log()
     log(u"共 %d 个 .wxss，失败项 %d" % (len(files), len(bad)))
@@ -272,7 +366,7 @@ def main():
         log(u"RESULT=FAIL")
     else:
         log()
-        log(u"RESULT=OK —— 整包/逐文件均通过官方编译器，且无页面 @import")
+        log(u"RESULT=OK —— 整包/逐文件均通过官方编译器，无页面 @import，注释无提前闭合")
     flush(1 if bad else 0)
 
 

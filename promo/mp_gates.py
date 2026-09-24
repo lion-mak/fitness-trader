@@ -53,6 +53,9 @@ GATES = {
     "rectme":    (VENV, "mp_rect_me.py",        [], 30),
     "rectach":   (VENV, "mp_rect_ach_gacha.py", [], 30),
     "negwxss":   (PY,   "negctl_wxss.py",       [], 14),
+    # 注释提前闭合（D 段静态闸 + mp_build.py 写出前自检）的专属负控。
+    # 白屏级：注释里连写两个类名前缀（星号紧跟斜杠）会把注释截断 ⇒ 整包编译失败。
+    "negwxsscomment": (PY, "negctl_wxss_comment.py", [], 26),
     "negfoods":  (PY,   "negctl_foods.py",      [], 14),
     "negach":    (PY,   "negctl_ach_gacha.py",  [], 18),
     # 云开发接线的专属负控（**不依赖 IDE**：它改 app.js 的 env 制造回归，再跑 mp_smoke）
@@ -61,7 +64,9 @@ GATES = {
     "negtrademodals": (PY, "negctl_trade_modals.py", [], 14),
 }
 # ⚠️ 新页面/新套件上线后**必须往这里加**：默认集合漏了某套 = 那套再没人跑。
-DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "body", "celeb", "smoke", "negcloud"]
+# ⚠️ 2026-09-24 补入 negwxss / negwxsscomment：这两道**都不依赖开发者工具**（纯本地跑
+#    wcsc + mp_build），前面一直漏在默认集合外 ⇒ 等于「白屏级的两道负控从来没被自动跑过」。
+DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "body", "celeb", "smoke", "negcloud", "negwxss", "negwxsscomment"]
 # 默认集合跑完 ≠ 全绿：下面这些**依赖开发者工具**的闸要单独跑（IDE 在跑 + 端口能 arm 时）：
 #   recttrade / recttrademodals / rectbody / rectboard / rectme / rectach   （⑥c 元素级 rect 对拍）
 #   rectmp（行情页）/ kline（分时线）/ b2 像素差分（mp_holdings_compare.py）

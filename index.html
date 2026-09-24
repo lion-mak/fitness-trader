@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.59"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.60"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -165,6 +165,42 @@ body {
 .profile-head .av-lg { width:72px; height:72px; border-radius:50%; background:#2a3142; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:500; }
 .profile-head .name { font-size:18px; font-weight:500; margin-top:10px; }
 .profile-head .name .lvl { display:inline-block; padding:2px 8px; background:var(--amber); color:#0a0e1a; border-radius:4px; font-size:11px; margin-left:8px; }
+/* ================= 段位卡廊（v2.7.60）=================
+   横向滑动看完整段位表，**居中那张 = 当前段位**；已解锁彩色、未解锁灰度。
+   ⚠️ 卡片图片顺序 = RANKS 顺序 = assets/ranks/*.webp 的编号顺序
+      （promo/build_rank_assets.py 会拿 RANKS 硬校验，别靠人眼对齐）。
+   ⚠️ 显示尺寸 168x240 必须与脚本的 DISP_W/DISP_H 一致 —— 改一处就要改两处。
+   ⚠️ 本块会被 mp_build.py 整体搬进 app.wxss ⇒ 只能用 WXSS 白名单内的选择器
+      （.class / #id / element / element,element / ::after / ::before）。
+      ⛔别写 `:not()` / `::-webkit-scrollbar` / 属性选择器：wcsc 会编译报错导致整包白屏。
+      「未解锁」态因此不用 :not(.unlocked)，改成并列的 .focus.locked 规则。 */
+.rail {
+  align-self:stretch; margin:16px -18px 0;
+  /* 左右渐隐：居中卡两侧必然被屏幕边缘硬切（430 宽放不下 2×168+22+168），
+     硬切看着像"没做完"。用 mask 让两侧 30px 淡出，中间卡完全不受影响（在实心区里）。
+     ⚠️ 只用属性不用选择器，WXSS 里合法；小程序若不吃 mask 就退回硬切，不影响功能。 */
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 30px,#000 calc(100% - 30px),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 30px,#000 calc(100% - 30px),transparent 100%);
+}
+.rail-track {
+  display:flex; gap:22px; overflow-x:auto; overflow-y:hidden; position:relative;
+  padding:5px calc(50% - 84px) 8px;   /* 84 = 卡宽 168 的一半 ⇒ 首尾卡也能停在正中 */
+  scrollbar-width:none; -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+}
+.rail-card {
+  flex:0 0 168px; width:168px; height:240px; border-radius:12px; overflow:hidden;
+  background:#0f1524;
+  transform:scale(.86); opacity:.5;
+  filter:grayscale(1) brightness(.55);
+  transition:transform .2s ease, opacity .2s ease, filter .2s ease;
+}
+.rail-card.unlocked { filter:none; opacity:.72; }
+.rail-card.focus { transform:scale(1); opacity:1; box-shadow:0 8px 20px rgba(0,0,0,.55); }
+.rail-card.focus.locked { filter:grayscale(1) brightness(.72); }
+.rail-img { width:100%; height:100%; display:block; object-fit:cover; }
+.rail-tip { margin-top:10px; text-align:center; font-size:11px; color:var(--muted2); font-variant-numeric:tabular-nums; }
+.rail-tip .dot { display:inline-block; width:5px; height:5px; border-radius:50%; margin-right:5px; vertical-align:1px; }
 .profile-head .info { color:var(--muted); font-size:12px; margin-top:4px; }
 .profile-stat { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); margin-top:14px; border-radius:14px; overflow:hidden; width:calc(100% - 36px); }
 .profile-stat > div { background:var(--panel); padding:14px 8px; text-align:center; }
@@ -898,6 +934,13 @@ body {
         <div class="av-lg" id="p-avatar" onclick="openProfileEdit()" data-page-node-id="IVQeb9t6R2HxBMcCKLZTxe"></div>
         <div class="name" data-page-node-id="ST7udwIMx8JWAFOrtShP2H"><span id="p-id" data-page-node-id="nK7ksy89Hn9RTulh14MLeh">FT_8848</span> <span class="lvl" id="p-lvl" onclick="showLevel()" style="cursor:pointer;" data-page-node-id="5y5gZn6fy1i7ljEtrpOlTD">lv 1</span></div>
         <div class="info" id="p-title" data-page-node-id="VpaM9VYIsf9ecRWhKsBZcF">散户 · 自交易所 · 持仓 0 天</div>
+
+        <!-- 段位卡廊（v2.7.60）：横向滑动，居中那张 = 当前段位；已解锁彩色 / 未解锁灰度。
+             卡面图在 assets/ranks/，顺序 = RANKS 顺序（build_rank_assets.py 硬校验）。 -->
+        <div class="rail" data-page-node-id="Ra1lRank01">
+          <div class="rail-track" id="rail-track" data-page-node-id="Ra1lTrack1"></div>
+          <div class="rail-tip" id="rail-tip" data-page-node-id="Ra1lTip001"></div>
+        </div>
         <div class="profile-stat" data-page-node-id="74bojQzTFmKrepLkLKzFsh">
           <div data-page-node-id="BwK1AMOSPDjhwNG6DLPhtD"><div class="v" id="p-diet" data-page-node-id="ec90amYSTBOdQpynfpu90H">0</div><div class="l" data-page-node-id="U4fMUweVgmIzGh1Xd9j2GV">累计饮食</div></div>
           <div data-page-node-id="Mmmj5LpV3YnOGOx8SH6XJr"><div class="v" id="p-ex" data-page-node-id="u3P1T3TL5cT8nyHq7vKdIb">0</div><div class="l" data-page-node-id="xNBIRBj78edyxJAhPwRnEj">累计运动</div></div>
@@ -1820,13 +1863,19 @@ const EXP_PER_EX = 2;           // 记一次运动：+2 经验
 const COIN_LIMITUP = 200;       // 涨停奖励（每日缺口达标）
 const EXP_LIMITUP = 30;         // 涨停经验
 
-/* ---- 操盘手段位（等级成长体系）---- */
+/* ---- 操盘手段位（等级成长体系）----
+   ⚠️ 这里的顺序 = 「我的」页段位卡廊的卡片顺序 = assets/ranks/*.webp 的编号顺序。
+      三者错位会让卡面角色与段位名对不上（promo/build_rank_assets.py 会硬校验，别靠人眼）。
+   v2.7.60：11 段 → 10 段（Mak 出图时去掉了「小散」）。minLv 重排的**唯一原则是零掉段** ——
+      每一段的门槛都 ≤ 原表同名段位的门槛 ⇒ 任何 exp 下新段位 index ≥ 旧段位 index，只升不降，
+      所以这次换代**不需要**新的补偿锚（state.curve 的曲线口径没变，只是段位表少了中间一档）。
+      对照（旧 ⇒ 新）：中户 6⇒4、大户 8⇒7、牛散/游资/主力/机构/庄家/股神 不变。
+      副作用只有一个：lv3–5 不再有专属段位，散户会一直挂到 lv4 才换中户。 */
 const RANKS = [
   { name:'韭菜', minLv:1,  color:'#3fbf57', desc:'刚入场 · 从记第一笔开始' },
   { name:'散户', minLv:2,  color:'#7c8da6', desc:'起步 · 习惯正在形成' },
-  { name:'小散', minLv:4,  color:'#33a6b8', desc:'连续记录 · 攒出本金' },
-  { name:'中户', minLv:6,  color:'#3d7be0', desc:'稳定达标 · 控制热量' },
-  { name:'大户', minLv:8,  color:'#5b4bc4', desc:'持续减脂 · 初见成效' },
+  { name:'中户', minLv:4,  color:'#3d7be0', desc:'稳定达标 · 控制热量' },
+  { name:'大户', minLv:7,  color:'#5b4bc4', desc:'持续减脂 · 初见成效' },
   { name:'牛散', minLv:10, color:'#c08a2e', desc:'节奏自控 · 个人高手' },
   { name:'游资', minLv:13, color:'#e8781e', desc:'高频运动 · 缺口为王' },
   { name:'主力', minLv:16, color:'#c43a2e', desc:'节奏在手 · 走势由我' },
@@ -1839,7 +1888,7 @@ const RANKS = [
    ⚠️ 这里是**唯一**的等级换算口径：PWA 的 currentRank()、「我的」页 lv、段位页进度条，
    以及小程序 lib/calc.js（由 mp_build.py 抽取）全部走它。⛔任何地方都不要再写 exp/100。
 
-   旧口径 lv = floor(exp/100)+1（每级固定 100 经验）在 11 段体系下两头都不对：
+   旧口径 lv = floor(exp/100)+1（每级固定 100 经验）在 10 段体系下两头都不对：
      ① 前期太慢 —— 升到 lv2 要 100 经验，中度用户（日均 9 经验）得耗 11 天，
         新用户第一周看不到任何段位变化，谈不上新鲜感；
      ② 后期不贵 —— lv29→30 与 lv1→2 同价 100 经验，中度用户 10.8 个月就能「封神」，
@@ -1847,8 +1896,8 @@ const RANKS = [
    新口径：**升到下一级需要「当前等级 × 10」经验**，累计门槛 = 5·lv·(lv−1)。
      lv1→2 需 10 / lv10→11 需 100 / lv20→21 需 200 / lv29→30 需 290
      ⇒ 每级耗时随等级线性增长：前期密集给反馈，后期必须长期使用才推得动。
-   节奏实测（日均 9 经验的中度画像）：首日 lv2 散户、一周 lv4 小散、一月 lv6 中户、
-     一年 lv20 机构、1.3 年 lv30 股神；只记饮食不运动不涨停的轻度用户 4.4 年才封神。
+   节奏实测（日均 9 经验的中度画像）：首日 lv2 散户、一月 lv4 中户、一年 lv20 机构、
+     1.3 年 lv30 股神；只记饮食不运动不涨停的轻度用户 4.4 年才封神。
    调参入口：改 expForLv 的系数（5 ⇒ 每级 ×10）即整条曲线等比缩放，跑 promo/rank_curve.py 看效果。 */
 function expForLv(lv) { return 5 * lv * (lv - 1); }   // 累计到 lv 所需总经验
 function lvFromExp(exp) {                             // 反解：exp → lv
@@ -2428,6 +2477,7 @@ function render() {
   const lvl = lvFromExp(state.exp);          // 与 currentRank() 同源，⛔别写回 exp/100+1
   document.getElementById('p-lvl').textContent = 'lv ' + lvl;
   document.getElementById('p-title').textContent = currentRank().rank.name + ' · 健交所 · 持仓 ' + (state.limitUpCount || 0) + ' 天';
+  renderRail();                       // 段位卡廊：解锁态每次都刷；定位只在「首次/段位变化」时才做
   document.getElementById('p-diet').textContent = state.diet.length;
   document.getElementById('p-ex').textContent = state.exercise.length;
   document.getElementById('p-badges').textContent = unlocked;
@@ -5536,6 +5586,149 @@ function currentRank() {
   for (const x of RANKS) if (lv >= x.minLv) r = x;
   return { lv: lv, rank: r };
 }
+/* 段位覆盖的等级区间文案：'lv 1'（单级）/ 'lv 4–6' / 'lv 30+'（顶段无上限）。
+   ⚠️ **唯一实现** —— 段位页的区间列与我的页卡廊 tip 都调它。
+      原先两处各手写一遍，改一处漏一处就是两端数字不一致。 */
+function rankRange(i) {
+  const lo = RANKS[i].minLv;
+  const hi = RANKS[i + 1] ? RANKS[i + 1].minLv - 1 : 0;
+  return !hi ? ('lv ' + lo + '+') : (hi === lo ? ('lv ' + lo) : ('lv ' + lo + '–' + hi));
+}
+
+/* ============ 段位卡廊（v2.7.60 · 我的页）============
+   横向滑动看完整段位表，**居中那张 = 当前段位**；已解锁彩色 / 未解锁灰度。
+   吸附位置自己算（不用 CSS scroll-snap）：小程序对 scroll-snap 支持不稳，而两端要跑同一套
+   算法才好写对拍断言 —— 手写反而省心。
+   ⚠️ 卡面图顺序 = RANKS 顺序 = assets/ranks/ 的 01..10（build_rank_assets.py 硬校验过）。
+   ⚠️ 只在「首次 / 段位变化」时重新定位，⛔别每次 render() 都定位：用户正滑到别的段位看，
+      记一笔饮食触发的 render() 会把他弹回当前段位。
+   ⚠️ 隐藏页里 clientWidth / offsetLeft **全是 0** ⇒ 先查 clientWidth，等 switchTab 切进来再定位
+      （与 renderMarketMap / ntAfterShow 同一套路）。 */
+const RANK_CARDS = ['01_leek.webp', '02_retail.webp', '03_mid.webp', '04_big.webp', '05_pro.webp',
+                    '06_hotmoney.webp', '07_mainforce.webp', '08_institution.webp', '09_dealer.webp',
+                    '10_stockgod.webp'];
+const RAIL_CARD_W = 168;   // 与 .rail-card 的 width 一致（改一处要改两处）
+let railFocus = -1;        // 当前居中卡索引（-1 = 未初始化）
+let railCurIdx = -1;       // 上一次定位时的「当前段位」索引
+let railTimer = 0;
+
+function railTrack() { return document.getElementById('rail-track'); }
+
+/* 已解锁 = 累计经验够到该段门槛。段位只升不降 ⇒ 够到门槛就等于「到过」。 */
+function railUnlocked(i) { return (state.exp || 0) >= expForLv(RANKS[i].minLv); }
+
+function buildRail() {
+  const track = railTrack();
+  if (!track) return;
+  track.innerHTML = RANKS.map(function (r, i) {
+    /* 点卡片 = 进段位页看完整区间表（与「我的」页 lv 徽章的入口同一个） */
+    return '<div class="rail-card" data-i="' + i + '" onclick="showLevel()">' +
+      '<img class="rail-img" src="assets/ranks/' + RANK_CARDS[i] + '" alt="' + r.name +
+      '" loading="lazy" decoding="async">' +
+      '</div>';
+  }).join('');
+  railFocus = -1;
+}
+
+function bindRail() {
+  const track = railTrack();
+  if (!track || track._railBound) return;
+  track._railBound = true;
+  track.addEventListener('scroll', function () {
+    paintRailFocus(false);
+    clearTimeout(railTimer);
+    railTimer = setTimeout(snapRail, 130);   // 等手指停下来再吸附，别跟手指抢
+  }, { passive: true });
+}
+
+/* 解锁态：经验一变就得重刷 ⇒ 每次 renderRail 都要跑（不能只靠 paintRailFocus，它会提前 return） */
+function paintRailUnlock() {
+  const track = railTrack();
+  if (!track) return;
+  for (let i = 0; i < track.children.length; i++) {
+    const un = railUnlocked(i);
+    track.children[i].classList.toggle('unlocked', un);
+    track.children[i].classList.toggle('locked', !un);
+  }
+}
+
+/* 焦点 = 离轨道中线最近的那张。滑动中实时算，缩放与明暗交给 CSS transition。 */
+function paintRailFocus(force) {
+  const track = railTrack();
+  if (!track || !track.children.length) return;
+  const mid = track.scrollLeft + track.clientWidth / 2;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < track.children.length; i++) {
+    const d = Math.abs(track.children[i].offsetLeft + RAIL_CARD_W / 2 - mid);
+    if (d < bd) { bd = d; best = i; }
+  }
+  if (best === railFocus && !force) return;
+  railFocus = best;
+  for (let i = 0; i < track.children.length; i++) {
+    track.children[i].classList.toggle('focus', i === best);
+  }
+  renderRailTip(best);
+}
+
+/* 第 i 张停在正中时，轨道该有的 scrollLeft */
+function railTargetOf(i) {
+  const track = railTrack();
+  return track.children[i].offsetLeft - (track.clientWidth - RAIL_CARD_W) / 2;
+}
+
+function focusRail(i, instant) {
+  const track = railTrack();
+  if (!track || !track.children[i]) return;
+  railFocus = i;
+  for (let k = 0; k < track.children.length; k++) {
+    track.children[k].classList.toggle('focus', k === i);
+  }
+  renderRailTip(i);
+  const target = railTargetOf(i);
+  if (instant) track.scrollLeft = target;
+  else track.scrollTo({ left: target, behavior: 'smooth' });
+}
+
+/* 吸附：算准目标位置再滚过去，不需要模拟惯性 */
+function snapRail() {
+  const track = railTrack();
+  if (!track || railFocus < 0) return;
+  const target = railTargetOf(railFocus);
+  if (Math.abs(track.scrollLeft - target) > 1) {
+    track.scrollTo({ left: target, behavior: 'smooth' });   // 滚完会再触发 scroll ⇒ 已对齐即自然收敛
+  }
+}
+
+/* 卡廊下方那行小字：段位覆盖的等级区间 + 这张卡的状态 */
+function renderRailTip(i) {
+  const el = document.getElementById('rail-tip');
+  if (!el) return;
+  const r = RANKS[i];
+  let st;
+  if (r.name === currentRank().rank.name) st = '当前段位';
+  else if (railUnlocked(i)) st = '已解锁';
+  else st = '还需 ' + Math.max(0, expForLv(r.minLv) - (state.exp || 0)) + ' 经验';
+  el.innerHTML = '<span class="dot" style="background:' + r.color + '"></span>' + rankRange(i) + ' · ' + st;
+}
+
+function renderRail() {
+  const track = railTrack();
+  if (!track) return;
+  if (!track.clientWidth) { railCurIdx = -1; return; }   // 隐藏页：尺寸全是 0，等切进来再定位
+  if (track.children.length !== RANKS.length) {
+    buildRail();
+    bindRail();
+    railCurIdx = -1;
+  }
+  paintRailUnlock();
+  const cur = RANKS.indexOf(currentRank().rank);   // currentRank 返回的是 RANKS 里的同一对象 ⇒ indexOf 有效
+  if (railCurIdx !== cur || railFocus < 0) {
+    railCurIdx = cur;
+    focusRail(cur, true);      // 首次进页面 / 段位刚变 ⇒ 直接落位，别让用户看见它从第 1 张滑过来
+  } else {
+    paintRailFocus(false);
+  }
+}
 function showCoins() { renderCoins(); switchTab('coins'); }
 function showLevel() { renderLevel(); switchTab('level'); }
 function renderCoins() {
@@ -5580,11 +5773,9 @@ function renderLevel() {
     : '已登顶，继续稳如泰山';
   document.getElementById('l-ranks').innerHTML = RANKS.map(function(r, idx) {
     const on = r.name === cr.rank.name;
-    /* 区间：hi=0 表无上限 ⇒ 'lv N+'；hi==lo（只有第一段）⇒ 'lv N'；否则 'lv lo–hi'。
-       原写法在 minLv 差 1 时会渲染出「lv 1–1」这种怪区间（11 段后第一段正是如此）。 */
-    const lo = r.minLv;
-    const hi = RANKS[idx + 1] ? RANKS[idx + 1].minLv - 1 : 0;
-    const range = !hi ? ('lv ' + lo + '+') : (hi === lo ? ('lv ' + lo) : ('lv ' + lo + '–' + hi));
+    /* 区间文案走 rankRange()（唯一实现）—— 我的页卡廊 tip 用的是同一个函数，
+       所以「lv 7–9」这类文案两端永远一致，不需要各自维护一份。 */
+    const range = rankRange(idx);
     return '<div class="rank-row' + (on ? ' on' : '') + '" style="' + (on ? 'border-left-color:' + r.color + ';background:' + r.color + '14;' : '') + '">' +
       '<span class="dot" style="background:' + r.color + '"></span>' +
       '<span class="rn"' + (on ? ' style="color:' + r.color + '"' : '') + '>' + r.name + '</span>' +
@@ -5817,6 +6008,9 @@ function switchTab(tab) {
   }
   if (tab === 'holdings') {
     try { ntAfterShow(); } catch (e) {}              // 净热量趋势：隐藏态量不到宽度 → 可见后重绘并贴最右
+  }
+  if (tab === 'profile') {
+    try { renderRail(); } catch (e) {}               // 段位卡廊：同上 —— 隐藏态 clientWidth=0，定位会在可见后补做
   }
 }
 /* 子页面左缘右滑返回手势（贴合手机操作习惯） */

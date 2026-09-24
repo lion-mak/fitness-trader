@@ -10,8 +10,9 @@
  *   D 表单交互（改活动水平写回 state / 改体重当场重算 BMR）
  *   E 上传档案（写 state.user + recordWeight 真写一条体重日志）
  *   F 健康币页（余额 / 今日已赚 / 赚花规则条数与文案 / 跨天归零负控 / 余额负控）
- *   G 段位页（段位判定 / lv / **段位内**经验条 pct / 距下一段 / 11 行区间文案 / 当前行唯一高亮 / 顶段与零经验负控）
+ *   G 段位页（段位判定 / lv / **段位内**经验条 pct / 距下一段 / 10 行区间文案 / 当前行唯一高亮 / 顶段与零经验负控）
  *   H 空存档（三页都不抛错、走空态）
+ *   L 段位卡廊（卡数=段位数 / 解锁态按当前段位 / 居中焦点吸附 / 灰度类名 / 首尾占位宽）
  *
  * ⚠️ const calc = require(...) 必须写在 boot(seed) 之后（技能铁律）。
  * ⚠️ mock 下 storage['jianpan_v2'] 与 calc.state / store.get() 是同一引用 ⇒ 负控直接改 seed。
@@ -42,12 +43,14 @@ function sec(t) { out(''); out('=== ' + t + ' ==='); }
 /* ============================================================
  * 独立参考实现（不复用页面/内核的任何计算）
  * ============================================================ */
-/* 段位表按 PWA RANKS 的「文字规则」重抄一份：lv ≥ minLv 的最后一段生效 */
+/* 段位表按 PWA RANKS 的「文字规则」重抄一份：lv ≥ minLv 的最后一段生效。
+   v2.7.60 换代：11 段 → 10 段（去掉「小散」），门槛同步重排为下面这份。
+   ⚠️ 单子改了必须同时改这里（这是**独立重抄**，不是从 calc 读回来比自己）。 */
 const RANK_SPEC = [
-  { name: '韭菜', minLv: 1 }, { name: '散户', minLv: 2 }, { name: '小散', minLv: 4 },
-  { name: '中户', minLv: 6 }, { name: '大户', minLv: 8 }, { name: '牛散', minLv: 10 },
-  { name: '游资', minLv: 13 }, { name: '主力', minLv: 16 }, { name: '机构', minLv: 20 },
-  { name: '庄家', minLv: 24 }, { name: '股神', minLv: 30 },
+  { name: '韭菜', minLv: 1 }, { name: '散户', minLv: 2 }, { name: '中户', minLv: 4 },
+  { name: '大户', minLv: 7 }, { name: '牛散', minLv: 10 }, { name: '游资', minLv: 13 },
+  { name: '主力', minLv: 16 }, { name: '机构', minLv: 20 }, { name: '庄家', minLv: 24 },
+  { name: '股神', minLv: 30 },
 ];
 /* v2.7.59 曲线：升到下一级需「当前等级 ×10」经验 ⇒ 累计门槛 5·lv·(lv−1)。
    参考实现写成**纯整数累加**（不复刻内核那条 sqrt 反解）—— 既独立于实现，也能顺手守住
@@ -251,7 +254,7 @@ function buildSeed(calc) {
   st.coins = 320;
   st.coinToday = 40;
   st.coinDate = todayStr();
-  st.exp = 250;                       // lv 3 ⇒ 散户（新表 2–3）
+  st.exp = 250;                       // lv 7 ⇒ 大户（新表 minLv 7；旧 11 段表的 lv7 是「中户」）
   st.limitUpCount = 2;
   st.diet = [{ id: 'd1', name: '米饭', kcal: 300, date: todayStr(), time: '12:00', gram: 100, unit: 'g', qty: 1 },
              { id: 'd2', name: '鸡胸肉', kcal: 165, date: todayStr(), time: '19:00', gram: 100, unit: 'g', qty: 1 },
@@ -328,7 +331,7 @@ let seed = null, me = null, calc = null;
 
   must(d.statusBarHeight === 54, '状态栏留白取到真机值 54（三级兜底）', 'got ' + d.statusBarHeight);
   must(d.lv === R.lv && d.lv === 7, 'lv = lvFromExp(250) = 7（v2.7.59 曲线：5·lv·(lv−1)）', 'got ' + d.lv);
-  must(d.rankName === R.rank.name && d.rankName === '中户', '段位名按 minLv 判定 = 中户（lv7）', 'got ' + d.rankName);
+  must(d.rankName === R.rank.name && d.rankName === '大户', '段位名按 minLv 判定 = 大户（lv7；删掉小散后门槛由 lv8 降到 lv7）', 'got ' + d.rankName);
   must(d.limitUpCount === 2, '持仓天数 = state.limitUpCount = 2', 'got ' + d.limitUpCount);
   must(d.dietCount === 3, '累计饮食 = diet.length = 3', 'got ' + d.dietCount);
   must(d.exCount === 1, '累计运动 = exercise.length = 1', 'got ' + d.exCount);
@@ -503,14 +506,16 @@ sec('G 段位页 level');
   must(d.hero && d.hero.name === R.rank.name, '段位名 = 独立判定 ' + R.rank.name, 'got ' + (d.hero && d.hero.name));
   must(d.hero.lv === R.lv && d.hero.lv === 7, 'lv = lvFromExp(250) = 7', 'got ' + d.hero.lv);
   must(d.expText === '250 经验', '经验文案 = 「250 经验」', d.expText);
-  /* 经验条 = **段位内**进度：中户门槛 150 → 大户门槛 280，(250−150)/(280−150) = 76.9% ⇒ 77% */
-  must(d.pct === pctOf(s3.exp) && d.pct === 77, '经验条 = 中户段内进度 77%（(250−150)/(280−150)）', 'got ' + d.pct);
-  must(d.tip === '距「大户」还差 30 经验', '距下一段 = expForLv(8) − exp = 280−250 = 30', d.tip);
-  must(d.ranks.length === 11, '段位列表 11 行', 'got ' + d.ranks.length);
+  /* 经验条 = **段位内**进度：大户门槛 expForLv(7)=210 → 牛散门槛 expForLv(10)=450，
+     (250−210)/(450−210) = 16.67% ⇒ 17% */
+  must(d.pct === pctOf(s3.exp) && d.pct === 17, '经验条 = 大户段内进度 17%（(250−210)/(450−210)）', 'got ' + d.pct);
+  must(d.tip === '距「牛散」还差 200 经验', '距下一段 = expForLv(10) − exp = 450−250 = 200', d.tip);
+  must(d.ranks.length === 10, '段位列表 10 行（v2.7.60 删掉「小散」）', 'got ' + d.ranks.length);
+  must(d.ranks.map((r) => r.name).indexOf('小散') < 0, '列表里已无「小散」');
   /* 区间文案：第一段只占一级（lv 1）⇒ 不能渲染成「lv 1–1」；普通段是 lv a–b */
   must(d.ranks[0].range === 'lv 1' && d.ranks[1].range === 'lv 2–3', '区间文案 lv a–b（en dash）+ 单级段显示 lv N',
     d.ranks[0].range + ' / ' + d.ranks[1].range);
-  must(d.ranks[10].range === 'lv 30+', '末段文案 lv a+', d.ranks[10].range);
+  must(d.ranks[9].range === 'lv 30+', '末段文案 lv a+（索引 9 = 第 10 行）', d.ranks[9].range);
   const onRows = d.ranks.filter((r) => r.on);
   must(onRows.length === 1 && onRows[0].name === d.hero.name, '当前段位恰好 1 行高亮且与 hero 同名',
     JSON.stringify(onRows.map((r) => r.name)));
@@ -530,13 +535,14 @@ sec('G 段位页 level');
     '负控 · exp=4350（lv30）⇒ 股神 + 已登顶', pg.data.hero.name + ' / ' + pg.data.tip);
   must(pg.data.pct === 100, '负控 · 顶段进度条给满格（没有下一段）', 'got ' + pg.data.pct);
   must(pg.data.ranks.filter((r) => r.on).length === 1, '负控 · 顶段仍只有 1 行高亮', '');
-  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态）—— 大户 minLv=8，门槛 expForLv(8)=280 */
-  st.exp = 280;                        // lv 8 ⇒ 大户
+  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态）
+     —— 新表大户 minLv=7，门槛 expForLv(7)=210 ⇒ 209 是中户、210 是大户 */
+  st.exp = 210;                        // lv 7 ⇒ 大户
   pg.refresh();
-  must(pg.data.hero.name === '大户', '负控 · exp=280（lv8）⇒ 大户（边界含等号）', pg.data.hero.name);
-  st.exp = 279;                        // lv 7 ⇒ 中户
+  must(pg.data.hero.name === '大户', '负控 · exp=210（lv7）⇒ 大户（边界含等号）', pg.data.hero.name);
+  st.exp = 209;                        // lv 6 ⇒ 中户
   pg.refresh();
-  must(pg.data.hero.name === '中户', '负控 · exp=279（lv7）⇒ 中户（差 1 点就掉段）', pg.data.hero.name);
+  must(pg.data.hero.name === '中户', '负控 · exp=209（lv6）⇒ 中户（差 1 点就掉段）', pg.data.hero.name);
 }
 
 /* ---------- G2：两端口径对拍（PWA renderLevel ↔ 小程序 pages/level）----------
@@ -840,6 +846,157 @@ sec('J 成就补发接线（store.save / store.init / importPayload）');
 }
 
 /* ============================================================
+ * L 段位卡廊（v2.7.60 · 我的页 ①b「横向滑动看全部段位」）
+ *
+ * 这一块的风险不在算法而在**五处口径必须一字不差**：
+ *   ① 卡面图顺序 = RANKS 顺序 = RAIL_CARDS 文件名编号（错位 ⇒ 卡面角色与段位名对不上）
+ *   ② RAIL_CARD_W=168 / RAIL_GAP=22 同时出现在三个地方（me.js、页面 wxss 的 margin-right、
+ *      PWA 的 .rail-track gap）—— 吸附位置按等差排布推算，差 1px 到第 10 张累积成 9px
+ *   ③ 居中偏移 = i × STEP（与容器宽无关；换屏宽不该重算）
+ *   ④ 首尾 .rail-pad 占位宽 = (容器宽 − 卡宽)/2
+ *   ⑤ 「别每次 refresh 都重设 scroll-left」—— 用户滑到别的段位看时，
+ *      一次记录触发的 refresh 不许把他弹回当前段位
+ * 期望值全部在本文件里独立现算（RANK_SPEC / expForLvOf / rangeOf）。
+ * ============================================================ */
+/* 区间文案的独立实现（与内核 rankRange 同规则、不同代码） */
+function rangeOf(i) {
+  const lo = RANK_SPEC[i].minLv;
+  const hi = RANK_SPEC[i + 1] ? RANK_SPEC[i + 1].minLv - 1 : 0;
+  if (!hi) return 'lv ' + lo + '+';
+  return hi === lo ? 'lv ' + lo : 'lv ' + lo + '–' + hi;
+}
+sec('L 段位卡廊（rail）');
+{
+  const c0 = require(path.join(MINI, 'lib/calc.js'));
+  const sL = buildSeed(c0);
+  const mL = bootPage(sL, 'pages/me/me.js');
+  const c = require(path.join(MINI, 'lib/calc.js'));
+  const d = mL.data;
+
+  const W = global.wx.getWindowInfo().windowWidth;   // 430
+  const CARD_W = 168, GAP = 22, STEP = CARD_W + GAP;
+  const R = rankOf(sL.exp);                          // 独立判定：exp250 ⇒ lv7 / 大户 / idx3
+  /* 独立现算解锁集合：解锁判据是 exp ≥ expForLv(minLv)（不是 lv 比较） */
+  const unlockedIdx = RANK_SPEC
+    .map((x, i) => i).filter((i) => sL.exp >= expForLvOf(RANK_SPEC[i].minLv));
+
+  must(mL.data.rail.length === RANK_SPEC.length && mL.data.rail.length === c.RANKS.length,
+    '卡数 = 段位数 = 10（不是 11、也没有「小散」那张）',
+    mL.data.rail.length + ' / RANKS ' + c.RANKS.length);
+  must(c.RANK_CARDS.length === c.RANKS.length,
+    'RANK_CARDS 文件名数 = 段位数（数量不齐 ⇒ 某张卡 src 会 undefined 变破图）',
+    c.RANK_CARDS.length);
+
+  /* ① 顺序与文件名：卡面图数组**独立重抄**一份比对（⛔不能从 calc 读回来比自己） */
+  const CARDS_SPEC = ['01_leek.webp', '02_retail.webp', '03_mid.webp', '04_big.webp', '05_pro.webp',
+    '06_hotmoney.webp', '07_mainforce.webp', '08_institution.webp', '09_dealer.webp',
+    '10_stockgod.webp'];
+  must(c.RANK_CARDS.join(',') === CARDS_SPEC.join(','),
+    'RANK_CARDS 顺序 = 独立重抄的 10 个文件名（删「小散」后 03 由 minor 变 mid）',
+    c.RANK_CARDS.join(','));
+  must(d.rail.map((x) => x.name).join(',') === RANK_SPEC.map((x) => x.name).join(','),
+    '卡片顺序 = 段位表顺序（错位会让卡面角色与段位名对不上）',
+    d.rail.map((x) => x.name).join(','));
+  must(d.rail.every((x, i) => x.src === '/images/ranks/' + CARDS_SPEC[i]),
+    '每张卡 src = /images/ranks/ + 对应文件名', JSON.stringify(d.rail.map((x) => x.src)));
+  const missing = CARDS_SPEC.filter((f) => !fs.existsSync(path.join(MINI, 'images/ranks', f)));
+  must(missing.length === 0, '10 张卡面图在 images/ranks/ 下真实存在', missing.join(','));
+
+  /* ② 解锁态（彩色 / 灰度）—— 判据与独立现算的集合逐项对齐 */
+  const clsGot = d.rail.map((x) => x.cls);
+  const clsWant = RANK_SPEC.map((x, i) => (unlockedIdx.indexOf(i) >= 0 ? 'unlocked' : 'locked'));
+  must(clsGot.join(',') === clsWant.join(','),
+    '解锁态 = 独立现算（exp250 / lv7 ⇒ 前 4 张 unlocked、后 6 张 locked）', clsGot.join(','));
+  must(unlockedIdx.length === 4 && unlockedIdx.join(',') === '0,1,2,3',
+    '独立现算的解锁集合确实是 0,1,2,3', unlockedIdx.join(','));
+  must(clsGot[9] === 'locked', '末段「股神」未解锁 ⇒ locked（wxml 据此走灰度）', clsGot[9]);
+
+  /* ③ 居中焦点与等差偏移 */
+  must(d.railFocusIdx === R.idx && d.railFocusIdx === 3,
+    '初始焦点 = 当前段位下标（exp250 ⇒ 大户 idx3）', 'got ' + d.railFocusIdx);
+  must(d.railLeft === R.idx * STEP && d.railLeft === 570,
+    'scrollLeft = idx × (168+22) = 570（与容器宽无关的等差推导）', 'got ' + d.railLeft);
+  must(d.railPad === Math.round((W - CARD_W) / 2) && d.railPad === 131,
+    '首尾占位宽 = (430−168)/2 = 131（让首尾card也能停正中）', 'got ' + d.railPad);
+  must(d.railTip === rangeOf(R.idx) + ' · 当前段位' && d.railTip === 'lv 7–9 · 当前段位',
+    'tip = 段位区间 + 状态（区间文案与段位页同源）', 'got ' + d.railTip);
+  must(d.railDot === c.RANKS[R.idx].color, 'tip 圆点取该段配色', 'got ' + d.railDot);
+  must(mL._railStatus(4) === '还需 ' + (expForLvOf(10) - sL.exp) + ' 经验'
+    && mL._railStatus(4) === '还需 200 经验',
+    '未解锁段的状态文案 = 距该段门槛还差 450−250 = 200 经验', 'got ' + mL._railStatus(4));
+
+  /* ④ 静态口径：wxml 必须用 scroll-view 且绑 scroll；页面 wxss ⛔不许重写 .rail-* */
+  const meWxml = fs.readFileSync(path.join(MINI, 'pages/me/me.wxml'), 'utf8');
+  const meWxss = fs.readFileSync(path.join(MINI, 'pages/me/me.wxss'), 'utf8');
+  const appWxss = fs.readFileSync(path.join(MINI, 'app.wxss'), 'utf8');
+  ok('wxml 用 scroll-view 承载卡廊（普通 view 收不到 bindscroll ⇒ 焦点与吸附都做不了）');
+  must(/<scroll-view[^>]*class="rail-track"[^>]*scroll-x/.test(meWxml.replace(/\n\s*/g, ' ')),
+    'wxml：<scroll-view class="rail-track" scroll-x …>');
+  must(/bindscroll="onRailScroll"/.test(meWxml), 'wxml：bindscroll 绑到 onRailScroll');
+  must(/scroll-left="\{\{railLeft\}\}"/.test(meWxml), 'wxml：scroll-left 受控绑定 railLeft');
+  must((meWxml.match(/class="rail-pad"/g) || []).length === 2, 'wxml：首尾各 1 个 .rail-pad 占位');
+  must(/wx:for="\{\{rail\}\}"/.test(meWxml), 'wxml：卡片循环 rail');
+  must(!/\.rail-/.test(meWxss),
+    '⛔ me.wxss 没有重写 .rail-*（页面后加载会盖掉 app.wxss 适配层的正确值）');
+  must(/\.rail-card\s*\{[^}]*margin-right:\s*22px/.test(appWxss),
+    'app.wxss 适配层 .rail-card 的 margin-right = 22（与 me.js 的 RAIL_GAP 必须一致）');
+  must(/\.rail-track\s*\{[^}]*height:\s*254px/.test(appWxss),
+    'app.wxss 适配层给 scroll-view 固定高 254px（否则高度塌陷 ⇒ 卡片全不见）');
+  must(/\.rail-inner\s*\{[^}]*font-size:\s*0/.test(appWxss),
+    'app.wxss 适配层 .rail-inner font-size:0（抹掉 inline-block 之间的空白文本节点）');
+
+  /* ⑤ 负控 A：零经验 ⇒ 焦点回到第 1 张、只有它解锁 */
+  const st = S().get();
+  st.exp = 0;
+  mL.refresh();
+  must(mL.data.railFocusIdx === 0 && mL.data.railLeft === 0,
+    '负控 · exp=0 ⇒ 焦点回 idx0 / scrollLeft 0',
+    mL.data.railFocusIdx + ' / ' + mL.data.railLeft);
+  must(mL.data.railTip === 'lv 1 · 当前段位', '负控 · exp=0 ⇒ tip「lv 1 · 当前段位」', mL.data.railTip);
+  must(mL.data.rail.filter((x) => x.cls === 'unlocked').length === 1
+    && mL.data.rail[1].cls === 'locked',
+    '负控 · exp=0 ⇒ 只有第 1 张解锁（其余全灰度）',
+    JSON.stringify(mL.data.rail.map((x) => x.cls)));
+
+  /* ⑥ 负控 B：用户滑到别的段位后，refresh 不许把他弹回当前段位
+     —— 这是 PWA 注释里点名的关键行为（⛔别每次 render() 都定位） */
+  st.exp = 250;
+  mL.refresh();
+  must(mL.data.railFocusIdx === 3 && mL.data.railLeft === 570, '负控 · 恢复 exp=250 ⇒ 回到 idx3 / 570',
+    mL.data.railFocusIdx + ' / ' + mL.data.railLeft);
+  clearTimeout(mL._railTimer);
+  mL.onRailScroll({ detail: { scrollLeft: 5 * STEP } });
+  must(mL.data.railFocusIdx === 5, '滑动 ⇒ 焦点 = round(950/190) = 5', 'got ' + mL.data.railFocusIdx);
+  must(mL.data.railTip === rangeOf(5) + ' · ' + mL._railStatus(5)
+    && mL.data.railTip === 'lv 13–15 · 还需 530 经验',
+    '焦点卡不在当前段位 ⇒ 文案按**焦点**那张算（不是按当前段位）', 'got ' + mL.data.railTip);
+  const leftBefore = mL.data.railLeft;
+  mL.refresh();                                  // 段位没变的一次普通刷新
+  must(mL.data.railLeft === leftBefore && mL.data.railFocusIdx === 5,
+    '⭐ 负控 · 段位没变的 refresh 不重设 scrollLeft（用户视点不被弹回）',
+    leftBefore + ' → ' + mL.data.railLeft + ' / idx ' + mL.data.railFocusIdx);
+
+  /* ⑦ 负控 C：snapRail 的终止条件（没有它 = setData 触发 bindscroll = self-loop） */
+  mL._railSl = 5 * STEP;                         // 假装用户手停时已正好对齐
+  const aligned = mL.data.railLeft;
+  mL.snapRail();
+  must(mL.data.railLeft === aligned,
+    '⭐ 负控 · 已对齐（|scrollLeft − 目标| ≤ 1.5）时 snapRail 直接返回，不再 setData（防 self-loop）',
+    aligned + ' → ' + mL.data.railLeft);
+  mL._railSl = 500;                              // 停在两张之间
+  mL.snapRail();
+  must(mL.data.railLeft === 5 * STEP + 0.5,
+    '停在两张之间 ⇒ 吸附到 950（含 0.5px 微扰，用来破开 scroll-left 的「值不变就不滚」）',
+    'got ' + mL.data.railLeft);
+  mL._railSl = 500;
+  mL.snapRail();
+  must(mL.data.railLeft === 5 * STEP,
+    '再吸附一次 ⇒ 微扰换成 0（0.5 交替，肉眼不可见但每次 setData 都是真变更）',
+    'got ' + mL.data.railLeft);
+  clearTimeout(mL._railTimer);
+}
+
+/* ============================================================
  * K 个人资料编辑（头像 / ID）+ 自建食物迁移接线
  *
  * 起因（2026-09-24 Mak 真机反馈）：
@@ -850,6 +1007,11 @@ sec('J 成就补发接线（store.save / store.init / importPayload）');
  *
  * ⚠️ 头像管道（chooseMedia → getImageInfo → canvas → canvasToTempFilePath → readFile）
  *    全链是异步的 ⇒ 本节放在 pending 里，最后用 Promise.all 统一收尾出报告。
+ * 🔴 本节**必须是最后一个 bootPage 的调用者**：await 之后才去 require(store.js)，
+ *    而任何在它 await 期间执行的 bootPage 都会 fresh() 清掉 require.cache + storage
+ *    ⇒ await 回来时 require 到的是**别人的** store 实例，头像断言全变 null
+ *    （2026-09-24 把 L 段卡廊排在 K 之后时实际踩到，6 项假红）。
+ *    要加新小节 ⇒ 加在 K 之前，别加在 K 与 Promise.all 之间。
  * ============================================================ */
 sec('K 个人资料编辑（头像 / ID）+ 自建食物接线');
 const pending = [];

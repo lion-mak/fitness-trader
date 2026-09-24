@@ -713,12 +713,78 @@ ADAPT = u"""
    改一处另一处不跟）。⚠️ `<label>` 能直接用是因为它是小程序的真实组件；
    `<h3>`/`<p>`/`<b>`/`<span>` 都不是 ⇒ 一律要换 class。 */
 .sheet .sheet-h { font-size:16px; font-weight:500; }
+
+/* 🔴 段位卡廊（v2.7.60 · 我的页）：PWA 的 `.rail-track` 是 div + overflow-x:auto，
+   小程序必须换成 <scroll-view>（普通 view 收不到 bindscroll ⇒ 既算不出「居中焦点」
+   也没法吸附）。随之带来四条差异，全部在这里补 ——
+   ⛔ 页面 me.wxss 不要重写 `.rail-*`：那里后加载会盖掉本块，铁律同 `.rv-*` 与 `.ghost-btn`。
+   ⚠️⚠️ 本块自己踩过一次（v2.7.60，白屏级）：注释里把两个类名前缀连写成了
+      「`.rv-*` 紧跟斜杠再接 `.ghost-btn`」——那个「星号紧跟斜杠」就是注释结束符，
+      注释在此处**提前闭合**，余下文字被当成样式解析 ⇒ 编译器报 unexpected + 整包白屏。
+      规矩：注释里凡涉及通配前缀与其它选择器并列，中间一律留空格。
+      mp_wxss_check.py 的 D 段会在编译前先静态拦下这一类（不必等编译器）。
+
+   ① scroll-view 没有内容自适应高度 ⇒ 必须给固定高（本工程踩过两次：
+      scroll-view + display:flex 高度塌陷，页面看着"卡片全不见"其实就是塌成 0）。
+   ② 不要依赖 scroll-view 的 padding-right：滚动区宽度按内容算，右侧 padding 常被吃掉
+      ⇒ 末张卡片永远停不到正中。改用首尾 `.rail-pad` 占位（宽度由 me.js 按容器宽算好，
+      用 inline style 落），语义等价于 PWA 的 `padding:0 calc(50% - 84px)`。
+   ③ scroll-view 的内容不参与 flex ⇒ 排布靠 white-space:nowrap + inline-block。
+      PWA 的 `gap` 对 inline-block 无效，间距改用 margin-right。
+      ⚠️ 值 22 必须与 me.js 的 RAIL_GAP、PWA 的 .rail-track gap 三处一致 —— 吸附位置
+         按「等差排布」推算，差一个像素会在第 10 张累积成 9px。
+   ④ inline-block 之间会因 WXML 的换行产生空白文本节点（约 4px）⇒ .rail-inner 上
+      font-size:0 抹掉。卡片内只有 image，不受影响。 */
+.rail-track { height:254px; white-space:nowrap; }
+.rail-inner { display:inline-block; font-size:0; }
+.rail-pad { display:inline-block; width:0; height:1px; vertical-align:top; }
+.rail-card { display:inline-block; vertical-align:top; margin-right:22px; }
 """
 
 wxss = (u"/* app.wxss —— 由 promo/mp_build.py 从 PWA index.html 的 <style> 自动生成，勿手工编辑。\n"
         u" * WXSS 是 CSS 子集，故整体搬迁；已就地替换掉小程序不支持的特性（见脚本 REPL 表）。\n"
         u" * 页面级微调请写在各页 .wxss，不要改本文件（会被覆盖）；共享样式写文件末尾的适配层。\n"
         u" */\n") + wxss.strip() + u"\n" + ADAPT
+
+
+# ────────────────────────────────────────────────────────────────
+# 5a. 写出前自检：注释提前闭合（白屏级，v2.7.60 实测踩过）
+#
+# CSS/WXSS 的注释**不嵌套**：注释体里一旦出现「星号紧跟斜杠」，注释就在那里结束，
+# 余下文字被当样式解析 ⇒ wcsc 报 `unexpected \\`X` + 整包编译失败 ⇒ 开发者工具白屏。
+# 最阴的形态是「并列类名前缀」写成 `.a-*` 紧跟斜杠再接 `.b`（写的人自己看不出来，
+# 因为视觉上那只是两个类名）。上一版的 ADAPT 就是这么坏的，编译器只给一个
+# 落在注释行中间的 行:列，不容易一眼看穿 ⇒ 这里必须在**落盘之前**硬拦。
+#
+# 判据：跨行注释的结束符之后，同一行还有非空内容 —— 那一定是提前闭合。
+# （同行内的紧凑写法 `/* 说明 */ .foo{}` 起止同行，天然不误报。）
+# ────────────────────────────────────────────────────────────────
+def assert_comments_sane(css, label):
+    n = len(css)
+    i = 0
+    while i < n:
+        s = css.find(u"/*", i)
+        if s < 0:
+            break
+        e = css.find(u"*/", s + 2)
+        if e < 0:
+            raise SystemExit(u"⛔ %s 有未闭合的注释（起于第 %d 行）"
+                             % (label, css.count(u"\n", 0, s) + 1))
+        eol = css.find(u"\n", e)
+        eol = n if eol < 0 else eol
+        tail = css[e + 2:eol].strip()
+        if tail and css.count(u"\n", 0, s) != css.count(u"\n", 0, e):
+            raise SystemExit(
+                u"⛔ %s 第 %d 行的注释被【提前闭合】—— 跨行注释的结束符后面还跟着内容：%r\n"
+                u"   九成是注释里把两个类名前缀连写成了「星号紧跟斜杠」，注释在那里就断了。\n"
+                u"   修法：拆开那个序列（中间留空格），写成 `.a-* / .b` 这种。\n"
+                u"   影响：不修则 wcsc 报 `unexpected` ⇒ 整包 .wxss 编译失败 ⇒ 白屏。"
+                % (label, css.count(u"\n", 0, e) + 1, tail[:60]))
+        i = e + 2
+    return True
+
+
+assert_comments_sane(wxss, u"app.wxss")
 
 # ────────────────────────────────────────────────────────────────
 # 6. 写出

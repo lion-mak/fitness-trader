@@ -18,6 +18,12 @@
          运动 0.92 次/天、涨停 52 天 = 0.542 次/天）
 """
 RANKS = [
+    ('韭菜', 1), ('散户', 2), ('中户', 4), ('大户', 7), ('牛散', 10),
+    ('游资', 13), ('主力', 16), ('机构', 20), ('庄家', 24), ('股神', 30),
+]
+
+# v2.7.60 之前（11 段，含「小散」）。只用于「换代不掉段」校验，不是运行时口径。
+RANKS_11 = [
     ('韭菜', 1), ('散户', 2), ('小散', 4), ('中户', 6), ('大户', 8),
     ('牛散', 10), ('游资', 13), ('主力', 16), ('机构', 20), ('庄家', 24), ('股神', 30),
 ]
@@ -85,6 +91,40 @@ def rank_of(lv):
     return name
 
 
+def rank_of_11(lv):
+    """旧（11 段）表下的段位名 —— 讲「换代前」时用它，别用新表算旧 lv 的段位（两把尺子）。"""
+    name = RANKS_11[0][0]
+    for n, l in RANKS_11:
+        if lv >= l:
+            name = n
+    return name
+
+
+def check_no_demote():
+    """v2.7.60 段位表换代（11 段 → 10 段，去掉「小散」）的硬约束：**零掉段**。
+
+    判据：新表每一段门槛 ≤ 旧表**同名**段位门槛 ⇒ 任何 exp 下 新段位 index ≥ 旧段位 index
+          ⇒ 没有任何用户会因为少了一段而掉级。
+    等价说法：这次换代只动段位表、不动曲线，所以 **不需要新的补偿锚**（state.curve 不用改）——
+             一旦新表某段门槛高于旧表同名段位，存量用户就会静默掉段，那是真事故。
+    返回 (ok, markdown 明细行)
+    """
+    old = dict(RANKS_11)
+    rows = []
+    ok = True
+    for name, lv in RANKS:
+        o = old.get(name)
+        if o is None:
+            rows.append('| %s | lv%d | — | （新表新增） |' % (name, lv))
+            continue
+        good = lv <= o
+        if not good:
+            ok = False
+        rows.append('| %s | lv%d | lv%d | %s |'
+                    % (name, lv, o, '✓ 不降' if good else '✗ **会掉段**'))
+    return ok, rows
+
+
 def main():
     L = []
     w = L.append
@@ -126,6 +166,19 @@ def main():
         w('| %s | lv%d | %d | %d | %.2f× |' % (n, lv, o, nw, nw / o if o else 0))
     w('')
 
+    # 3.5 段位表换代校验（v2.7.60：11 段 → 10 段）
+    ok_demote, demote_rows = check_no_demote()
+    w('## 3.5 段位表换代校验（v2.7.60：11 段 → 10 段，去掉「小散」）\n')
+    w('曲线没动、只去掉中间一档 ⇒ 硬约束是**零掉段**：新表每段门槛必须 ≤ 旧表同名段位门槛。\n')
+    w('| 段位 | 新 lv | 旧 lv | 判据 |')
+    w('|---|---|---|---|')
+    for r in demote_rows:
+        w(r)
+    w('')
+    w('**结果：%s**\n' % ('✅ 零掉段 —— 不需要新的补偿锚（state.curve 保持 2）' if ok_demote
+                          else '❌ 存在掉段 ⇒ 必须先补一次换代补偿，否则存量用户静默掉级'))
+    w('副作用：lv3–5 不再有专属段位，散户会一直挂到 lv4 才换中户。\n')
+
     # 4 天数对比
     w('## 4. 到达各段位所需时间（旧 → 新）\n')
     for cname, fn in CURVES:
@@ -149,8 +202,9 @@ def main():
 
     # 5 迁移对照
     w('## 5. 存量 exp 换代补偿对照（只升不降）\n')
-    w('交点 = lv20 / exp1900：低于它新曲线更便宜（白赚），高于它新曲线更贵（会被补偿托住）。\n')
-    w('| 旧 exp | 旧 lv | 旧段位 | 补偿后 exp | 新 lv | 新段位 | 等级变化 |')
+    w('两件事叠在一起：v2.7.59 换曲线（每级 100 → 等级×10）、v2.7.60 换段位表（11 段 → 10 段）。\n')
+    w('曲线交点在 lv20 / exp1900：低于它新曲线更便宜（白赚），高于它新曲线更贵（被补偿托住）。\n')
+    w('| 旧 exp | 旧 lv | 旧段位（11 段表） | 补偿后 exp | 新 lv | 新段位（10 段表） | 等级变化 |')
     w('|---|---|---|---|---|---|---|')
     for e in [0, 250, 500, 1000, 1500, 1900, 2000, 2610, 3000, 5000, 9000]:
         lo = lv_from_exp(cum_old, e)
@@ -159,7 +213,7 @@ def main():
         d = ln - lo
         tag = '持平' if d == 0 else ('**+%d 级**（白赚）' % d if d > 0 else '%d 级（⚠️不该出现）' % d)
         w('| %d | lv%d | %s | %d | lv%d | %s | %s |' % (
-            e, lo, rank_of(lo), me, ln, rank_of(ln), tag))
+            e, lo, rank_of_11(lo), me, ln, rank_of(ln), tag))
     w('')
     w('⚠️ 补偿会抬高老存档的 exp 数字（如 2610 → 3510）。这是换取「段位不倒退」付的代价；\n')
     w('   若选择不补偿，同一份存档会从庄家掉到机构（lv27 → lv23）。\n')
@@ -178,6 +232,11 @@ def main():
     print('迁移补偿：exp2610(旧 lv27 庄家) → %d → lv%d %s'
           % (migrate_exp(2610), lv_from_exp(cum_new, migrate_exp(2610)),
              rank_of(lv_from_exp(cum_new, migrate_exp(2610)))))
+    print('')
+    print('段位表换代（11→10 段）零掉段校验：%s'
+          % ('OK 零掉段' if ok_demote else 'FAIL 有掉段'))
+    for r in demote_rows:
+        print('  ' + r.replace('|', ' ').replace('  ', ' ').strip())
     print('→ 已写 promo/rank_curve.md')
 
 
