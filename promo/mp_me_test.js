@@ -10,7 +10,7 @@
  *   D 表单交互（改活动水平写回 state / 改体重当场重算 BMR）
  *   E 上传档案（写 state.user + recordWeight 真写一条体重日志）
  *   F 健康币页（余额 / 今日已赚 / 赚花规则条数与文案 / 跨天归零负控 / 余额负控）
- *   G 段位页（段位判定 / lv / 经验条 pct / 距下一段 / 8 行区间文案 / 当前行唯一高亮 / 顶段与零经验负控）
+ *   G 段位页（段位判定 / lv / **段位内**经验条 pct / 距下一段 / 11 行区间文案 / 当前行唯一高亮 / 顶段与零经验负控）
  *   H 空存档（三页都不抛错、走空态）
  *
  * ⚠️ const calc = require(...) 必须写在 boot(seed) 之后（技能铁律）。
@@ -49,14 +49,30 @@ const RANK_SPEC = [
   { name: '游资', minLv: 13 }, { name: '主力', minLv: 16 }, { name: '机构', minLv: 20 },
   { name: '庄家', minLv: 24 }, { name: '股神', minLv: 30 },
 ];
-function lvOf(exp) { return Math.floor((exp || 0) / 100) + 1; }
+/* v2.7.59 曲线：升到下一级需「当前等级 ×10」经验 ⇒ 累计门槛 5·lv·(lv−1)。
+   参考实现写成**纯整数累加**（不复刻内核那条 sqrt 反解）—— 既独立于实现，也能顺手守住
+   「sqrt 恰好落在整数上时少算一级」的浮点边界。 */
+function lvOf(exp) {
+  let lv = 1; const x = Math.max(0, exp || 0);
+  while (5 * (lv + 1) * lv <= x) lv++;
+  return lv;
+}
+function expForLvOf(lv) { return 5 * lv * (lv - 1); }
 function rankOf(exp) {
   const lv = lvOf(exp);
   let r = RANK_SPEC[0];
   RANK_SPEC.forEach((x) => { if (lv >= x.minLv) r = x; });
   return { lv: lv, rank: r, idx: RANK_SPEC.indexOf(r) };
 }
-function pctOf(exp) { return Math.min(100, Math.round(((exp || 0) % 100) / 100 * 100)); }
+/* 经验条 = **当前段位内**进度（base = 当前段经验下限，top = 下一段经验下限；已登顶给满格）。
+   ⛔不是旧口径的 exp%100 —— 那会让条和「距下一段还差」用两个不同基准。 */
+function pctOf(exp) {
+  const R = rankOf(exp);
+  const next = RANK_SPEC[R.idx + 1];
+  if (!next) return 100;
+  const base = expForLvOf(R.rank.minLv), top = expForLvOf(next.minLv);
+  return Math.max(0, Math.min(100, Math.round((exp - base) / (top - base) * 100)));
+}
 /* 星数规则（STAR_NEED = [0,1,3,9]） */
 function starOf(cnt) {
   if (cnt >= 9) return 3;
@@ -311,8 +327,8 @@ let seed = null, me = null, calc = null;
   const R = rankOf(seed.exp);
 
   must(d.statusBarHeight === 54, '状态栏留白取到真机值 54（三级兜底）', 'got ' + d.statusBarHeight);
-  must(d.lv === R.lv && d.lv === 3, 'lv = floor(exp/100)+1 = 3', 'got ' + d.lv);
-  must(d.rankName === R.rank.name && d.rankName === '散户', '段位名按 minLv 判定 = 散户（lv3）', 'got ' + d.rankName);
+  must(d.lv === R.lv && d.lv === 7, 'lv = lvFromExp(250) = 7（v2.7.59 曲线：5·lv·(lv−1)）', 'got ' + d.lv);
+  must(d.rankName === R.rank.name && d.rankName === '中户', '段位名按 minLv 判定 = 中户（lv7）', 'got ' + d.rankName);
   must(d.limitUpCount === 2, '持仓天数 = state.limitUpCount = 2', 'got ' + d.limitUpCount);
   must(d.dietCount === 3, '累计饮食 = diet.length = 3', 'got ' + d.dietCount);
   must(d.exCount === 1, '累计运动 = exercise.length = 1', 'got ' + d.exCount);
@@ -485,10 +501,11 @@ sec('G 段位页 level');
   const R = rankOf(s3.exp);
 
   must(d.hero && d.hero.name === R.rank.name, '段位名 = 独立判定 ' + R.rank.name, 'got ' + (d.hero && d.hero.name));
-  must(d.hero.lv === R.lv && d.hero.lv === 3, 'lv = 3', 'got ' + d.hero.lv);
+  must(d.hero.lv === R.lv && d.hero.lv === 7, 'lv = lvFromExp(250) = 7', 'got ' + d.hero.lv);
   must(d.expText === '250 经验', '经验文案 = 「250 经验」', d.expText);
-  must(d.pct === pctOf(s3.exp) && d.pct === 50, '经验条 = 本段进度 50%（250%100）', 'got ' + d.pct);
-  must(d.tip === '距「小散」还差 150 经验', '距下一段 = next.minLv*100 − exp = 400−250 = 150', d.tip);
+  /* 经验条 = **段位内**进度：中户门槛 150 → 大户门槛 280，(250−150)/(280−150) = 76.9% ⇒ 77% */
+  must(d.pct === pctOf(s3.exp) && d.pct === 77, '经验条 = 中户段内进度 77%（(250−150)/(280−150)）', 'got ' + d.pct);
+  must(d.tip === '距「大户」还差 30 经验', '距下一段 = expForLv(8) − exp = 280−250 = 30', d.tip);
   must(d.ranks.length === 11, '段位列表 11 行', 'got ' + d.ranks.length);
   /* 区间文案：第一段只占一级（lv 1）⇒ 不能渲染成「lv 1–1」；普通段是 lv a–b */
   must(d.ranks[0].range === 'lv 1' && d.ranks[1].range === 'lv 2–3', '区间文案 lv a–b（en dash）+ 单级段显示 lv N',
@@ -498,26 +515,50 @@ sec('G 段位页 level');
   must(onRows.length === 1 && onRows[0].name === d.hero.name, '当前段位恰好 1 行高亮且与 hero 同名',
     JSON.stringify(onRows.map((r) => r.name)));
 
-  /* 负控 1：零经验 ⇒ 韭菜 / 0% / 距散户 200（新表第二段 minLv=2） */
+  /* 负控 1：零经验 ⇒ 韭菜 / 0% / 距散户 10（新曲线第一级门槛 = expForLv(2) = 10） */
   const st = S().get();
   st.exp = 0;
   pg.refresh();
-  must(pg.data.hero.name === '韭菜' && pg.data.pct === 0 && pg.data.tip === '距「散户」还差 200 经验',
-    '负控 · exp=0 ⇒ 韭菜 / 0% / 距散户 200', pg.data.hero.name + ' ' + pg.data.pct + ' ' + pg.data.tip);
+  must(pg.data.hero.name === '韭菜' && pg.data.pct === 0 && pg.data.tip === '距「散户」还差 10 经验',
+    '负控 · exp=0 ⇒ 韭菜 / 0% / 距散户 10', pg.data.hero.name + ' ' + pg.data.pct + ' ' + pg.data.tip);
 
-  /* 负控 2：顶段 ⇒ 已登顶、无下一段（这条同时守住「空存档也不能崩」） */
-  st.exp = 2900;                       // lv 30 ⇒ 股神（新表末段 minLv=30）
+  /* 负控 2：顶段 ⇒ 已登顶、无下一段（这条同时守住「空存档也不能崩」）。
+     ⚠️ 新曲线的股神门槛是 expForLv(30) = 4350，不再是从前的 2900（那是旧 100/级 下的 lv30）。 */
+  st.exp = 4350;                       // lv 30 ⇒ 股神（末段 minLv=30）
   pg.refresh();
   must(pg.data.hero.name === '股神' && pg.data.tip === '已登顶，继续稳如泰山',
-    '负控 · exp=2900（lv30）⇒ 股神 + 已登顶', pg.data.hero.name + ' / ' + pg.data.tip);
+    '负控 · exp=4350（lv30）⇒ 股神 + 已登顶', pg.data.hero.name + ' / ' + pg.data.tip);
+  must(pg.data.pct === 100, '负控 · 顶段进度条给满格（没有下一段）', 'got ' + pg.data.pct);
   must(pg.data.ranks.filter((r) => r.on).length === 1, '负控 · 顶段仍只有 1 行高亮', '');
-  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态）—— 大户 minLv=8 */
-  st.exp = 700;                        // lv 8 ⇒ 大户
+  /* 负控 3：段位边界（lv 恰好落在 minLv 上，与「差一级」两态）—— 大户 minLv=8，门槛 expForLv(8)=280 */
+  st.exp = 280;                        // lv 8 ⇒ 大户
   pg.refresh();
-  must(pg.data.hero.name === '大户', '负控 · exp=700（lv8）⇒ 大户（边界含等号）', pg.data.hero.name);
-  st.exp = 699;                        // lv 7 ⇒ 中户
+  must(pg.data.hero.name === '大户', '负控 · exp=280（lv8）⇒ 大户（边界含等号）', pg.data.hero.name);
+  st.exp = 279;                        // lv 7 ⇒ 中户
   pg.refresh();
-  must(pg.data.hero.name === '中户', '负控 · exp=699（lv7）⇒ 中户（差 1 点就掉级）', pg.data.hero.name);
+  must(pg.data.hero.name === '中户', '负控 · exp=279（lv7）⇒ 中户（差 1 点就掉段）', pg.data.hero.name);
+}
+
+/* ---------- G2：两端口径对拍（PWA renderLevel ↔ 小程序 pages/level）----------
+   为什么要有这一节：段位页的进度条与「距下一段」文案在两端各写一份（PWA 的 renderLevel 是
+   真实实现，小程序侧 renderLevel 只是空壳钩子、真实实现在手写页面里）—— 上一轮就吃过
+   「区间文案两份、只改了一端」的亏（渲染出 lv 1–1）。这里做源码级自检，成本几乎为零。 */
+sec('G2 两端段位页口径对拍');
+{
+  const pwaSrc = fs.readFileSync('E:\\WorkBuddy\\jianpan-ghpages\\index.html', 'utf8');
+  const m = pwaSrc.match(/function renderLevel\(\)\s*\{[\s\S]*?\n\}/);
+  ok('能从 PWA index.html 抓到 renderLevel 函数体', !!m);
+  const body = m ? m[0] : '';
+  ok('PWA · 取段位下限作进度基底 expForLv(cr.rank.minLv)', /expForLv\(cr\.rank\.minLv\)/.test(body));
+  ok('PWA · 取下一段门槛作进度终点 expForLv(next.minLv)', /expForLv\(next\.minLv\)/.test(body));
+  ok('PWA · 已无旧口径 exp%100', !/%\s*100/.test(body));
+  ok('PWA · 已无旧口径 next.minLv*100', !/minLv\s*\*\s*100/.test(body));
+  const mpSrc = fs.readFileSync(path.join(MINI, 'pages/level/level.js'), 'utf8');
+  ok('小程序 · 已无旧口径 EXP_PER_LV', !/EXP_PER_LV/.test(mpSrc));
+  ok('小程序 · 已无旧口径 exp%100 / minLv*100', !/exp\s*%\s*100/.test(mpSrc) && !/minLv\s*\*\s*100/.test(mpSrc));
+  ok('小程序 · 段位门槛取自内核 calc.expForLv', /calc\.expForLv\(/.test(mpSrc));
+  /* 曲线只许有一份实现：两端都不得自写公式（系数 5 只该出现在内核里）*/
+  ok('小程序页面未自写曲线公式（5 * lv * (lv - 1) 只在内核）', !/5\s*\*\s*\w+\s*\*\s*\(\s*\w+\s*-\s*1\s*\)/.test(mpSrc));
 }
 
 /* ---------- H：空存档 ---------- */

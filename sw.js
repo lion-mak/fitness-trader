@@ -8,7 +8,7 @@
    · 身体成分那两张人体图只有打开对应页面才用得到，改由下面的 fetch 处理器按需缓存。
    ============================================ */
 
-const CACHE_VERSION = 'jianpan-2.7.58';
+const CACHE_VERSION = 'jianpan-2.7.59';
 const APP_SHELL = [
   './',
   './index.html',

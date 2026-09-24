@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.58"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.59"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1034,7 +1034,7 @@ body {
       <div class="card">
         <div class="card-title"><span class="t">段位晋升</span><span class="m">经验累积</span></div>
         <div id="l-ranks"></div>
-        <div class="gap-note">段位由累计经验决定：记录饮食 +1、运动 +2、涨停 +30。段位越高，越有面子。</div>
+        <div class="gap-note">段位由累计经验决定：记录饮食 +1、运动 +2、涨停 +30。升到下一级需要「当前等级 ×10」经验 —— 等级越高，每级越沉，慢慢来。</div>
       </div>
     </section>
 
@@ -1835,6 +1835,53 @@ const RANKS = [
   { name:'股神', minLv:30, color:'#d4af37', desc:'登顶健交所 · 封神' },
 ];
 
+/* ---- 经验 → 等级 换算（v2.7.59 起）----
+   ⚠️ 这里是**唯一**的等级换算口径：PWA 的 currentRank()、「我的」页 lv、段位页进度条，
+   以及小程序 lib/calc.js（由 mp_build.py 抽取）全部走它。⛔任何地方都不要再写 exp/100。
+
+   旧口径 lv = floor(exp/100)+1（每级固定 100 经验）在 11 段体系下两头都不对：
+     ① 前期太慢 —— 升到 lv2 要 100 经验，中度用户（日均 9 经验）得耗 11 天，
+        新用户第一周看不到任何段位变化，谈不上新鲜感；
+     ② 后期不贵 —— lv29→30 与 lv1→2 同价 100 经验，中度用户 10.8 个月就能「封神」，
+        「持之以恒」四个字在数值上完全没有定价。
+   新口径：**升到下一级需要「当前等级 × 10」经验**，累计门槛 = 5·lv·(lv−1)。
+     lv1→2 需 10 / lv10→11 需 100 / lv20→21 需 200 / lv29→30 需 290
+     ⇒ 每级耗时随等级线性增长：前期密集给反馈，后期必须长期使用才推得动。
+   节奏实测（日均 9 经验的中度画像）：首日 lv2 散户、一周 lv4 小散、一月 lv6 中户、
+     一年 lv20 机构、1.3 年 lv30 股神；只记饮食不运动不涨停的轻度用户 4.4 年才封神。
+   调参入口：改 expForLv 的系数（5 ⇒ 每级 ×10）即整条曲线等比缩放，跑 promo/rank_curve.py 看效果。 */
+function expForLv(lv) { return 5 * lv * (lv - 1); }   // 累计到 lv 所需总经验
+function lvFromExp(exp) {                             // 反解：exp → lv
+  const e = Math.max(0, +exp || 0);
+  // 解 5·lv·(lv−1) ≤ e ⇒ lv = floor((1 + √(1+0.8e)) / 2)
+  // +1e-9：e 让根号落在整数上时（如 e=60 ⇒ √49=7）浮点可能算出 3.9999…，不加会少算一级
+  return Math.floor((1 + Math.sqrt(1 + 0.8 * e) + 1e-9) / 2);
+}
+
+/* ---- 段位曲线换代补偿（v2.7.59：每级固定 100 经验 → 每级 = 当前等级 × 10）----
+   同一个 exp 在两套曲线下算出的 lv 不一样：
+     exp < 1900（= 新曲线 lv20 的门槛）⇒ 新 lv **高于**旧 lv，老用户白赚；
+     exp > 1900 ⇒ 新 lv **低于**旧 lv，老用户会掉段。
+   掉段是没道理的：那是用户按旧定价一天天攒出来的身份，不该替曲线定错的账买单。
+   所以老存档一律「只升不降」：若新曲线算出的 lv 低于旧曲线，就把 exp 抬到新曲线上该 lv 的门槛。
+   ⚠️ 幂等锚 = state.curve（CURVE_VER），**必须有**：补偿后再用旧公式反推 lv 只会更大，
+      没有锚的话每次冷启动都会继续往上抬，exp 指数膨胀。
+   ⚠️ defaultState() 里**不要**放 curve 字段：两端 loadState 都是 `Object.assign({}, def, s)` 起手，
+      一旦 def 带了新锚，导入一份老存档时锚会从 def 继承进来 ⇒ 补偿被跳过 ⇒ 老存档照样掉段。
+      新用户走 defaultState（exp=0 ⇒ lv1 ⇒ 门槛 0）本来就不需要补偿。
+   实测（promo/mock.json · 96 天演示存档 exp=2610）：旧 lv27 庄家 ⇒ 抬到 3510 ⇒ 新 lv27 仍是庄家，
+      等级不动；此后按新曲线继续爬（再去股神需 4350−3510=840 经验）。 */
+const CURVE_VER = 2;
+function applyCurveUpgrade(s) {
+  if (!s || (s.curve || 1) >= CURVE_VER) return false;
+  const exp = Math.max(0, +s.exp || 0);
+  const lvOld = Math.floor(exp / 100) + 1;   // 旧曲线：100 经验一级
+  const keep = expForLv(lvOld);              // 新曲线下「保住这个段位」的最低经验
+  if (exp < keep) s.exp = keep;
+  s.curve = CURVE_VER;
+  return true;
+}
+
 /* ============ 涨停抽卡 · 交易员图鉴 ============ */
 const CARD_COST = 50;      // 单抽花费
 const CARD_COST_10 = 450;  // 十连花费（九折，必得至少 1 稀有）
@@ -1985,6 +2032,8 @@ function loadState() {
         clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
         merged.bodyLog = clean;
       }
+      // v2.7.59 段位曲线换代：老存档一律「只升不降」（幂等锚 state.curve，细节见 applyCurveUpgrade）
+      applyCurveUpgrade(merged);
       return merged;
     }
   } catch(e) {}
@@ -2376,7 +2425,7 @@ function render() {
 
   renderAvatar();
   // 我的
-  const lvl = Math.floor(state.exp / 100) + 1;
+  const lvl = lvFromExp(state.exp);          // 与 currentRank() 同源，⛔别写回 exp/100+1
   document.getElementById('p-lvl').textContent = 'lv ' + lvl;
   document.getElementById('p-title').textContent = currentRank().rank.name + ' · 健交所 · 持仓 ' + (state.limitUpCount || 0) + ' 天';
   document.getElementById('p-diet').textContent = state.diet.length;
@@ -4545,6 +4594,11 @@ function applyImported(data, tip) {
   const merged = Object.assign({}, base, data);
   merged.user = Object.assign({}, base.user, data.user || {});
   merged.body = Object.assign({}, base.body, data.body || {});
+  /* 曲线补偿必须按**这份存档自己**的版本走，不能继承本机的锚：
+     base 刚被 loadState 升到 CURVE_VER，若把它的 curve 一并带进来，一份老存档导进来就会被
+     误判成「已升级」而跳过补偿 ⇒ 当场掉段。所以先用 data.curve 覆盖锚，再走补偿。 */
+  merged.curve = data.curve || 1;
+  applyCurveUpgrade(merged);
   state = merged;
   saveState(); render();
   toastInfo(tip);
@@ -5477,7 +5531,7 @@ function closeCeleb() { document.getElementById('celeb').classList.remove('show'
 
 /* ============ 健康币 / 等级 详情页 ============ */
 function currentRank() {
-  const lv = Math.floor(state.exp / 100) + 1;
+  const lv = lvFromExp(state.exp);          // ⚠️ 曲线口径在 lvFromExp，⛔别写回 exp/100+1
   let r = RANKS[0];
   for (const x of RANKS) if (lv >= x.minLv) r = x;
   return { lv: lv, rank: r };
@@ -5506,8 +5560,15 @@ function renderLevel() {
   const cr = currentRank();
   const i = RANKS.indexOf(cr.rank);
   const next = RANKS[i + 1];
-  const expInLv = state.exp % 100;
-  const pct = Math.min(100, Math.round(expInLv / 100 * 100));
+  /* 进度条 = **当前段位内**的进度（v2.7.59 起）。
+     旧口径取「本级的 exp%100」⇒ 条和下面那行「距下一段还差 X 经验」不同源：
+     exp=150 时条显示 50%、文字却写还差 250，用户同时看到两个互相矛盾的数。
+     现在两者都锚在段位门槛上：base = 当前段位经验下限，top = 下一段经验下限。 */
+  const base = expForLv(cr.rank.minLv);
+  const top = next ? expForLv(next.minLv) : 0;
+  const pct = next
+    ? Math.max(0, Math.min(100, Math.round((state.exp - base) / (top - base) * 100)))
+    : 100;
   document.getElementById('l-hero').innerHTML =
     '<div class="r-name" style="color:' + cr.rank.color + '">' + cr.rank.name + '</div>' +
     '<div class="r-lv">lv ' + cr.lv + '</div>' +
@@ -5515,7 +5576,7 @@ function renderLevel() {
   document.getElementById('l-exp').textContent = state.exp + ' 经验';
   document.getElementById('l-xp-fill').style.width = pct + '%';
   document.getElementById('l-xp-tip').textContent = next
-    ? '距「' + next.name + '」还差 ' + Math.max(0, next.minLv * 100 - state.exp) + ' 经验'
+    ? '距「' + next.name + '」还差 ' + Math.max(0, top - state.exp) + ' 经验'
     : '已登顶，继续稳如泰山';
   document.getElementById('l-ranks').innerHTML = RANKS.map(function(r, idx) {
     const on = r.name === cr.rank.name;

@@ -222,17 +222,87 @@ say('');
   const tw = calc.currentTargetW();
   ok('止盈目标有值', typeof tw === 'number' && tw > 0 && tw < 75.5, `实际 ${tw}`);
 
-  /* --- 2.11 等级：经验 → 段位（100 经验一档，11 段位）--- */
+  /* --- 2.11 等级：经验 → 段位（v2.7.59 曲线：升到下一级需「当前等级 ×10」经验，累计 5·lv·(lv−1)）--- */
   const r0 = calc.currentRank();
   ok('currentRank 结构 {lv, rank}', !!r0 && typeof r0.lv === 'number' && !!r0.rank && !!r0.rank.name,
     JSON.stringify(r0));
   eq('exp=0 → lv1 → 韭菜', r0.rank.name, '韭菜');
+
+  /* 曲线本体：独立复刻公式现算，再与内核逐点比对（不信任内核自报）。
+     参考实现刻意写成**纯整数累加**（while 推 lv），不走内核那条 sqrt 反解 ——
+     这样既能对照公式，也能顺手抓内核的浮点边界翻车（sqrt 落在整数上时少算一级）。 */
+  const expForLvRef = (lv) => 5 * lv * (lv - 1);
+  const lvFromExpRef = (e) => {
+    let lv = 1; const x = Math.max(0, e);
+    while (5 * (lv + 1) * lv <= x) lv++;
+    return lv;
+  };
+  eq('expForLv(1) = 0（韭菜门槛）', calc.expForLv(1), 0);
+  eq('expForLv(2) = 10（升 lv2 只要 10 经验）', calc.expForLv(2), 10);
+  eq('expForLv(3) = 30', calc.expForLv(3), 30);
+  eq('expForLv(10) = 450', calc.expForLv(10), 450);
+  eq('expForLv(20) = 1900（新旧曲线交点）', calc.expForLv(20), 1900);
+  eq('expForLv(30) = 4350（股神门槛）', calc.expForLv(30), 4350);
+  eq('第 30 级单价 = expForLv(30)−expForLv(29) = 290', calc.expForLv(30) - calc.expForLv(29), 290);
+  let rt = 0, mono = 0, edge = 0, prev = -1;
+  for (let lv = 1; lv <= 80; lv++) {
+    const ref = expForLvRef(lv);
+    if (calc.expForLv(lv) !== ref) rt++;                        // 与独立复刻公式一致
+    if (calc.lvFromExp(ref) !== lv) rt++;                       // 往返：门槛 → 恰好回到本级
+    if (ref <= prev) mono++;                                    // 严格递增
+    prev = ref;
+    if (lv >= 2 && calc.lvFromExp(ref - 1) !== lv - 1) edge++;  // 门槛 −1 恰好掉一级
+  }
+  eq('expForLv 与独立复刻公式逐点一致（lv 1..80）', rt, 0);
+  eq('expForLv 严格递增', mono, 0);
+  eq('门槛 −1 经验恰好掉一级（lv 2..80，守住「含等号」判定）', edge, 0);
+  eq('lvFromExp 与整数累加参考实现一致（exp 0..9999 全扫）', (function () {
+    let bad = 0;
+    for (let e = 0; e <= 9999; e++) if (calc.lvFromExp(e) !== lvFromExpRef(e)) bad++;
+    return bad;
+  })(), 0);
+  /* 负控：脏输入不能崩，也不能给出 >1 的等级（Math.max(0, +exp||0) 的兜底） */
+  eq('负控 · exp = −100 → lv1', calc.lvFromExp(-100), 1);
+  eq('负控 · exp = NaN → lv1', calc.lvFromExp(NaN), 1);
+  eq('负控 · exp = undefined → lv1', calc.lvFromExp(undefined), 1);
+  eq('负控 · exp = null → lv1', calc.lvFromExp(null), 1);
+  eq('负控 · exp = "250"（字符串）→ 按数值算 lv7', calc.lvFromExp('250'), 7);
+
+  /* 段位判定：minLv 表这一版没动，变的只是「多少经验换一级」 */
   const expBak = state.exp;
-  state.exp = 100; eq('exp=100 → lv2', calc.currentRank().lv, 2);
-  /* 早期节奏：100 经验（≈首日「3 餐 + 1 次运动 + 一次涨停」）就脱离韭菜 ⇒ 新用户的正反馈 */
-  state.exp = 100; eq('exp=100 → lv2 → 散户', calc.currentRank().rank.name, '散户');
-  state.exp = 2900; eq('exp=2900 → lv30 → 股神（封顶）', calc.currentRank().rank.name, '股神');
+  state.exp = 10;  eq('exp=10 → lv2 → 散户（≈两天常态记录：3 餐/天 + 1 次运动）',
+    calc.currentRank().rank.name, '散户');
+  state.exp = 60;  eq('exp=60 → lv4 → 小散（约一周）', calc.currentRank().rank.name, '小散');
+  state.exp = 280; eq('exp=280 → lv8 → 大户（边界含等号）', calc.currentRank().rank.name, '大户');
+  state.exp = 279; eq('exp=279 → lv7 → 中户（差 1 点掉段）', calc.currentRank().rank.name, '中户');
+  state.exp = 4350; eq('exp=4350 → lv30 → 股神（封顶）', calc.currentRank().rank.name, '股神');
   state.exp = expBak;
+
+  /* --- 2.11b 换代补偿：老存档只升不降（幂等锚 state.curve）--- */
+  {
+    const up = { exp: 2610 };                                  // 旧 100/级 ⇒ lv27 庄家
+    const changed = calc.applyCurveUpgrade(up);
+    ok('老存档（无 curve 键）触发补偿', changed === true);
+    eq('补偿后 exp 抬到新曲线的旧段位门槛 5·27·26 = 3510', up.exp, 3510);
+    eq('补偿后仍判 lv27（等级不倒退）', calc.lvFromExp(up.exp), 27);
+    eq('幂等锚已写入 curve = 2', up.curve, 2);
+    /* 幂等：再跑一次不许继续抬（没有锚就会每次冷启动往上抬，exp 指数膨胀） */
+    eq('幂等 · 再跑一次返回 false', calc.applyCurveUpgrade(up), false);
+    eq('幂等 · exp 不再变（仍是 3510）', up.exp, 3510);
+    /* 低经验老存档不该被抬：exp ≤ 1900 时新曲线更便宜，用户是白赚 */
+    const low = { exp: 250 };
+    calc.applyCurveUpgrade(low);
+    ok('exp=250（旧 lv3）不抬：250 > 门槛 30', low.exp === 250);
+    ok('且白赚到 lv7（新曲线更便宜）', calc.lvFromExp(low.exp) === 7);
+    /* 新存档（已带锚）一个字节都不动 */
+    const fresh = { exp: 2610, curve: 2 };
+    calc.applyCurveUpgrade(fresh);
+    ok('新存档带 curve=2 ⇒ 补偿直接跳过', fresh.exp === 2610);
+    /* 负控：空/脏输入不得抛错 */
+    let bad = 0;
+    try { calc.applyCurveUpgrade(null); calc.applyCurveUpgrade(undefined); calc.applyCurveUpgrade({}); } catch (e) { bad++; }
+    eq('负控 · null/undefined/{} 不抛错', bad, 0);
+  }
 
   /* --- 2.12 抽卡概率：跑 40000 次统计分布，验证 70/25/5 --- */
   const cnt = { N: 0, R: 0, SR: 0 };

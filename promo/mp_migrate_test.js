@@ -34,6 +34,26 @@ function eq(name, got, want) {
 }
 function head(s) { log(''); log('=== ' + s + ' ==='); }
 
+/* ---------- v2.7.59 段位曲线换代补偿的独立实现（只升不降）----------
+   ⚠️ 必须是**顶层函数**。第一版把它写在断言所在的 `{}` 块里，块作用域下出了块就不存在
+      ⇒ 文件末尾的「导出 · 段位」直接 ReferenceError，而报错位置离定义处很远，
+      看着完全不像作用域问题。凡「不止一节要用」的 helper 一律放这里。 */
+function lvFromExpRef(exp) {
+  let lv = 1; const x = Math.max(0, exp || 0);
+  while (5 * (lv + 1) * lv <= x) lv++;              // 纯整数累加，不复刻内核的 sqrt 反解
+  return lv;
+}
+function migrateExpRef(exp) {
+  const e = Math.max(0, exp || 0);
+  const lvOld = Math.floor(e / 100) + 1;            // 旧曲线：100 经验一级
+  return Math.max(e, 5 * lvOld * (lvOld - 1));      // 抬到新曲线「旧段位」的门槛
+}
+function rankNameRef(exp) {
+  const lv = lvFromExpRef(exp);
+  const R = require(path.join(MINI, 'lib/calc.js')).RANKS;
+  let r = R[0]; R.forEach(x => { if (lv >= x.minLv) r = x; }); return r.name;
+}
+
 /* ---------- 可注入故障的 wx mock ---------- */
 function makeWx(opts) {
   const o = opts || {};
@@ -285,13 +305,19 @@ head('5. 真实导入 —— 用 PWA 真实存档走完整链路');
     got.coins, MOCK_STATE.coins + gain);
   eq('导入后 · 补发额与 PWA 实测一致（' + PWA_COINS_AFTER_IMPORT + '）',
     got.coins, PWA_COINS_AFTER_IMPORT);
-  eq('导入后 · 段位（exp ' + MOCK_STATE.exp + ' → Lv'
-    + (Math.floor(MOCK_STATE.exp / 100) + 1) + '）', got.rank,
-    (function () {
-      const lv = Math.floor(MOCK_STATE.exp / 100) + 1;
-      const R = require(path.join(MINI, 'lib/calc.js')).RANKS;
-      let r = R[0]; R.forEach(x => { if (lv >= x.minLv) r = x; }); return r.name;
-    })());
+  /* v2.7.59 段位曲线换代补偿的独立实现见文件顶部（lvFromExpRef / migrateExpRef / rankNameRef）。
+     ⚠️ 期望**不能**直接拿原始 MOCK_STATE 去 survey：导入后的 state 已经过补偿
+     （这份演示存档 exp=2610 > 交点 1900 ⇒ 被抬到 3510），拿未补偿的原档当期望
+     会算出低一级的段位，红得像个真 bug 其实只是两把尺子。 */
+  eq('导入后 · 段位（exp ' + MOCK_STATE.exp + ' 经换代补偿为 '
+    + migrateExpRef(MOCK_STATE.exp) + ' → Lv' + lvFromExpRef(migrateExpRef(MOCK_STATE.exp)) + '）',
+    got.rank, rankNameRef(migrateExpRef(MOCK_STATE.exp)));
+  /* 换代补偿的底线：老存档不许掉段（旧 lv27 庄家 ⇒ 补偿后仍是 lv27 庄家） */
+  eq('导入后 · 换代补偿后段位不倒退（旧 lv'
+    + (Math.floor(MOCK_STATE.exp / 100) + 1) + ' → 新 lv'
+    + lvFromExpRef(migrateExpRef(MOCK_STATE.exp)) + '）',
+    lvFromExpRef(migrateExpRef(MOCK_STATE.exp)), Math.floor(MOCK_STATE.exp / 100) + 1);
+  eq('导入后 · 幂等锚 curve 已落盘 = 2', store.snapshotRaw().curve, 2);
 
   // 落盘了吗（不是只在内存里）
   const onDisk = store.snapshotRaw();
@@ -491,7 +517,8 @@ head('10. 往返一致性 —— 导入后导出，条数与内容不漂移');
   eq('导出 · 体重条数', r1.weight, MOCK_STATE.weightLog.length);
   eq('导出 · 健康币 = 导入后的值（含成就补发）',
     r1.coins, MOCK_STATE.coins + achGain(ctx.calc, MOCK_STATE.ach, store.get().ach));
-  eq('导出 · 段位', r1.rank, migrate.survey(MOCK_STATE).rank);
+  /* ⛔别写成 migrate.survey(MOCK_STATE).rank：原始存档没经过换代补偿，两把尺子对不上 */
+  eq('导出 · 段位（按换代补偿后的口径）', r1.rank, rankNameRef(migrateExpRef(MOCK_STATE.exp)));
 
   // 再把导出的东西导回去，条数必须不变（幂等）
   // ⚠️ 必须经 parse()：applyImport 只吃「已解析的 state」，直接喂 payload 会被防线拦下
