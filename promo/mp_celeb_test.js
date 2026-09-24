@@ -606,6 +606,9 @@ sec('F 静态接线（wxml/json/wxss 关键行）');
     JSON.stringify(compCfg.options));
 
   const compWxss = fs.readFileSync(path.join(MINI, 'components', 'celeb', 'celeb.wxss'), 'utf8');
+  /* ⚠️ 剥注释再查：本文件第 41 行注释为讲解「为什么不能写 view.celeb」会**字面出现**该串，
+     裸 indexOf('view.celeb') 会把注释文字算进去 ⇒ 断言误报失败。真实选择器只认 .fab-fixed。 */
+  const compWxssClean = compWxss.replace(/\/\*[\s\S]*?\*\//g, '');
   const compWxml = fs.readFileSync(path.join(MINI, 'components', 'celeb', 'celeb.wxml'), 'utf8');
   /* ⚠️ 这里原先断言的是 `view.celeb{position:fixed}` —— 那个写法在 WXSS 里**静默失效**
      （只支持 .class / #id / element / element,element / ::after / ::before；
@@ -624,7 +627,7 @@ sec('F 静态接线（wxml/json/wxss 关键行）');
     '组件根节点 class 同时带 celeb / show / fab-fixed 三个类', '');
   must(compWxml.indexOf('fab-fixed') >= 0 && /\.fab-fixed/.test(compWxss),
     'fab-fixed 在 wxml 与 wxss 两侧成对出现（否则规则没有落点）', '');
-  must(compWxss.indexOf('view.celeb') < 0,
+  must(compWxssClean.indexOf('view.celeb') < 0,
     '⛔ 组件 wxss 不再出现 element.class 组合（WXSS 不支持，会静默失效）', '');
   must(/\.celeb\s+\.btn\s*\{\s*line-height\s*:\s*1\.333/.test(compWxss),
     '组件内 .btn 行盒按 UA 4/3 校正（1.333）', '');

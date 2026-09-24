@@ -320,10 +320,18 @@ must(mk.data.intradayH > 0 && mk.data.badgeText && mk.data.sectorBadgeCls && mk.
 
 /* ---------------- G. 画布绘制（全 no-op mock 会让「一行没画」也显示通过） ---------------- */
 sec('G. 分时图画布绘制');
-ctxStats.total = 0; ctxStats.fillText = 0;
-mk.refresh();
-must(ctxStats.total > 50, '分时图 canvas 真画了（绘制调用远超空转）', ctxStats.total + ' 次');
-must(ctxStats.fillText > 0, '画布上写下了文字（刻度/标签/封死涨停）', String(ctxStats.fillText));
+  ctxStats.total = 0; ctxStats.fillText = 0;
+  mk.refresh();
+  /* 分时图只画到「现在」为止（shown = events.filter(ev.min<=lineEnd)，lineEnd 含 now）⇒
+     绘制调用随跑测试时刻漂移：16:48 仅 1 条可见 ⇒ ~50 次，晚上 3 条全在窗内 ⇒ ~66 次。
+     断言自带时间窗：期望 = 脚手架(~20) + 每可见事件点(~9 调用：分时线顶点/事件标记/量柱)。
+     markCount 已在 B 段独立现算（落在 [05:00,现在] 的今日记录数）。 */
+  const drawFloor = 20 + 9 * markCount;
+  must(ctxStats.total >= drawFloor,
+    '分时图 canvas 真画了（绘制调用 ≥ 脚手架+可见点，窗内 ' + markCount + ' 点）',
+    ctxStats.total + ' 次 / 期望≥' + drawFloor);
+  if (clipped.length) out('  ℹ️ 负控：' + clipped.length + ' 条记录在「现在」之后被裁掉（不计入绘制）');
+  must(ctxStats.fillText > 0, '画布上写下了文字（刻度/标签/封死涨停）', String(ctxStats.fillText));
 
 /* ---------------- I. 负控：改净热量口径，徽章必须跟着变 ---------------- */
 sec('I. 负控 · 净热量口径');
