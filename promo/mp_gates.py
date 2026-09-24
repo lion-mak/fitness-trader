@@ -55,11 +55,13 @@ GATES = {
     "negwxss":   (PY,   "negctl_wxss.py",       [], 14),
     "negfoods":  (PY,   "negctl_foods.py",      [], 14),
     "negach":    (PY,   "negctl_ach_gacha.py",  [], 18),
+    # 云开发接线的专属负控（**不依赖 IDE**：它改 app.js 的 env 制造回归，再跑 mp_smoke）
+    "negcloud":  (PY,   "negctl_cloud.py",      [], 20),
     # ⑥c 交易页 6 弹层的**专属负控**（也依赖 IDE：它靠改 app.wxss 制造回归再跑对拍）
     "negtrademodals": (PY, "negctl_trade_modals.py", [], 14),
 }
 # ⚠️ 新页面/新套件上线后**必须往这里加**：默认集合漏了某套 = 那套再没人跑。
-DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "body", "celeb", "smoke"]
+DEFAULT = ["wxss", "lint", "calc", "food", "migrate", "market", "trade", "board", "me", "ach", "gacha", "body", "celeb", "smoke", "negcloud"]
 # 默认集合跑完 ≠ 全绿：下面这些**依赖开发者工具**的闸要单独跑（IDE 在跑 + 端口能 arm 时）：
 #   recttrade / recttrademodals / rectbody / rectboard / rectme / rectach   （⑥c 元素级 rect 对拍）
 #   rectmp（行情页）/ kline（分时线）/ b2 像素差分（mp_holdings_compare.py）

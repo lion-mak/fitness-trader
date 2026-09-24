@@ -1028,6 +1028,72 @@ function runImportPass() {
   }, 120);
 }
 
+/* ============================================================
+ * 云开发接线（2026-09-24 云环境已开通）
+ *
+ * 为什么单独一遍：前 3 遍的 mock **故意不给 wx.cloud**（模拟「云环境未开通」），
+ * 所以「开通之后」这条通路此前一次都没被跑过 —— 而 app.js 的 initCloud 是
+ * 「本地 storage 第一层 + 云同步第二层」里第二层的唯一开关：
+ * 它拿不到正确的 env / 不置 cloudReady，云同步层就无从判断该不该跑。
+ *
+ * 两态都要跑，缺一态就有一半判据是假的：
+ *   ① 无 wx.cloud ⇒ 必须降级（不抛错、不谎报 cloudReady）—— 审核期/低版本基础库就是这个状态
+ *   ② 有 wx.cloud ⇒ init 必须收到 globalData.env 那个环境 ID，且 cloudReady=true
+ * ⚠️ 判据故意**不是**复述字面量（那是恒真废话），而是「形状合法 + 真的透传出去了」：
+ *    留空 / 形态写错 / 填了却没传，三条任意一条挂都会被抓住。
+ * ============================================================ */
+function runCloudPass() {
+  LAST_LABEL.v = '云';
+  log('════════ 云开发接线（环境已开通）════════');
+  log();
+
+  const cloudCalls = [];
+  /* 每态都要「重新 require app.js 再 onLaunch」：initCloud 只在 onLaunch 里跑一次，
+     不重新加载模块就换不掉 wx.cloud 的存在性。 */
+  function spawnApp(withCloud) {
+    captured.app = null; captured.pages.length = 0;
+    if (withCloud) global.wx.cloud = { init: (o) => cloudCalls.push(o || {}) };
+    else delete global.wx.cloud;
+    freshRequire();
+    require(path.join(MINI, 'app.js'));
+    if (!captured.app) throw new Error('app.js 没有调用 App()');
+    captured.app.onLaunch.call(captured.app);
+    return captured.app.globalData;
+  }
+
+  step('断言 · 云未开通时降级为纯本地（不抛错、cloudReady=false、不去调 init）', () => {
+    cloudCalls.length = 0;
+    const g = spawnApp(false);
+    if (g.cloudReady) throw new Error('没有 wx.cloud 却报 cloudReady=true —— 谎报就绪');
+    if (cloudCalls.length) throw new Error('没有 wx.cloud 却调了 init ' + cloudCalls.length + ' 次');
+  });
+
+  let g2 = null;
+  step('断言 · 云已开通时 init 收到 globalData.env 的环境 ID，且 cloudReady=true', () => {
+    cloudCalls.length = 0;
+    g2 = spawnApp(true);
+    const env = g2.env;
+    if (typeof env !== 'string' || !/^cloud\d+-[0-9a-z]{8,}$/i.test(env)) {
+      throw new Error('globalData.env = ' + JSON.stringify(env)
+        + '，不像合法的云环境 ID（形如 cloud1-xxxxxxxx）。留空会回落到「默认环境」，'
+        + '多环境时直接初始化失败；环境 ID 在云开发控制台首页可复制');
+    }
+    if (cloudCalls.length !== 1) throw new Error('wx.cloud.init 调了 ' + cloudCalls.length + ' 次，期望 1 次');
+    if (cloudCalls[0].env !== env) {
+      throw new Error('init 收到的 env = ' + JSON.stringify(cloudCalls[0].env)
+        + '，与 globalData.env（' + JSON.stringify(env) + '）不一致 —— 填了却没透传出去');
+    }
+    if (!g2.cloudReady) throw new Error('init 没抛错却没置 cloudReady（云同步层要靠它决定跑不跑）');
+  });
+  if (g2) log('        环境 ID：' + g2.env + '（wx.cloud.init 实收 ' + JSON.stringify(cloudCalls[0] && cloudCalls[0].env) + '）');
+  log('        ⚠️ 本遍只验「init 接线」。云同步第二层**尚未实现** —— 「云环境已开通」不等于「已同步」。');
+  log();
+
+  /* ⚠️ 标签还给第 3 遍：runImportPass 末尾还挂着一个 120ms 的异步 canvas 断言，
+     它抛错时会读 LAST_LABEL.v 当归属 —— 别被这一遍抢走（会指错方向）。 */
+  LAST_LABEL.v = '第3遍';
+}
+
 /** 解析缺口卡上的数字。
  *  ⚠️ 界面口径（PWA 同）：缺口头部**不带符号**，盈余头带 `+`
  *     —— 所以「+3740」是 **−3740**（盈余），不是正 3740。
@@ -1052,7 +1118,7 @@ function showAll(d) {
   return parts.join(' ');
 }
 
-log('# 小程序启动链路 + 首屏绘制 冒烟测试（mock wx，无云环境）');
+log('# 小程序启动链路 + 首屏绘制 冒烟测试（mock wx；云环境两态都测：未开通降级 / 已开通接线）');
 log();
 
 const MOCK = path.join(__dirname, 'mock.json');
@@ -1067,6 +1133,7 @@ try {
 runPass(1, '空存档（全新用户）', null);
 if (realState) runPass(2, '真实存档（96 天记录）', realState);
 if (realState) runImportPass();
+runCloudPass();          // 不依赖 realState：云接线与存档无关，空机也要测
 
 // 延迟输出：让 SelectorQuery / rAF 之类的异步回调有机会抛错并被 uncaughtException 抓到
 setTimeout(function () {
@@ -1077,7 +1144,8 @@ setTimeout(function () {
     log('RESULT=FAIL —— ' + errors.length + ' 处抛错：');
     errors.forEach((e) => log('  · [' + e.name + '] ' + (e.err && e.err.message)));
   } else {
-    log('RESULT=OK —— 三遍（空存档 / 真实存档 / 导入验收）+ ' + PAGE_LIST.length + ' 个页面生命周期全部无异常');
+    log('RESULT=OK —— 三遍（空存档 / 真实存档 / 导入验收）+ 云接线两态 + '
+      + PAGE_LIST.length + ' 个页面生命周期全部无异常');
   }
   const text = lines.join('\n') + '\n';
   fs.writeFileSync(OUT, text, 'utf8');
