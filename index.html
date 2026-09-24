@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.61"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.62"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -466,6 +466,8 @@ body {
 /* K线均线图例 */
 .ma-legend { display:flex; align-items:center; gap:14px; margin-top:10px; font-size:10px; }
 .ma-legend .ma7 { color:var(--amber); }
+/* MA14（v2.7.62 从微信小程序侧回灌）：紫 —— 与 MA7 琥珀 / MA30 蓝 / 涨绿跌红都不撞 */
+.ma-legend .ma14 { color:#a78bfa; }
 .ma-legend .ma30 { color:var(--blue); }
 /* 体重 K 线 · 悬浮数据标签（容器需 relative，标签绝对定位跟随光标） */
 #kline { position:relative; }
@@ -720,7 +722,7 @@ body {
       <div class="card" data-page-node-id="55LDeXTNDoQVJnEJu3EAHY">
         <div class="card-title" data-page-node-id="KLOsFIfybJxDojoyzE3zHz"><span class="t" data-page-node-id="ESuZKTSC5FpqMHGu5dOvjF">自营 · 体重 K 线</span><div class="kline-title-right"><span class="m" id="kline-weight" data-page-node-id="7eSa0rSoY3YJfTvMMPEbx2">-- kg</span><div class="kline-tabs" id="kline-tabs" data-page-node-id="JPKlineTabs"><div class="kline-tab on" data-p="d" onclick="switchKlinePeriod('d')">日K</div><div class="kline-tab" data-p="w" onclick="switchKlinePeriod('w')">周K</div><div class="kline-tab" data-p="m" onclick="switchKlinePeriod('m')">月K</div><div class="kline-tab" data-p="q" onclick="switchKlinePeriod('q')">季K</div></div></div></div>
         <div id="kline" data-page-node-id="Q0O5zqNz65Oq2qIeQRS3l9"></div>
-        <div class="ma-legend" data-page-node-id="4VIl4avuHHWZnUyxEVMucg"><span class="ma7" id="ma7-lab" data-page-node-id="WmAVbGi2U14FDSCxXlPJ56">● MA7</span><span class="ma30" id="ma30-lab" data-page-node-id="UywBDZczrplzlGxBytPiNw">● MA30</span><span class="kw-mini" id="kw-open" data-page-node-id="JPKwMini" onclick="openQuickWeight()">⚖️ 记体重</span></div>
+        <div class="ma-legend" data-page-node-id="4VIl4avuHHWZnUyxEVMucg"><span class="ma7" id="ma7-lab" data-page-node-id="WmAVbGi2U14FDSCxXlPJ56">● MA7</span><span class="ma14" id="ma14-lab" data-page-node-id="MA14Lab01">● MA14</span><span class="ma30" id="ma30-lab" data-page-node-id="UywBDZczrplzlGxBytPiNw">● MA30</span><span class="kw-mini" id="kw-open" data-page-node-id="JPKwMini" onclick="openQuickWeight()">⚖️ 记体重</span></div>
         <div class="kw-row" id="kw-row">
           <input type="number" id="kw-input" inputmode="decimal" step="0.1" min="20" max="300" placeholder="今日体重 (kg)">
           <button class="kw-save" onclick="saveQuickWeight()">保存</button>
@@ -1011,8 +1013,14 @@ body {
           <button class="confirm" onclick="copyMigrateCode()" style="flex:1;">复制迁移码</button>
           <button class="confirm" onclick="openPasteImport()" style="flex:1;">粘贴导入</button>
         </div>
+        <!-- 自动快照（v2.7.62 存档安全网③）：每次正常启动自动留一份，被写坏了能自己回滚 -->
+        <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+          <div id="snap-status" style="flex:1; font-size:11px; color:var(--muted2); line-height:1.4;">自动快照：--</div>
+          <button class="mini-btn" onclick="restoreLatestSnapshot()">从快照恢复</button>
+        </div>
         <div class="gap-note">导出为 JSON 存到手机；换源/清缓存后用「导入恢复」找回进度，永不丢失。<br>
-「复制迁移码」把全部记录压成一段文本，可在小程序版「粘贴导入」里还原；反向同理。</div>
+「复制迁移码」把全部记录压成一段文本，可在小程序版「粘贴导入」里还原；反向同理。<br>
+每次正常启动会自动留一份快照（留最近 5 份）—— 万一被写坏，用「从快照恢复」自己回滚。</div>
       </div>
 
       <!-- 版本与更新（主屏幕 App 无刷新按钮：自动检测 + 手动检查 + 版本可见） -->
@@ -1861,6 +1869,169 @@ const CURVE_VER = 2;
    语义 = 「存储里明明有东西，但这次启动读不出来」。 */
 let __loadFailed = false;
 
+/* ==================== 存档安全网（v2.7.62） ====================
+   P0 事故（2026-09-25：TDZ ⇒ loadState 返回空档 ⇒ render 末尾 saveState 把空档写回）之后补的
+   结构性防线。总原则：**任何一次「读不懂」或「变少了」都不许静默落盘**，且必须让用户看得见。
+
+   ① 自动快照环：每次成功读到存档先留一份（最近 5 份，总量 < 2MB）⇒ 被写坏了有回滚源。
+   ② 读失败保护模式（__loadFailed，见 loadState/saveState）：拒绝写入 + 大声报错。
+   ③ 启动期缩水闸（__loadedCounts / __booted）：首帧 render 完成前的写入若让任何一类记录**变少**，
+      拒绝落盘（启动期不存在「用户主动删除」⇒ 变少必是 bug）。
+   ④ 可见告警条：以上任何一道触发都在页面顶部显示横幅。原来只 console.error ⇒ 用户看不到、
+      继续录数据却一条都没存 = 二次丢数据（比第一次更狠）。
+
+   ⚠️ 本块里的 const/let 全部用在 loadState/saveState 里 ⇒ 必须在本行之后、`loadState()` 之前。 */
+const SNAP_PREFIX = STORAGE_KEY + '_snap_';
+const SNAP_KEEP = 5;                      // 保留份数
+const SNAP_BUDGET = 2 * 1024 * 1024;      // 快照总量上限（localStorage 通常 5MB）
+let __loadedCounts = null;                // 成功读到存档时 raw 里的各类记录条数（迁移前）
+let __booted = false;                     // 首帧 render 是否已完成
+let __guardTripped = false;               // 是否触发过保护（告警条据此显示）
+
+function __recordCounts(s) {
+  s = s || {};
+  return {
+    diet: (s.diet || []).length, exercise: (s.exercise || []).length,
+    weightLog: (s.weightLog || []).length, bodyLog: (s.bodyLog || []).length
+  };
+}
+
+/* ---- 自动快照环 ---- */
+function snapshotList() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(SNAP_PREFIX) === 0) {
+        const ts = parseInt(k.slice(SNAP_PREFIX.length), 10);
+        if (isFinite(ts)) out.push({ key: k, ts: ts, size: (localStorage.getItem(k) || '').length });
+      }
+    }
+  } catch (e) { console.error('[快照] 列举失败：', e); }
+  out.sort(function (a, b) { return b.ts - a.ts; });     // 最新在前
+  return out;
+}
+
+/* 留快照：raw 传**迁移前**的原始串 ⇒ 连迁移里的清理出错也能回滚。
+   与最新快照逐字节相同则跳过，免得每次冷启动都写一遍。 */
+function takeSnapshot(raw) {
+  if (!raw || raw.length < 64) return false;
+  try {
+    const list = snapshotList();
+    if (list.length && localStorage.getItem(list[0].key) === raw) return false;
+    localStorage.setItem(SNAP_PREFIX + Date.now(), raw);
+    const rest = snapshotList();
+    let total = rest.reduce(function (a, x) { return a + x.size; }, 0);
+    for (let i = rest.length - 1; i >= 0; i--) {          // 从最旧开始删
+      const kept = i + 1;                                  // 删掉这份后还剩几份
+      if (kept <= SNAP_KEEP && total <= SNAP_BUDGET) break;
+      try { localStorage.removeItem(rest[i].key); total -= rest[i].size; }
+      catch (e) { break; }
+    }
+    return true;
+  } catch (e) { console.error('[快照] 写入失败（通常是配额）：', e); return false; }
+}
+function fmtSnapTime(ts) {
+  const d = new Date(ts);
+  const p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+/* ---- 可见告警条 ---- */
+/* 幂等：重复调用只更新 reason，不会叠出第二条横幅。 */
+function showSaveGuard(reason) {
+  __guardTripped = true;
+  let el = document.getElementById('save-guard');
+  if (el) { el.dataset.reason = reason || ''; return; }
+  el = document.createElement('div');
+  el.id = 'save-guard';
+  el.setAttribute('style', [
+    'position:fixed', 'left:0', 'right:0', 'top:0', 'z-index:9998',
+    'background:linear-gradient(180deg,#3d1616,#2a0f0f)', 'border-bottom:1px solid #7a2a2a',
+    'color:#ffdcdc', 'font-size:12px', 'line-height:1.55', 'padding:9px 12px 10px',
+    'box-shadow:0 6px 18px rgba(0,0,0,.55)', 'font-family:inherit'
+  ].join(';'));
+  el.dataset.reason = reason || '';
+  el.innerHTML =
+    '<div style="font-weight:600;color:#ff9b9b;">⚠️ 存档保护模式已启动</div>' +
+    '<div style="margin-top:3px;color:#f0c9c9;">本次启动<b>读不出你的存档</b>，已暂停保存，' +
+    '以免把真数据覆盖掉。<b>请先不要清除浏览器数据 / 缓存</b>，先留一份底。</div>' +
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">' +
+    '<button onclick="downloadRescue()" style="background:#7a2a2a;border:1px solid #a83c3c;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;">下载原始存档</button>' +
+    '<button onclick="restoreLatestSnapshot()" style="background:#2f5d3a;border:1px solid #4b8a5c;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;">从最近快照恢复</button>' +
+    '<button onclick="hideSaveGuard()" style="background:transparent;border:1px solid #6b4040;color:#e0b9b9;border-radius:6px;padding:6px 12px;font-size:12px;">先隐藏</button>' +
+    '</div>';
+  if (document.body) document.body.appendChild(el);
+  else document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(el); });
+  try { console.error('[存档] 告警条已弹出（reason=' + reason + '）'); } catch (e) {}
+}
+function hideSaveGuard() {
+  const el = document.getElementById('save-guard');
+  if (el) el.remove();
+}
+
+/* 把「存储里的原始存档」导成文件 —— 保护模式下这是用户唯一的自救动作。
+   优先顺序：rescue 备份（loadState 存的）> 当前存储原串 > 最新快照。 */
+function downloadRescue() {
+  let raw = null, src = '';
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(STORAGE_KEY + '_rescue_') === 0) keys.push(k);
+    }
+    keys.sort();
+    if (keys.length) { raw = localStorage.getItem(keys[keys.length - 1]); src = 'rescue'; }
+    if (!raw) { raw = localStorage.getItem(STORAGE_KEY); src = 'current'; }
+    if (!raw) {
+      const list = snapshotList();
+      if (list.length) { raw = localStorage.getItem(list[0].key); src = 'snapshot'; }
+    }
+  } catch (e) { console.error('[存档] 取原始串失败：', e); }
+  if (!raw) { try { toastInfo('没有找到可导出的原始存档'); } catch (e) {} return; }
+  try {
+    const blob = new Blob([raw], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'jianpan-raw-' + src + '-' + todayStr() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+    try { toastInfo('已导出原始存档（' + raw.length + ' 字符，来源：' + src + '）'); } catch (e) {}
+  } catch (e) { console.error('[存档] 导出原始串失败：', e); }
+}
+
+/* 从最近一份快照恢复：确认 → 迁移校验 → 走正规导入通道 → 重载（拿到干净启动）。 */
+function restoreLatestSnapshot() {
+  const list = snapshotList();
+  if (!list.length) { try { toastInfo('还没有自动快照可用'); } catch (e) {} return; }
+  const snap = list[0];
+  const ok = confirm('用最近一份自动快照（' + fmtSnapTime(snap.ts) + '，' + Math.round(snap.size / 1024) + 'KB）\n' +
+                     '覆盖当前进度？\n\n当前进度会被替换，但快照仍保留。');
+  if (!ok) return;
+  try {
+    const data = migratePayload(JSON.parse(localStorage.getItem(snap.key)));
+    const nd = (data.diet || []).length, ne = (data.exercise || []).length;
+    __loadFailed = false;          // 快照已校验通过 ⇒ 放开写入（否则 applyImported 里的保存会被保护模式挡掉）
+    __guardTripped = false;
+    hideSaveGuard();
+    applyImported(data, '已从快照恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+    location.reload();
+  } catch (e) {
+    console.error('[存档] 快照恢复失败：', e);
+    try { toastInfo('快照恢复失败：' + ((e && e.message) || '数据不完整')); } catch (_) {}
+  }
+}
+
+/* 「我的」页·数据备份里的快照状态行 */
+function renderSnapStatus() {
+  const el = document.getElementById('snap-status');
+  if (!el) return;
+  const list = snapshotList();
+  if (!list.length) { el.textContent = '自动快照：暂无（下次正常启动后生成）'; return; }
+  const kb = Math.round(list.reduce(function (a, x) { return a + x.size; }, 0) / 1024);
+  el.textContent = '自动快照 ' + list.length + ' 份 · 最近 ' + fmtSnapTime(list[0].ts) + ' · ' + kb + 'KB';
+}
+
 let state = loadState();
 /* ---- 「我的常吃」规则常量 ---- */
 const USUAL_CAT = '我的常吃';
@@ -2056,6 +2227,11 @@ function loadState() {
     raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
+      /* 🔴 读成功后的两个动作，顺序不能颠倒：
+         ① 先记**迁移前**的记录条数基线（启动期缩水闸拿它比对，见 saveState）；
+         ② 再留一份原始串快照（迁移里的清理若出错也能回滚）。 */
+      __loadedCounts = __recordCounts(s);
+      takeSnapshot(raw);
       const def = defaultState();
       const merged = Object.assign({}, def, s);
       merged.user = Object.assign({}, def.user, s.user || {});
@@ -2108,6 +2284,9 @@ function loadState() {
         clean = clean.filter(e => !sig.has([e.bmi, e.bodyFat, e.muscleRate, e.waterRate].join('|')));
         clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
         merged.bodyLog = clean;
+        /* 这是**有意**的清理（剔 v2.7.29 误注入的示例序列）⇒ 缩水基线跟着下调，
+           否则启动期缩水闸会把这次正常清理误判成数据丢失、拒绝写入。 */
+        if (__loadedCounts && clean.length < __loadedCounts.bodyLog) __loadedCounts.bodyLog = clean.length;
       }
       // v2.7.59 段位曲线换代：老存档一律「只升不降」（幂等锚 state.curve，细节见 applyCurveUpgrade）
       applyCurveUpgrade(merged);
@@ -2124,7 +2303,10 @@ function loadState() {
         localStorage.setItem(STORAGE_KEY + '_rescue_' + Date.now(), raw);
         console.warn('[存档] 原始串已备份到 ' + STORAGE_KEY + '_rescue_*（' + raw.length + ' 字符）');
       }
-    } catch(_) {}
+    } catch (e2) { console.warn('[存档] rescue 备份写入失败（配额？）：', e2); }
+    /* ④ 必须让用户**看得见**：只打 console 的话，用户会以为一切正常、继续录数据，
+       而这些数据一条都不会落盘 ⇒ 二次丢数据。 */
+    showSaveGuard('read-failed');
   }
   return defaultState();
 }
@@ -2133,12 +2315,50 @@ function saveState() {
      宁可这次会话不落盘（并报错），也不能覆盖磁盘上那份我们还没读懂的数据。 */
   if (__loadFailed) {
     console.error('[存档] 保护模式生效：拒绝写入，避免覆盖磁盘上的原存档（本次改动未落盘）');
+    showSaveGuard('read-failed');
     return;
   }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  let payload;
+  try { payload = JSON.stringify(state); }
+  catch (e) { console.error('[存档] 序列化失败，拒绝写入：', e); showSaveGuard('serialize'); return; }
+
+  /* 🔴 启动期缩水闸（③）：首帧 render 完成前的写入若让任何一类记录**变少**，拒绝落盘。
+     启动期不存在「用户主动删除」⇒ 变少必是 bug（迁移写坏、render 里误筛、状态被重置…）。
+     这条与保护模式互补：保护模式管「读不出来」，它管「读出来了但写回去少了」。 */
+  if (!__booted && __loadedCounts) {
+    const now = __recordCounts(state), lost = [];
+    Object.keys(__loadedCounts).forEach(function (k) {
+      if (now[k] < __loadedCounts[k]) lost.push(k + ' ' + __loadedCounts[k] + '→' + now[k]);
+    });
+    if (lost.length) {
+      console.error('[存档] 缩水闸拦截：' + lost.join('，') + '（拒绝写入，磁盘上的原存档未动）');
+      showSaveGuard('shrink');
+      return;
+    }
+  }
+
+  /* 🔴 永久空档哨兵（不限于启动期）：某一类记录从「有」直接变「0」。
+     这不是任何正常操作能产生的结果 —— v2.7.55 起全站已无清空/重置入口，并明令不许加回；
+     也不存在删除单条记录的功能。所以它只可能是 bug（state 被重置 / 被替换成空档）。
+     与保护模式、缩水闸互补：那两道管「读不出来」和「启动期写少了」，这道管**任何时刻被清零**。 */
+  if (__loadedCounts) {
+    const now2 = __recordCounts(state), wiped = [];
+    Object.keys(__loadedCounts).forEach(function (k) {
+      if (__loadedCounts[k] > 0 && now2[k] === 0) wiped.push(k + ' ' + __loadedCounts[k] + '→0');
+    });
+    if (wiped.length) {
+      console.error('[存档] 空档哨兵拦截：' + wiped.join('，') + '（拒绝写入，磁盘上的原存档未动）');
+      showSaveGuard('wipe');
+      return;
+    }
+  }
+  try { localStorage.setItem(STORAGE_KEY, payload); }
   catch(e) {
     // 写不进去必须让用户知道（通常是 localStorage 超配额），否则刷新即丢数据
     try { toast('⚠️ 存储已满，数据未能保存！请清理浏览器缓存或使用「导出备份」'); } catch(_) {}
+    if (e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e.message || e.name)))) {
+      showSaveGuard('quota');
+    }
     console.error('saveState failed:', e);
   }
 }
@@ -2551,6 +2771,9 @@ function render() {
 
   // 涨停改为「收盘结算」触发：见 settleDay()，render 不再自动判定（避免记一笔就查达标）
   saveState();
+  /* 首帧 render 走完 = 启动期结束 ⇒ 关掉缩水闸（此后用户的删除/编辑都是正常操作）。 */
+  __booted = true;
+  try { renderSnapStatus(); } catch (e) { console.error('[快照] 状态行渲染失败：', e); }
 }
 
 /* ============ 运动网格图（GitHub 贡献图式 · 绿色深浅 ∝ 当日运动消耗） ============ */
@@ -4126,7 +4349,7 @@ function bindKlineTip(chart) {
     const hi = (b.h != null) ? b.h : Math.max(b.o, b.c);
     const lo = (b.l != null) ? b.l : Math.min(b.o, b.c);
     const chg = +(b.c - b.o).toFixed(1);
-    const m7 = g.ma7[idx], m30 = g.ma30[idx];
+    const m7 = g.ma7[idx], m14 = g.ma14[idx], m30 = g.ma30[idx];
     const col = up ? '#5ee0c0' : '#ff8a93';
     tip.innerHTML =
         '<div class="kt-d">' + klineDateText(b.date, g.period) + '</div>'
@@ -4135,6 +4358,7 @@ function bindKlineTip(chart) {
       + '<div class="kt-row"><span>高 / 低</span><b>' + hi.toFixed(1) + ' / ' + lo.toFixed(1) + '</b></div>'
       + '<div class="kt-row"><span>较上期</span><b style="color:' + col + '">' + (chg > 0 ? '+' : '') + chg + ' kg</b></div>'
       + '<div class="kt-row"><span>MA7</span><b style="color:#ffb800">' + (m7 == null ? '--' : m7.toFixed(2)) + '</b></div>'
+      + '<div class="kt-row"><span>MA14</span><b style="color:#a78bfa">' + (m14 == null ? '--' : m14.toFixed(2)) + '</b></div>'
       + '<div class="kt-row"><span>MA30</span><b style="color:#5ac8fa">' + (m30 == null ? '--' : m30.toFixed(2)) + '</b></div>';
     // 先显示再量宽度，避免 offsetWidth 为 0 导致首次定位跳动
     tip.style.display = 'block';
@@ -4174,8 +4398,10 @@ function renderKline() {
     document.getElementById('kline').innerHTML =
       '<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#5a6478;'
       + 'font-size:12px;text-align:center;line-height:1.7;">' + msg + '</div>';
-    const l7n = document.getElementById('ma7-lab'), l30n = document.getElementById('ma30-lab');
+    const l7n = document.getElementById('ma7-lab'), l14n = document.getElementById('ma14-lab'),
+          l30n = document.getElementById('ma30-lab');
     if (l7n) l7n.textContent = '● MA7 --';
+    if (l14n) l14n.textContent = '● MA14 --';
     if (l30n) l30n.textContent = '● MA30 --';
     return;
   }
@@ -4190,12 +4416,17 @@ function renderKline() {
   const n = bars.length;
   const closes = bars.map(b => b.c);
   const ma = (p) => closes.map((_, i) => i >= p-1 ? +(closes.slice(i-p+1, i+1).reduce((s,x)=>s+x,0)/p).toFixed(2) : null);
-  const ma7 = ma(7), ma30 = ma(30);
+  /* v2.7.62：MA14 从微信小程序侧回灌（此前只加在小程序、PWA 漏了）。
+     同步 6 处：computeGeom 算并 return / 图例文案 / 空态重置 / drawMA 顺序 / tip 行 / klineGeom。 */
+  const ma7 = ma(7), ma14 = ma(14), ma30 = ma(30);
   // MA 图例：显示最新一根的均线数值（数据不足该周期则显示 --）
   const lastMA = arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]; return null; };
-  const m7v = lastMA(ma7), m30v = lastMA(ma30);
-  const l7el = document.getElementById('ma7-lab'), l30el = document.getElementById('ma30-lab');
+  const m7v = lastMA(ma7), m14v = lastMA(ma14), m30v = lastMA(ma30);
+  const l7el = document.getElementById('ma7-lab');
+  const l14el = document.getElementById('ma14-lab');
+  const l30el = document.getElementById('ma30-lab');
   if (l7el) l7el.textContent = '● MA7 ' + (m7v == null ? '--' : m7v.toFixed(2));
+  if (l14el) l14el.textContent = '● MA14 ' + (m14v == null ? '--' : m14v.toFixed(2));
   if (l30el) l30el.textContent = '● MA30 ' + (m30v == null ? '--' : m30v.toFixed(2));
   let min, max;
   if (period === 'd') {
@@ -4235,6 +4466,7 @@ function renderKline() {
     if (d) svg += '<path d="' + d + '" stroke="' + color + '" stroke-width="1.2" fill="none" opacity="0.9"/>';
   };
   drawMA(ma30, '#5ac8fa');
+  drawMA(ma14, '#a78bfa');   // 紫：与 MA7 琥珀 / MA30 蓝 / 涨绿跌红都不撞（口径同小程序端）
   drawMA(ma7, '#ffb800');
   // K 线柱体（绿=降体重=涨 / 红=升体重=跌），从最左对齐生长
   bars.forEach((b, i) => {
@@ -4261,7 +4493,7 @@ function renderKline() {
   const klineEl = document.getElementById('kline');
   klineEl.innerHTML = svg + '<div class="kline-tip" id="kline-tip"></div>';
   // 缓存本次渲染几何，供悬浮标签把指针坐标换算成数据索引（不依赖窄命中区）
-  klineGeom = { W: W, H: H, PAD_L: PAD_L, PAD_T: PAD_T, PAD_B: PAD_B, slotW: slotW, period: period, bars: bars, ma7: ma7, ma30: ma30, y: y };
+  klineGeom = { W: W, H: H, PAD_L: PAD_L, PAD_T: PAD_T, PAD_B: PAD_B, slotW: slotW, period: period, bars: bars, ma7: ma7, ma14: ma14, ma30: ma30, y: y };
   bindKlineTip(klineEl);
 }
 
