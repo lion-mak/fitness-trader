@@ -33,9 +33,25 @@ def env():
     return e
 
 
+def _txt(v):
+    if v is None:
+        return ""
+    return v.decode("utf-8", "replace") if isinstance(v, bytes) else v
+
+
 def git(*args, timeout=180):
-    return subprocess.run([GIT, "-C", REPO] + list(args),
-                          capture_output=True, text=True, env=env(), timeout=timeout)
+    """⚠️ 必须吞掉 TimeoutExpired：沙箱到 github.com 的链路会偶发卡死（fetch 卡满 120s），
+    而 subprocess.run 超时会**抛异常**，直接崩掉整个脚本 —— 症状是「git commit 成功、
+    但 push 那一步从没被执行到」，看着像推送静默失败（2026-09-25 v2.7.61 实测）。
+    这里把超时降级成一个 returncode=-9 的普通失败结果，让各调用方走既有失败分支：
+    selfheal 跳过收敛、push 继续重试。"""
+    try:
+        return subprocess.run([GIT, "-C", REPO] + list(args),
+                              capture_output=True, text=True, env=env(), timeout=timeout)
+    except subprocess.TimeoutExpired as ex:
+        print("git %s 超时 %ss（按失败处理）" % (" ".join(args), timeout))
+        return subprocess.CompletedProcess([GIT, "-C", REPO] + list(args), -9,
+                                           _txt(ex.stdout), _txt(ex.stderr))
 
 
 def push():
