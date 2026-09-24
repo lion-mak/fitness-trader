@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.60"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.61"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1841,6 +1841,26 @@ function simulateNewDay() {
 }
 
 /* ============ 状态 ============ */
+/* 🔴🔴 CURVE_VER 必须声明在 `let state = loadState()` **之前** —— 这不是代码风格，是数据安全。
+
+   2026-09-25 真事故（用户 96 天存档被清空）：
+     · loadState() 内部会走 applyCurveUpgrade()，而它第一行就读 CURVE_VER；
+     · CURVE_VER 原先声明在本行**之后 79 行**（原 1923 行）⇒ 脚本自上而下执行到这里时，
+       它还在 TDZ（暂时性死区）⇒ applyCurveUpgrade 抛 ReferenceError；
+     · loadState 的 `catch(e) {}` 是空的 ⇒ 异常被静默吞掉 ⇒ 返回 defaultState() 空档；
+     · render() 末尾无条件 saveState() ⇒ **把空档写回存储，真存档当场永久丢失**。
+       症状：刷新后数据全清零、头像退回内联 SVG 占位人形、体重 K 线无历史。
+   复现：promo/_tdz_repro.js（Node，5 行等价结构即可打出同一个 ReferenceError）。
+
+   ⭐ 规则（写新代码时照着做）：loadState() 调用链上用到的一切 **const/let 都必须在本行之前初始化**。
+      function 声明会整体提升，不受影响；只有 const/let 有 TDZ 这一层。
+      闸：promo/pwa_gate_state.py（灌一份完整存档 → 冷启动 → 断言存档存活且零 console error）。 */
+const CURVE_VER = 2;
+
+/* 同上：loadState / saveState 都要用 ⇒ 必须在这里初始化（放后面同样会 TDZ）。
+   语义 = 「存储里明明有东西，但这次启动读不出来」。 */
+let __loadFailed = false;
+
 let state = loadState();
 /* ---- 「我的常吃」规则常量 ---- */
 const USUAL_CAT = '我的常吃';
@@ -1919,8 +1939,9 @@ function lvFromExp(exp) {                             // 反解：exp → lv
       一旦 def 带了新锚，导入一份老存档时锚会从 def 继承进来 ⇒ 补偿被跳过 ⇒ 老存档照样掉段。
       新用户走 defaultState（exp=0 ⇒ lv1 ⇒ 门槛 0）本来就不需要补偿。
    实测（promo/mock.json · 96 天演示存档 exp=2610）：旧 lv27 庄家 ⇒ 抬到 3510 ⇒ 新 lv27 仍是庄家，
-      等级不动；此后按新曲线继续爬（再去股神需 4350−3510=840 经验）。 */
-const CURVE_VER = 2;
+      等级不动；此后按新曲线继续爬（再去股神需 4350−3510=840 经验）。
+   🔴 声明位置：CURVE_VER **已前置到 `let state = loadState()` 之前**（约 1843 行），
+      原因见那里的注释 —— 留在这里会让 loadState() 在 TDZ 里抛错、静默清空用户存档。 */
 function applyCurveUpgrade(s) {
   if (!s || (s.curve || 1) >= CURVE_VER) return false;
   const exp = Math.max(0, +s.exp || 0);
@@ -2023,11 +2044,18 @@ function seedBodyLog() {
   }
   return log;
 }
+/* 🔴 读存档失败时**绝不能静默**。
+   空 `catch(e) {}` 会把「读不懂存档」静默退化成「当作新用户」，再被 render() 末尾那次
+   saveState() 写回 ⇒ 真存档被空档覆盖（2026-09-25 数据事故里，TDZ 那个 ReferenceError
+   就是这样把用户 96 天存档抹掉的）。
+   现在三道：① 打 console.error（运行时闸能抓）；② 原始串另存一份 rescue 键；
+   ③ 置 __loadFailed ⇒ saveState() 拒绝写入（宁可这次不落盘，也不覆盖真数据）。 */
 function loadState() {
+  let raw = null;
   try {
-    const r = localStorage.getItem(STORAGE_KEY);
-    if (r) {
-      const s = JSON.parse(r);
+    raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
       const def = defaultState();
       const merged = Object.assign({}, def, s);
       merged.user = Object.assign({}, def.user, s.user || {});
@@ -2085,10 +2113,28 @@ function loadState() {
       applyCurveUpgrade(merged);
       return merged;
     }
-  } catch(e) {}
+  } catch(e) {
+    /* 🔴 这里原来是空的 `catch(e) {}` —— 数据事故的放大器：任何解析/升级期的异常都会
+       退化成「当作新用户」，随后 render() 末尾的 saveState() 把空档写回，真存档就没了。
+       现在：报错 + 备份原始串 + 置保护标志（saveState 将拒绝写入）。 */
+    __loadFailed = true;
+    console.error('[存档] 读取/升级失败，已进入保护模式（不会覆盖磁盘上的原存档）：', e);
+    try {
+      if (raw && raw.length > 100) {
+        localStorage.setItem(STORAGE_KEY + '_rescue_' + Date.now(), raw);
+        console.warn('[存档] 原始串已备份到 ' + STORAGE_KEY + '_rescue_*（' + raw.length + ' 字符）');
+      }
+    } catch(_) {}
+  }
   return defaultState();
 }
 function saveState() {
+  /* 🔴 保护模式：本次启动读存档失败 ⇒ 内存里的 state 是空档，写回就等于抹掉真存档。
+     宁可这次会话不落盘（并报错），也不能覆盖磁盘上那份我们还没读懂的数据。 */
+  if (__loadFailed) {
+    console.error('[存档] 保护模式生效：拒绝写入，避免覆盖磁盘上的原存档（本次改动未落盘）');
+    return;
+  }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch(e) {
     // 写不进去必须让用户知道（通常是 localStorage 超配额），否则刷新即丢数据
