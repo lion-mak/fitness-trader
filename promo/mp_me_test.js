@@ -107,7 +107,7 @@ global.wx = {
   getMenuButtonBoundingClientRect: () => ({ top: 58, bottom: 90, left: 333, right: 420, width: 87, height: 32 }),
   getAccountInfoSync: () => ({ miniProgram: { appId: 'wxtest', version: '2.7.60', envVersion: 'develop' } }),
   getUpdateManager: () => ({ onCheckForUpdate: noop, onUpdateReady: noop, onUpdateFailed: noop, applyUpdate: noop }),
-  createSelectorQuery: () => ({ select: () => ({ boundingClientRect: () => ({ exec: noop }) }), exec: noop }),
+  createSelectorQuery: () => mkQuery(),
   nextTick: (fn) => setTimeout(fn, 0),
   showToast: (o) => calls.push(['showToast', o && o.title]),
   showModal: (o) => { calls.push(['showModal', o && o.title]); o && o.success && o.success({ confirm: false }); },
@@ -142,9 +142,81 @@ function makeInstance(opt) {
     });
     if (typeof cb === 'function') cb();
   };
-  inst.createSelectorQuery = () => ({ select: () => ({ boundingClientRect: () => ({ exec: noop }) }), exec: noop });
+  inst.createSelectorQuery = () => mkQuery();
   return inst;
 }
+
+/* ---------- 选择器查询 mock（补 .fields({node}) —— 头像管道要拿画布节点）----------
+   原来只有 boundingClientRect 且 exec 不回调。lib/avatar.js 的 queryCanvas 走的是
+   `select(sel).fields({node:true,size:true}).exec(cb)` ⇒ 不给 fields 就会 TypeError，
+   症状是「点头像后整个流程静默不动」，而测试因为没走到那里会说通过。 */
+function mkQuery() {
+  const r = {
+    _fields: false,
+    select: () => r,
+    in: () => r,
+    fields: () => { r._fields = true; return r; },
+    /* ⚠️ boundingClientRect 保持「exec 不回调」的原行为（既有断言默认它返回 null） */
+    boundingClientRect: () => { r._fields = false; return r; },
+    selectAll: () => r,
+    exec: (cb) => {
+      if (typeof cb === 'function') {
+        cb(r._fields ? [{ node: avatarCanvasNode(), width: 256, height: 256,
+                          left: 0, top: 0 }] : undefined);
+      }
+      return r;
+    },
+  };
+  return r;
+}
+
+/* ---------- 头像管道用的画布节点 + wx API ----------
+   记录每一次 drawImage / canvasToTempFilePath 的参数 —— 这些正是「口径是否与 PWA 一致」
+   的可观测证据（最长边 256 / JPEG q0.85 / 先设位图尺寸再取 ctx）。 */
+const avDraw = [];
+let avNode = null;          // 最后一次交出去的画布节点（用来断言「先设位图尺寸再取 ctx」）
+function avatarCanvasNode() {
+  avNode = {
+    width: 0, height: 0,
+    getContext: () => ({
+      clearRect: (...a) => avDraw.push(['clearRect'].concat(a)),
+      drawImage: (...a) => avDraw.push(['drawImage'].concat(a.slice(1))),
+    }),
+    createImage: () => {
+      const img = { onload: null, onerror: null, _src: '', width: 0, height: 0 };
+      Object.defineProperty(img, 'src', {
+        get() { return img._src; },
+        /* 真机是异步加载；这里也异步，避免「同步 onload」把真实时序问题掩盖掉 */
+        set(v) { img._src = v; setTimeout(() => { if (typeof img.onload === 'function') img.onload(); }, 0); },
+      });
+      return img;
+    },
+  };
+  return avNode;
+}
+let avLastTemp = null;      // 最后一次 canvasToTempFilePath 的参数
+let avChoose = 'ok';        // 'ok' | 'cancel' | 'none'
+global.wx.getImageInfo = (o) => {
+  calls.push(['getImageInfo', o && o.src]);
+  o.success({ width: 1024, height: 800, path: o.src, type: 'jpg' });
+};
+global.wx.chooseMedia = (o) => {
+  calls.push(['chooseMedia']);
+  if (avChoose === 'cancel') { o.fail({ errMsg: 'chooseMedia:fail cancel' }); return; }
+  if (avChoose === 'none') { o.success({ tempFiles: [] }); return; }
+  o.success({ tempFiles: [{ tempFilePath: '/tmp/pick.jpg', size: 900000 }] });
+};
+global.wx.canvasToTempFilePath = (o) => {
+  avLastTemp = o;
+  o.success({ tempFilePath: '/tmp/av_out.jpg' });
+};
+global.wx.getFileSystemManager = () => ({
+  readFile: (o) => {
+    if (o.encoding === 'base64') { o.success({ data: 'QkFTRTY0UEFZTE9BRA==' }); return; }
+    o.success({ data: o.__text || '' });
+  },
+  writeFileSync: noop,
+});
 
 const pad2 = (n) => String(n).padStart(2, '0');
 const ymd = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
@@ -724,7 +796,183 @@ sec('J 成就补发接线（store.save / store.init / importPayload）');
     'J-4 导入触发的解锁**有**提示', JSON.stringify(t4));
 }
 
+/* ============================================================
+ * K 个人资料编辑（头像 / ID）+ 自建食物迁移接线
+ *
+ * 起因（2026-09-24 Mak 真机反馈）：
+ *   · 「我的页面，点击头像无法更换头像和ID昵称」—— me.js 的 openProfileEdit 原本只是
+ *      一句 toast 占位（迁移文档写明「本轮不做」）⇒ 这次补齐。
+ *   · 「json 导出的存档里为何没有自建的食物」的 UI 侧：页面必须在导入时把
+ *      customFoods 一起交给 applyImport，漏了第二个参数就会「导入成功但自建食物没进来」。
+ *
+ * ⚠️ 头像管道（chooseMedia → getImageInfo → canvas → canvasToTempFilePath → readFile）
+ *    全链是异步的 ⇒ 本节放在 pending 里，最后用 Promise.all 统一收尾出报告。
+ * ============================================================ */
+sec('K 个人资料编辑（头像 / ID）+ 自建食物接线');
+const pending = [];
+{
+  const cK = require(path.join(MINI, 'lib/calc.js'));
+  const sK = buildSeed(cK);
+  const mK = bootPage(sK, 'pages/me/me.js');
+
+  const meWxml = fs.readFileSync(path.join(MINI, 'pages/me/me.wxml'), 'utf8');
+  const meJs = fs.readFileSync(path.join(MINI, 'pages/me/me.js'), 'utf8');
+
+  /* ---- 静态口径 ---- */
+  const sheets = meWxml.match(/class="sheet-mask"/g) || [];
+  must(sheets.length === 1, 'me.wxml 有 1 个资料编辑弹层（.sheet-mask）', '命中 ' + sheets.length);
+  must(/wx:if="\{\{pe\.show\}\}"/.test(meWxml),
+    '弹层用 wx:if 而非 display:none（藏起来的元素 rect 照样量得到，会把对拍带偏）');
+  must(/catchtap="stopTap"/.test(meWxml),
+    '弹层内容区用 catchtap="stopTap"（bindtap 不阻止冒泡 ⇒ 点空白就关掉弹层）');
+  must(typeof mK.stopTap === 'function', 'me.js 定义了 stopTap（wxml 引用了它）');
+  must(/id="av-canvas"/.test(meWxml) && /type="2d"/.test(meWxml),
+    '页面里有 type=2d 的隐藏画布 #av-canvas（头像压缩要用）');
+  must(/lib\/avatar\.js/.test(meJs), 'me.js 走 lib/avatar.js 的压缩管道（页面零判定）');
+
+  /* ---- 纯函数：尺寸规划（PWA 口径：只在超出时缩，最长边 256）---- */
+  const AV = require(path.join(MINI, 'lib/avatar.js'));
+  const p1 = AV.planSize(1024, 800, 256);
+  must(p1.w === 256 && p1.h === 200 && p1.scaled === true,
+    'planSize(1024×800) ⇒ 256×200 等比缩放', JSON.stringify(p1));
+  const p2 = AV.planSize(100, 80, 256);
+  must(p2.w === 100 && p2.h === 80 && p2.scaled === false,
+    '小图不放大（放大只会更糊、字符串更大）', JSON.stringify(p2));
+  const p3 = AV.planSize(256, 256, 256);
+  must(p3.w === 256 && p3.h === 256 && p3.scaled === false, '恰好等于上限时不动', JSON.stringify(p3));
+  const p4 = AV.planSize(0, 80, 256);
+  must(p4.w === 0 && p4.h === 0, '尺寸非法 ⇒ 返回 0（调用方据此报「图片尺寸异常」）', JSON.stringify(p4));
+  must(AV.MAX === 256 && AV.QUALITY === 0.85 && AV.PREFIX === 'data:image/jpeg;base64,',
+    '常量与 PWA 对齐（256 / q0.85 / jpeg data URL）',
+    AV.MAX + ' / ' + AV.QUALITY + ' / ' + AV.PREFIX);
+
+  /* ---- 校验器：把脏串挡回去，别渲染成破图 ---- */
+  must(AV.isDataUrl('data:image/jpeg;base64,AAAA') === true, '认 jpeg data URL');
+  must(AV.isDataUrl('data:image/png;base64,AAAA') === true, '认 png data URL');
+  must(AV.isDataUrl('blob:http://localhost/x') === false, '不认 blob:（换机必成死链）');
+  must(AV.isDataUrl('data:image/jpeg;base64,') === false, '不认空载荷');
+  must(AV.isDataUrl('data:image/jpeg;base64,AA AA') === false, '不认带空格的伪 base64');
+
+  /* ---- 弹层开关 ---- */
+  mK.openProfileEdit();
+  must(mK.data.pe.show === true, 'openProfileEdit 打开弹层');
+  must(mK.data.pe.id === sK.user.userId,
+    '弹层里预填当前 ID（= state.user.userId）', mK.data.pe.id);
+  must(mK.data.pe.avatar === (sK.user.avatar || ''), '弹层里预填当前头像');
+
+  /* ---- 自定义 ID：非空才写（留空 = 「这次不改」，不是「清空」）---- */
+  mK.onPeIdInput({ detail: { value: '  LION_888  ' } });
+  mK.saveProfileEdit();
+  const s1 = require(path.join(MINI, 'lib/store.js')).get();
+  must(s1.user.userId === 'LION_888', '保存自定义 ID（首尾空格已 trim）', s1.user.userId);
+  must(mK.data.pe.show === false, '保存后弹层关闭');
+  must(mK.data.userId === 'LION_888', '页头 ID 立刻跟着变');
+  must(storage['jianpan_v2'].user.userId === 'LION_888', 'ID 落了盘');
+
+  mK.openProfileEdit();
+  mK.onPeIdInput({ detail: { value: '   ' } });
+  mK.saveProfileEdit();
+  must(require(path.join(MINI, 'lib/store.js')).get().user.userId === 'LION_888',
+    '负控 · ID 留空保存 ⇒ 不改（照 PWA 语义：留空是「这次不改」，不是「清空账号」）',
+    require(path.join(MINI, 'lib/store.js')).get().user.userId);
+
+  /* ---- 自建食物：页面必须把行李位原样交给 applyImport ---- */
+  const FoodK = require(path.join(MINI, 'lib/food-store.js'));
+  must(mK._customLine({ present: false, list: [] }) === '自建食物：存档未携带，本机现有的保持不变',
+    '「未携带」的措辞（否则用户会以为自己的食物要被删）',
+    mK._customLine({ present: false, list: [] }));
+  must(mK._customLine({ present: true, list: [1, 2] }) === '自建食物：存档带 2 条，导入后以存档为准',
+    '「带了 N 条」的措辞', mK._customLine({ present: true, list: [1, 2] }));
+
+  /* 端到端接线：确认框点「导入」后，自建食物必须真的落到本机。
+     ⚠️ 这正是「页面忘了传第二个参数」那类静默缺陷的守门断言 ——
+        state 照常导入成功、不报任何错，只有自建食物没进来。 */
+  const incoming = JSON.parse(JSON.stringify(buildSeed(cK)));
+  const realModal = global.wx.showModal;
+  global.wx.showModal = (o) => { calls.push(['showModal', o && o.title]); if (o && o.success) o.success({ confirm: true }); };
+  mK.confirmApply({
+    data: incoming, sv: { days: 1, diet: 3, exercise: 1 },
+    customFoods: { present: true, list: [{ name: '迁移来的自制酱', kcal: 88, py: 'qyldzj', ini: 'QYLDZJ', src: 'custom' }] },
+    src: '剪贴板',
+  });
+  must(FoodK.loadCustom().length === 1 && FoodK.loadCustom()[0].name === '迁移来的自制酱',
+    '点「导入」后自建食物真的落盘（页面把 customFoods 传下去了）',
+    JSON.stringify(FoodK.loadCustom()));
+  must(mK.data.result.ok === true, '导入结果提示为成功', JSON.stringify(mK.data.result));
+
+  /* 负控：存档「没带」行李位时，本机自建食物必须一条不动 */
+  const incoming2 = JSON.parse(JSON.stringify(buildSeed(cK)));
+  mK.confirmApply({ data: incoming2, sv: { days: 1, diet: 3, exercise: 1 },
+                    customFoods: { present: false, list: [] }, src: '剪贴板' });
+  must(FoodK.loadCustom().length === 1,
+    '负控 · 存档没带行李位（PWA 备份）⇒ 本机自建食物一条不动',
+    JSON.stringify(FoodK.loadCustom()));
+  global.wx.showModal = realModal;
+
+  /* ---- 头像管道（异步）---- */
+  pending.push((async function () {
+    avDraw.length = 0; avLastTemp = null; avNode = null;
+    avChoose = 'ok';
+    const before = calls.length;
+    mK.pickAvatar();
+    /* 两次微任务让渡：queryCanvas 一级 + compressToDataUrl 内部 getImageInfo/canvasToTempFilePath/readFile 一级 */
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+
+    const live = require(path.join(MINI, 'lib/store.js')).get();
+    must(AV.isDataUrl(live.user.avatar) === true,
+      '选图后 state.user.avatar 是合法 jpeg data URL',
+      String(live.user.avatar).slice(0, 40));
+    must(live.user.avatar === 'data:image/jpeg;base64,QkFTRTY0UEFZTE9BRA==',
+      '内容就是压缩产物（不是本地路径 —— 存路径换机必成死链）',
+      String(live.user.avatar).slice(0, 44));
+    must(mK.data.pe.avatar === live.user.avatar, '弹层里的预览环立刻回填新头像');
+    must(mK.data.avatar === live.user.avatar, '页头头像立刻跟着变');
+    must(storage['jianpan_v2'].user.avatar === live.user.avatar, '头像落了盘（重进页面还在）');
+
+    must(avNode && avNode.width === 256 && avNode.height === 200,
+      '画布位图尺寸 = 压缩后尺寸 256×200（先设尺寸再取 ctx，否则位图被重置）',
+      avNode ? avNode.width + '×' + avNode.height : '没有拿到节点');
+    const di = avDraw.filter((x) => x[0] === 'drawImage')[0];
+    must(di && di[3] === 256 && di[4] === 200,
+      'drawImage 按目标尺寸铺满（不是按原图 1024×800 铺偏）',
+      JSON.stringify(di));
+    must(avDraw.filter((x) => x[0] === 'clearRect').length === 1, '重绘前清一次画布');
+    must(avLastTemp && avLastTemp.fileType === 'jpg' && avLastTemp.quality === 0.85,
+      '导出用 jpeg q0.85（与 PWA 的 toDataURL("image/jpeg", 0.85) 一致）',
+      avLastTemp ? (avLastTemp.fileType + ' / ' + avLastTemp.quality) : '没调用');
+    must(avLastTemp && avLastTemp.destWidth === 256 && avLastTemp.destHeight === 200,
+      '导出尺寸 = 256×200（不重采样，避免二次劣化）',
+      avLastTemp ? (avLastTemp.destWidth + '×' + avLastTemp.destHeight) : '没调用');
+    const toasts = calls.slice(before).filter((x) => x[0] === 'showToast');
+    must(toasts.length === 1 && /头像已更新/.test(String(toasts[0][1])),
+      '成功后有且仅有一条提示', JSON.stringify(toasts));
+
+    /* 负控：用户取消 ⇒ 静默（不弹提示、不改数据） */
+    const keep = require(path.join(MINI, 'lib/store.js')).get().user.avatar;
+    avChoose = 'cancel';
+    const b2 = calls.length;
+    mK.pickAvatar();
+    await new Promise((r) => setTimeout(r, 0));
+    must(calls.slice(b2).filter((x) => x[0] === 'showToast').length === 0,
+      '负控 · 用户取消选图 ⇒ 不弹任何提示（取消不是错误）',
+      JSON.stringify(calls.slice(b2)));
+    must(require(path.join(MINI, 'lib/store.js')).get().user.avatar === keep,
+      '负控 · 取消后头像一字未改');
+
+    avChoose = 'ok';
+  })());
+}
+
 /* ---------- 汇总 ---------- */
+Promise.all(pending).then(finish).catch((e) => {
+  /* ⚠️ 异步段落自身抛错必须计为失败：否则「K 段整段没跑完」会以退出码 0 收场，
+     看起来全绿 —— 这正是「假保证」三连里的第 2 条（未测到要算失败）。 */
+  fails.push('K 头像管道自身异常 → ' + (e && e.message));
+  out('  ✗ K 头像管道自身异常 → ' + (e && e.message));
+  finish();
+});
+function finish() {
 out('');
 out('============================================================');
 out('通过 ' + pass + ' 项，失败 ' + fails.length + ' 项');
@@ -734,3 +982,4 @@ fs.writeFileSync(OUT, lines.join('\n'), 'utf8');
 console.log('通过 ' + pass + ' 项，失败 ' + fails.length + ' 项');
 console.log('RESULT=' + (fails.length ? 'FAIL' : 'OK') + '  → ' + OUT);
 process.exit(fails.length ? 1 : 0);
+}

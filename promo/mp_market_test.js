@@ -149,7 +149,9 @@ function coverRatio(rects, W, H) {
  * ============================================================ */
 const storage = {};
 const noop = () => {};
-const ctxStats = { total: 0, fillText: 0, fillRect: 0, stroke: 0, arc: 0 };
+/* ⚠️ clearRect 必须在表里：bump() 只对**表里已有**的键计数（`if (n in ctxStats)`），
+   漏登记就永远读到 undefined —— 而「清屏次数」正是 #107 那条累积 bug 的唯一判据。 */
+const ctxStats = { total: 0, fillText: 0, fillRect: 0, stroke: 0, arc: 0, clearRect: 0 };
 function bump(n) { ctxStats.total++; if (n in ctxStats) ctxStats[n]++; }
 function ctx2d() {
   const w = (name) => (...a) => { bump(name); return undefined; };
@@ -169,8 +171,13 @@ function ctx2d() {
     getImageData: () => ({ data: [] }), putImageData: noop,
   };
 }
+/* ⚠️ 每次 canvasNode() 都新建一个 ctx，而 ctx2d() 里的计数是全局累加的 ——
+   所以要验「repaint 真的清了屏」就必须留住**最后一次**建出来的那个 ctx 对象：
+   清屏次数是从 ctxStats 读的，但它有没有被调用要看这个对象还在不在。 */
+let lastCtx = null;
 const canvasNode = () => ({
-  width: 600, height: 400, getContext: () => ctx2d(),
+  width: 600, height: 400,
+  getContext: () => { lastCtx = ctx2d(); return lastCtx; },
   createImage: () => ({ onload: null, onerror: null, src: '', width: 0, height: 0 }),
   requestAnimationFrame: (f) => setTimeout(f, 0),
 });
@@ -656,7 +663,146 @@ must(mk2.data.empty === true && mk2.data.weightText === ((emptySeed.user && empt
 must(mk2.data.bodyMetrics.length === calc2.BODY_RANGES.length,
   '空存档下身体成分仍按内核等级表渲染（走示例数据的出厂值）');
 
+/* ---------------- H. K 线十字线 · 数据标签 · MA14（2026-09-24 真机 #107） ----------------
+   真机症状（Mak 反馈）：手指在 K 线上移动只出现「留存下来的竖状虚线」，看不到数据标签；
+   点一下就多留一条虚线。
+   两个根因各自独立，必须分开验：
+     ① 虚线累积 —— onTipTouch/onTipEnd 调的是页面方法 this.paint(P)，那个方法**只画不清屏**
+        （清屏原本只发生在 lib/canvas.js 的 paint() 里，而它只在 mount 时走一次）。
+     ② 标签不显示 —— app.wxss 里 `.kline-tip{display:none}` 是 PWA 的「默认收起」写法
+        （PWA 靠 JS 改 style 展开），小程序换 wx:if 之后这条规则没人改回来 ⇒ 元素在树里但不可见。
+   所以本节要验三件事：**清屏不累积**（①）、**样式最终生效值是 block**（②）、**MA14 真的进了几何与标签**。
+   ⚠️ handle 是在 mount().then 的微任务里挂上去的（_P 是同步设的，_handle 不是），
+      整节必须包在 async 里先 flush 一次微任务，否则 _handle/_wrapRect 都还是 undefined。 */
+sec('H. K 线十字线 · 数据标签 · MA14');
+
+/* 独立参考实现：MA 的定义本身就是「近 p 根的算术平均」，这里按定义现算一份。
+   ⚠️ 参考实现与被测代码同式不是问题 —— 本节的价值不在「公式对不对」，
+      而在「页面算出来的这条链有没有断」（ma14 漏在 return 外、legend 没接、tip 没这一行）。 */
+function refMA(closes, p) {
+  return closes.map((_, i) => i >= p - 1
+    ? +(closes.slice(i - p + 1, i + 1).reduce((s, x) => s + x, 0) / p).toFixed(2) : null);
+}
+
+/* 40 天的体重存档：5 根的短存档下 MA7/14/30 全是 null，验不出「三条线各不相同」 */
+function buildSeedLong() {
+  const c = require(path.join(MINI, 'lib/calc.js'));
+  const s2 = c.defaultState();
+  s2.user = Object.assign({}, s2.user, { userId: 'FT_MA', weight: 78.4, height: 175, gender: 'male', age: 30 });
+  s2.weightLog = [];
+  for (let i = 39; i >= 0; i--) {
+    /* 造一条有起伏的曲线（不要单调 —— 单调序列上 MA7/14/30 会极度接近，判不出三者是否分家） */
+    s2.weightLog.push({ date: D(-i), weight: +(80.5 - i * 0.06 + Math.sin(i / 2.7) * 0.55).toFixed(1) });
+  }
+  return s2;
+}
+
+/* 读「某条选择器在 app.wxss 里最终生效的 display」
+   为什么要看**最后一条**：CSS 是后来居上，PWA 的原规则 `.kline-tip{display:none}` 在前面，
+   mp_build.py 的适配层把它改回 block 追加在后面 —— 只搜「有没有 block」会漏掉
+   「block 写在了 none 前面」这种写了等于没写的情况。 */
+function lastDisplay(css, cls) {
+  const re = new RegExp(cls.replace(/\./g, '\\.') + '\\s*\\{([^}]*)\\}', 'g');
+  let m, last = null;
+  while ((m = re.exec(css))) {
+    const d = /display\s*:\s*([a-zA-Z-]+)/.exec(m[1]);
+    if (d) last = d[1];
+  }
+  return last;
+}
+
+(async function () {
+  /* flush 微任务：mount().then 挂 _handle、rectOf().then 挂 _wrapRect 都在这里落地 */
+  await new Promise((r) => setTimeout(r, 0));
+
+  const mkL = boot(buildSeedLong());
+  await new Promise((r) => setTimeout(r, 0));
+
+  const gL = mkL.geom;
+  const closes = gL.bars.map((b) => b.c);
+  const ref7 = refMA(closes, 7), ref14 = refMA(closes, 14), ref30 = refMA(closes, 30);
+
+  must(gL && gL.ma14 && gL.ma14.length === gL.bars.length,
+    'computeGeom 真的把 ma14 带出来了（漏在 return 外 ⇒ 整条 K 线 .forEach 抛错整页白）',
+    gL && gL.ma14 ? ('长度 ' + gL.ma14.length) : String(gL && gL.ma14));
+  must(JSON.stringify(gL.ma14) === JSON.stringify(ref14),
+    'MA14 序列与按定义现算的参考实现逐项相等',
+    '页面 ' + JSON.stringify(gL.ma14.slice(-3)) + ' / 参考 ' + JSON.stringify(ref14.slice(-3)));
+  const iLast = gL.bars.length - 1;
+  must(ref14[iLast] != null && ref7[iLast] != null && ref30[iLast] != null,
+    '40 根数据下三条均线都有值（样本够，才验得出「不是同一串」）',
+    '7=' + ref7[iLast] + ' 14=' + ref14[iLast] + ' 30=' + ref30[iLast]);
+  must(ref14[iLast] !== ref7[iLast] && ref14[iLast] !== ref30[iLast],
+    'MA14 与 MA7 / MA30 的值确实不同（证明它是一条新线，不是把某条线复制了两份）',
+    'MA14=' + ref14[iLast]);
+
+  must(mkL.data.ma14Lab === '● MA14 ' + ref14[iLast].toFixed(2),
+    '图例文字接上了 MA14 的当期值', mkL.data.ma14Lab);
+
+  /* ---- ① 清屏不累积：本次修复的核心 ---- */
+  const h = mkL._handle;
+  must(!!h && typeof h.repaint === 'function',
+    'handle 已挂上且暴露 repaint（onTipTouch/onTipEnd 走的就是它）',
+    'handle=' + (h ? Object.keys(h).join(',') : String(h)));
+
+  const c0 = ctxStats.clearRect;
+  h.repaint();
+  must(ctxStats.clearRect === c0 + 1, 'repaint() 每次恰好清屏一次', '清屏 ' + (ctxStats.clearRect - c0) + ' 次');
+
+  const c1 = ctxStats.clearRect;
+  for (let i = 0; i < 5; i++) h.repaint();
+  must(ctxStats.clearRect === c1 + 5,
+    '连续 5 次 repaint ⇒ 恰好 5 次清屏（十字线不会叠加成多条虚线）',
+    '清屏 ' + (ctxStats.clearRect - c1) + ' 次 / 期望 5');
+
+  /* 🔴 负控：走**旧**路径必须一次都不清屏 —— 这正是真机上「点一下多一条虚线」的成因。
+     这条同时也守住了「别把 repaint 又改回 this.paint(P)」：改回去 ⇒ 这里仍然 0 次，
+     但上面那条会变成 0 次而不是 5 次，两条一起才锁死行为。 */
+  const c2 = ctxStats.clearRect;
+  for (let i = 0; i < 5; i++) mkL.paint(mkL._P);
+  must(ctxStats.clearRect === c2,
+    '负控 · 走旧的 this.paint(P) 路径 5 次 ⇒ 0 次清屏（旧的累积 bug 原样复现，证明负控有效）',
+    '清屏 ' + (ctxStats.clearRect - c2) + ' 次 / 期望 0');
+
+  /* ---- ② 标签可见：样式最终生效值 ---- */
+  const appWxss = fs.readFileSync(path.join(MINI, 'app.wxss'), 'utf8');
+  must(lastDisplay(appWxss, '.kline-tip') === 'block',
+    'app.wxss 里 .kline-tip 的最终 display 是 block（否则元素在树里但一片看不见）',
+    '最终值 ' + lastDisplay(appWxss, '.kline-tip'));
+  must(lastDisplay(appWxss, '.hist-tip') === 'block',
+    'app.wxss 里 .hist-tip 的最终 display 是 block（同一类漏改，一起守）',
+    '最终值 ' + lastDisplay(appWxss, '.hist-tip'));
+
+  /* ---- ③ 标签内容：触摸后 rows 必须含 MA14 且有值 ---- */
+  const T = 20;
+  const cx = h.offsetX + gL.stepX(T) * h.scale;
+  const cy = h.offsetY + gL.y(gL.bars[T].c) * h.scale;
+  mkL.onTipTouch({ touches: [{ clientX: cx, clientY: cy }] });
+  must(mkL.data.tip.show === true, '触摸后标签展开（tip.show=true）', String(mkL.data.tip.show));
+  const rows = mkL.data.tip.rows || [];
+  must(rows.length === 7, '标签 7 行（收/开/高低/较上期 + MA7/MA14/MA30）', '行数 ' + rows.length);
+  const r14 = rows.filter((r) => r.k === 'MA14')[0];
+  must(!!r14 && r14.v === ref14[T].toFixed(2),
+    '标签里的 MA14 值 = 该根柱子的 MA14（现算）',
+    r14 ? (r14.v + ' / 期望 ' + ref14[T].toFixed(2)) : '没有 MA14 这一行');
+  must(!!r14 && r14.color === '#a78bfa',
+    'MA14 用紫色（与琥珀 MA7 / 蓝 MA30 及涨绿跌红都不撞色）', r14 && r14.color);
+
+  must(mkL._tipIdx === T, '十字线吸附到指针最近的那根柱子', String(mkL._tipIdx));
+
+  mkL.onTipEnd();
+  must(mkL.data.tip.show === false, '抬手后标签收起（tip.show=false）', String(mkL.data.tip.show));
+  const c3 = ctxStats.clearRect;
+  mkL.onTipTouch({ touches: [{ clientX: cx, clientY: cy }] });
+  must(ctxStats.clearRect === c3 + 1,
+    'onTipTouch 走的是 handle.repaint()（移动一次清屏一次，不叠虚线）',
+    '清屏 ' + (ctxStats.clearRect - c3) + ' 次 / 期望 1');
+
+  finish();
+})();
+
 /* ---------------- 汇总 ---------------- */
+function finish() {
 out('');
 out('='.repeat(78));
 out('通过 ' + pass + ' 项 / 失败 ' + fails.length + ' 项');
@@ -674,3 +820,4 @@ console.log(lines.join('\n'));
 /* ⚠️ 必须显式 exit：app.js 的跨天轮询 setInterval 会吊住事件循环，
    否则脚本跑完不退出（表现为「卡住不返回」，很容易被误读成死循环）。 */
 process.exit(fails.length ? 1 : 0);
+}

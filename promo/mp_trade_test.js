@@ -39,13 +39,17 @@ function D(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDat
  * ============================================================ */
 const storage = {};
 const noop = () => {};
-const ctxStats = { total: 0, fillText: 0, fillRect: 0, stroke: 0, arc: 0 };
+const ctxStats = { total: 0, fillText: 0, fillRect: 0, stroke: 0, arc: 0, clearRect: 0 };
 function bump(n) { ctxStats.total++; if (n in ctxStats) ctxStats[n]++; }
+/* arc 半径要**记下来**：末端琥珀点的呼吸动效唯一的可观测表现就是「光晕半径随相位在 5~12 之间走」。
+   只数 arc 调用次数是不够的 —— 半径恒定也算「画了圆」。 */
+const arcRadii = [];
 function ctx2d() {
   const w = (name) => (...a) => { bump(name); return undefined; };
   return {
     save: w('save'), restore: w('restore'), beginPath: w('beginPath'), closePath: w('closePath'),
-    moveTo: w('moveTo'), lineTo: w('lineTo'), arc: w('arc'), arcTo: w('arcTo'), rect: w('rect'),
+    moveTo: w('moveTo'), lineTo: w('lineTo'), arc: (...a) => { bump('arc'); arcRadii.push(a[2]); return undefined; },
+    arcTo: w('arcTo'), rect: w('rect'),
     fill: w('fill'), stroke: w('stroke'), clip: w('clip'), fillRect: w('fillRect'),
     strokeRect: w('strokeRect'), clearRect: w('clearRect'), fillText: w('fillText'),
     strokeText: w('strokeText'), translate: w('translate'), rotate: w('rotate'), scale: w('scale'),
@@ -59,8 +63,13 @@ function ctx2d() {
     getImageData: () => ({ data: [] }), putImageData: noop,
   };
 }
+/* 留住最后一次建出来的 ctx：核心点的呼吸表现为 `globalAlpha` 的赋值，
+   而 globalAlpha 是**属性**不是方法调用 ⇒ 数不到，只能从对象上读。
+   本工程 ctx2d() 的 save/restore 是 no-op，所以赋值会留在对象上 —— 正好可读。 */
+let lastCtx = null;
 const canvasNode = () => ({
-  width: 600, height: 400, getContext: () => ctx2d(),
+  width: 600, height: 400,
+  getContext: () => { lastCtx = ctx2d(); return lastCtx; },
   createImage: () => ({ onload: null, onerror: null, src: '', width: 0, height: 0 }),
   requestAnimationFrame: (f) => setTimeout(f, 0),
 });
@@ -446,7 +455,154 @@ must(mk2.data.sectorsShort.length === 1 && mk2.data.sectorsShort[0].type === 'bm
   'short 列只剩基础代谢一块（基础代谢常驻）');
 must(/待第一笔/.test(mk2.data.badgeText), '空存档徽章走「待第一笔」', mk2.data.badgeText);
 
+/* ---------------- L. 时间滚轴 + 分时线呼吸动效（2026-09-24 真机 #108 + #109） ----------------
+   真机症状（Mak 反馈）：
+     · 「食物记录的时间选择不是滚轴选取，是纯文本，一个时间的冒号不对都不行」
+       —— 根因 `<input type="time">` 不是小程序的合法 type（合法值只有
+          text/number/idcard/digit/safe-password/nickname/password），被当成 text 渲染。
+          必须换 `<picker mode="time">`。
+     · 「分时线的尾端那个琥珀点没有呼吸闪烁的动效」
+       —— PWA 用 SMIL <animate>（光晕 r 5→12、opacity .30→.02；核心点 opacity 1→.38，1.8s）；
+          canvas 没有 SMIL，原实现只画了个静态光晕。改成手算相位 + 定时器重绘。
+   本节分三段验：**样式/标签静态口径**、**呼吸相位与半径真的在动**、**定时器起停**。 */
+sec('L. 时间滚轴 + 分时线呼吸动效');
+
+/* 读「某条选择器在 app.wxss 里最终生效的 display」——同 mp_market_test 的做法：
+   PWA 原规则在前、mp_build.py 的适配层追加在后，只搜「有没有」会漏掉「写了但被前面的盖住」。 */
+function finalDisplay(css, cls) {
+  const re = new RegExp(cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}', 'g');
+  let m, last = null;
+  while ((m = re.exec(css))) {
+    const d = /display\s*:\s*([a-zA-Z-]+)/.exec(m[1]);
+    if (d) last = d[1];
+  }
+  return last;
+}
+
+(async function () {
+  await new Promise((r) => setTimeout(r, 0));   // flush：_intradayHandle 在 mount().then 里挂上
+
+  const wxml = fs.readFileSync(path.join(MINI, 'pages/trade/trade.wxml'), 'utf8');
+  const appWxss = fs.readFileSync(path.join(MINI, 'app.wxss'), 'utf8');
+  const tradeJs = fs.readFileSync(path.join(MINI, 'pages/trade/trade.js'), 'utf8');
+
+  /* ---- ① 时间选择：非法 input 必须清干净 ---- */
+  must(!/type\s*=\s*"time"/.test(wxml),
+    'trade.wxml 里没有 input[type=time]（小程序非法 type，真机上退化成纯文本）');
+  const pickers = wxml.match(/picker\s+mode="time"/g) || [];
+  must(pickers.length === 3,
+    '三处时间输入（食物 / 运动 / 改记录）全部换成 picker mode=time', '命中 ' + pickers.length + ' 处');
+  const binders = wxml.match(/bindchange="on(Food|Ex|Rec)TimeInput"/g) || [];
+  must(binders.length === 3,
+    '三个 picker 都挂了 bindchange（picker 走 change 事件，不写就取不到值）',
+    binders.join(' / ') || '一个都没有');
+  must(!/<input[^>]*class="inp-time"/.test(wxml),
+    '原 <input class="inp-time"> 已全部替换为 <view class="inp-time">（view 取代 input 后样式选择器会变）');
+  must(finalDisplay(appWxss, '.field .inp-time') === 'flex',
+    'app.wxss 里 .field .inp-time 的最终 display 是 flex（补回 input 换成 view 后丢掉的框样式）',
+    '最终值 ' + finalDisplay(appWxss, '.field .inp-time'));
+
+  /* ---- ② 呼吸相位：函数本身 ---- */
+  const realNow = Date.now;
+  const at = (t) => { Date.now = () => t; return mk.pulsePhase(); };
+  must(typeof mk.pulsePhase === 'function', '页面暴露 pulsePhase()（相位是它算的，别散在绘制里）');
+  must(at(1800 * 100) === 0, 't=0 ⇒ 相位 0（光晕最小、核心点最亮）', String(at(1800 * 100)));
+  must(Math.abs(at(1800 * 100 + 900) - 1) < 1e-9,
+    't=半周期 ⇒ 相位 1（光晕最大、核心点最暗）', String(at(1800 * 100 + 900)));
+  must(Math.abs(at(1800 * 100 + 450) - 0.5) < 1e-9,
+    't=1/4 周期 ⇒ 相位 0.5（(1-cos(π/2))/2，与 ease-in-out 的关键帧一致）',
+    String(at(1800 * 100 + 450)));
+  let inRange = true, minPh = 9, maxPh = -9;
+  for (let k = 0; k < 3600; k += 37) {
+    const v = at(1800 * 100 + k);
+    if (!(v >= 0 && v <= 1)) { inRange = false; break; }
+    if (v < minPh) minPh = v;
+    if (v > maxPh) maxPh = v;
+  }
+  must(inRange, '相位在整个周期内恒在 [0,1]（越界会把光晕画成负半径 / alpha 超 1）',
+    '实测 [' + minPh.toFixed(3) + ', ' + maxPh.toFixed(3) + ']');
+  must(maxPh > 0.99, '相位在周期内确实摸到过 ~1（不是被截断成一条平线）', maxPh.toFixed(3));
+
+  /* ---- ③ 呼吸真的落到画布上：半径与 alpha 随相位走 ---- */
+  const h = mk._intradayHandle;
+  must(!!h && typeof h.repaint === 'function',
+    '分时 canvas 的 handle 已就绪（呼吸靠 handle.repaint() 按帧重绘）',
+    'handle=' + (h ? Object.keys(h).length + ' 个字段' : String(h)));
+
+  const snap = (t) => {
+    Date.now = () => t;
+    arcRadii.length = 0;
+    h.repaint();
+    Date.now = realNow;
+    /* ⚠️ alpha 必须从 `h.ctx` 读，**不能**从 lastCtx 读：redrawIntraday() 每刷新一次就
+       重新 mount 一次 ⇒ getContext() 会建一个新 ctx 对象，而 lastCtx 记的是「最后一次
+       getContext 的产物」。两者在最后一次重绘之后才对齐，中间任何一次延后执行的 mount
+       都会让 lastCtx 指到一个「刚建好、还没被这次 repaint 画过」的新对象上 ——
+       症状是读到一个与本次相位无关的陈旧值（0.38042484…，即真实时刻的相位算出来的）。 */
+    return { radii: arcRadii.slice(), alpha: h.ctx.globalAlpha };
+  };
+  const s0 = snap(1800 * 100);            // 相位 0
+  const s1 = snap(1800 * 100 + 900);      // 相位 1
+  must(s0.radii.indexOf(5) >= 0,
+    '相位 0 时画出了 r=5 的光晕（PWA 的 <animate> 起点就是 5，旧静态实现写死 6）',
+    '半径集合 ' + JSON.stringify(s0.radii.slice(-6)));
+  must(s1.radii.indexOf(12) >= 0,
+    '相位 1 时画出了 r=12 的光晕（PWA 的 <animate> 终点）',
+    '半径集合 ' + JSON.stringify(s1.radii.slice(-6)));
+  must(s1.radii.indexOf(5) < 0,
+    '相位 1 时不再有 r=5 的光晕（证明半径真的随相位变，不是画了两个固定的圈）');
+  must(Math.abs(s0.alpha - 1) < 1e-6,
+    '相位 0 时核心点 globalAlpha=1（最亮）', String(s0.alpha));
+  must(Math.abs(s1.alpha - 0.38) < 1e-6,
+    '相位 1 时核心点 globalAlpha=0.38（= 1 - 0.62，与 PWA 的 opacity:1→.38 一致）',
+    String(s1.alpha));
+
+  /* 负控：去掉相位（恒取固定值）时上面那对断言必然不再同时成立 ——
+     用一个「相位被钉死」的替身跑一遍，半径集合必须退化。 */
+  const savedPhase = mk.pulsePhase;
+  mk.pulsePhase = () => 0;
+  const pinned = snap(1800 * 100 + 900);   // 时间在相位 1，但相位函数被钉在 0
+  must(pinned.radii.indexOf(12) < 0,
+    '负控 · 把 pulsePhase() 钉死为 0 后，即使时间落在相位 1 也不再出现 r=12（证明半径确实由相位驱动）',
+    '半径集合 ' + JSON.stringify(pinned.radii.slice(-6)));
+  mk.pulsePhase = savedPhase;
+
+  /* ---- ④ 定时器起停 ---- */
+  must(mk._pulseTimer == null,
+    '页面未 onShow 时不挂呼吸定时器（不该在后台空转重绘）',
+    String(mk._pulseTimer));
+  mk.onShow();
+  must(!!mk._pulseTimer, 'onShow 后挂上呼吸定时器', typeof mk._pulseTimer);
+  const pt = mk._pulseTimer;
+  mk.onHide();
+  must(mk._pulseTimer === null, 'onHide 后定时器被清掉（否则页面隐藏还在按 15fps 重绘）',
+    String(mk._pulseTimer));
+  mk.onShow();
+  must(mk._pulseTimer !== pt, '再次 onShow 会新建一个定时器（旧的已被清，不是复用一个死句柄）');
+  mk.onHide();   // 收尾：别把定时器留给 process.exit 之前的这段代码
+
+  /* 定时器落地实跑一次：tick 的执行体必须只调 repaint，且 repaint 会清屏 */
+  const before = ctxStats.clearRect;
+  mk.onShow();
+  must(!!mk._pulseTimer, 'onShow 再次挂上定时器（下面要实跑一拍）');
+  /* ⚠️ 不 sleep 等真实 tick：直接把定时器回调体取出来跑 ——
+     setInterval 的回调在 Node 里拿不到，所以这里改为断言「重绘路径本身清屏」，
+     并由 ③ 段已经证明 repaint 每次都清屏 ⇒ 两段合起来就是「每拍都清屏」。 */
+  h.repaint();
+  h.repaint();
+  must(ctxStats.clearRect >= before + 2,
+    '连续按帧重绘每次都清屏（呼吸每 66ms 跑一次，不清屏就会把光晕拖成一圈残影）',
+    '清屏 ' + (ctxStats.clearRect - before) + ' 次 / 期望≥2');
+  mk.onHide();
+
+  must(/setInterval\([\s\S]{0,80}PULSE_TICK/.test(tradeJs),
+    '定时器间隔用的是 PULSE_TICK 常量（不是就地写死一个魔法数）');
+
+  finish();
+})();
+
 /* ---------------- 汇总 ---------------- */
+function finish() {
 out('');
 out('='.repeat(78));
 out('通过 ' + pass + ' 项 / 失败 ' + fails.length + ' 项');
@@ -464,3 +620,4 @@ fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf-8');
    收尾写法与 mp_me_test.js 保持一致。 */
 console.log(lines.join('\n'));
 process.exit(fails.length ? 1 : 0);
+}

@@ -23,9 +23,20 @@
 
 恢复方式：**不用手工还原**，直接重跑 mp_build.py（app.wxss 是生成物 ⇒ 天然回到正确内容），
 再断言注入标记确实消失。
+
+🔴 2026-09-24 补：**被 kill 掉的负控会留下污染**。
+本脚本会往 app.wxss **末尾追加**一条「故意改坏」的规则（同特异性、后写者胜 ⇒ 必然生效），
+然后在 `finally` 里重跑 mp_build 还原。但 `finally` 只保证「正常异常」时执行，
+**进程被 SIGTERM 直接杀掉时不会跑** —— 我那次就是被驱动器的超时 kill 掉，
+残留了 `.field .inp-time { height: 43px; }`。后果比「一个文件脏了」严重得多：
+  之后**每一次**交易页弹层对拍都是在「被故意改坏的样式」上跑的，
+  报出 21 项 dt≈-2.1，看着像新引入的布局回归，实际是我自己留的雷。
+⇒ 所以这里注册 SIGTERM/SIGINT 处理器把它转成异常，让 `finally` 能跑；
+  同时开工前先自检残留（见 run_case 开头），宁可报错也不要在脏文件上继续测。
 """
 import io
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -34,6 +45,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 import mp_ws                                                     # noqa: E402
+
+# 被 kill 时也要走 finally（否则注入的坏规则会留在 app.wxss 里，污染后续所有对拍）
+def _on_term(sig, _frm):
+    raise SystemExit(143)          # 在信号处理器里抛异常 ⇒ 主线程的 finally 会执行
+for _s in (signal.SIGTERM, signal.SIGINT):
+    try:
+        signal.signal(_s, _on_term)
+    except Exception:                                            # noqa: BLE001
+        pass
 
 # ⚠️ 小程序工程**不在** PWA 仓库里（PWA 仓库只有 promo/ 与 index.html）。
 #    路径统一从 mp_ws.PROJ 取，别再硬编码一份（上一版写成 ROOT/miniprogram 直接 FileNotFoundError）。
@@ -99,7 +119,15 @@ def run_case(name, spec):
     print("=" * 88)
     orig = read(APP)
     if MARK in orig:
-        print("⛔ 前置失败：app.wxss 里已经残留注入标记，先跑 mp_build.py")
+        # 上次被 kill / 崩在还原之前 ⇒ app.wxss 里还带着「故意改坏」的规则。
+        # 先自愈（重跑 mp_build），再**报错退出**：不在这份脏文件上继续测 ——
+        # 否则跑出来的「红色」分不清是坏副本生效还是残留生效，负控本身失去意义。
+        subprocess.run([PY, os.path.join(HERE, "mp_build.py")], cwd=ROOT,
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=300)
+        clean = MARK not in read(APP)
+        print("⛔ 前置失败：app.wxss 里残留了上次注入的坏规则（多半是上次进程被 kill）。")
+        print("   已重跑 mp_build 清理：%s" % ("✅ 现在干净，请重跑本脚本" if clean else "❌ 仍在，需手工检查"))
         return 2
 
     write(APP, orig + "\n" + spec["inject"] + "\n")

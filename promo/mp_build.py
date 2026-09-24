@@ -579,6 +579,23 @@ ADAPT = u"""
    ⚠️ 加 `.show` 类也认（允许两种写法），语义一致。 */
 .kw-row { display:flex; }
 
+/* 🔴 上面 ③ 那条契约的**第二、三处**：`.kline-tip` / `.hist-tip`（行情页两处悬浮数据标签）。
+   当时只改了 `.kw-row`，这两个漏了 —— 2026-09-24 真机上 K 线标签**永远不出现**：
+   wx:if 明明把它挂载了，可元素自己还带着 PWA 的 display:none。
+   （佐证：同一页的 .hist-tip 在 wxml 里手写了 inline `display:block` 所以能用 ——
+     同一个坑只修了一半，另一半没跟上。）
+   ⇒ 显隐一律交给 wx:if，样式层不许再留 none。
+   ⚠️ 顺带一条同源教训：`.kline-tip.below` 只是改 transform，不涉及 display，
+     所以上面这条覆盖它之后不会把「翻到下方」那个分支弄坏。 */
+.kline-tip { display:block; }
+.hist-tip { display:block; }
+
+/* MA14 是小程序侧的**新增均线**（Mak 2026-09-24 要求，PWA 只有 MA7/MA30）。
+   `.ma7` / `.ma30` 的颜色规则来自 PWA 段，这条新类必须在这里补，
+   否则图例里的 MA14 是默认白色，和「三条线各有其色」的读图习惯对不上。
+   紫色选取理由：与 MA7 琥珀(#ffb800)、MA30 蓝(#5ac8fa)、涨绿(#00c896)/跌红(#ff3b47) 都不撞。 */
+.ma-legend .ma14 { color:#a78bfa; }
+
 /* 🔴 小程序的 <input> **内容盒会塌成 0** —— 这条不修，所有表单都比 PWA 矮一截。
    ⑥c 实测（2026-09-23，我的页身体档案）：
      PWA `.field input` 高 43px（padding 22 + border 2 + 文本行盒 19）
@@ -667,17 +684,28 @@ ADAPT = u"""
       · `.sheet` 目前全工程只有交易页在用（已 grep 确认），波及面可控。 */
 .sheet .ghost-btn { display: inline-block; }
 
-/* 🔴 `input[type=time]` 在 Chrome 里的 UA 内容盒是 **21px**（与 `<select>` 同源），
-   不是文本输入的 19px ⇒ PWA 里这个框高 **45px**；被上面 `.field input{height:43px}` 统一压成 43 后，
-   **每个时间输入少 2px**。
-   ⑥c 实测（2026-09-23）：份量 / 运动录入 / 记录编辑 三个弹层各含 1 个时间输入，三个都恰好差 2.0px；
-   而食物搜索、运动列表、自建运动（无时间输入）差 0 —— 一一对应。
-   ⚠️ 45 = 22(padding 上下各 11) + 2(border) + 21，别抄成 43。
-   ⚠️ 选择器必须写成 `.field .inp-time`：`.field input` 的特异性 (0,1,1) 压过单类 (0,1,0)，
-      写成 `.inp-time` 会被上面那条覆盖而**静默失效**。
+/* 🔴 记录时间：**小程序里 `<input type="time">` 根本不是合法用法** ——
+   input 的 type 只有 text/number/idcard/digit/safe-password/nickname/password，
+   没有 time。真机上它被当成普通文本框渲染（2026-09-24 真机确认：
+   必须手打 HH:MM，冒号打错一个就废），而 PWA 那边是浏览器原生的时间滚轴。
+   ⇒ 改用 `<picker mode="time">`（微信原生时间滚轴）+ 一个内层 view 承载显示文本。
+
+   ⚠️ 视图从 input 换成 view 之后，`.field input`（含上面那条 height:43px）**不再命中**它，
+      所以这条要从「只补 2px 差」升级成「完整框样式」，
+      否则时间框会掉到无样式状态（白底黑字、无边框）。
+   ⚠️ 高度仍是 **45px**：它对齐的是 PWA 里 `input[type=time]` 的 UA 内容盒 21px
+      （= 22 padding + 2 border + 21），不是随手定的；⑥c 的元素级对拍断言也按 45 立的。
+      这里用 flex 居中代替「上下 padding 各 11」，总高不变 ⇒ 不引入新偏差。
+   ⚠️ 选择器必须写成 `.field .inp-time`：写成 `.inp-time` 会被 `.field input` 的同名声明
+      压过而**静默失效**（小程序里它已经不是 input 了，这条更是保底）。
    ⚠️ 也不用 `input[type="time"]` —— WXSS 支持的选择器只有
       `.class`/`#id`/`element`/`element,element`/`::after`/`::before`，属性选择器不在清单里。 */
-.field .inp-time { height: 45px; }
+.field .inp-time {
+  display:flex; align-items:center; box-sizing:border-box;
+  height: 45px; width:100%; padding:0 12px;
+  background:var(--panel); border:1px solid var(--border); border-radius:10px;
+  color:#fff; font-size:14px;
+}
 
 /* 🔴 `.sheet h3`（弹层标题）在小程序里**不可能命中** —— 没有 <h3> 这个标签。
    交易页当年是自己在 trade.wxss 里补了一条同名同值的 `.sheet-h`；身体成分录入弹层
@@ -769,13 +797,18 @@ FOODSTORE_REPL = [
     (r"try \{ localStorage\.setItem\(CUSTOM_KEY, JSON\.stringify\(list\)\); \} catch \(e\) \{\}",
      u"try { wx.setStorageSync(CUSTOM_KEY, list); } catch (e) {}"),
 
-    # 导出补三项：供 lib/migrate.js 把自建食物一起搬（PWA 的迁移码默认不含它）
+    # 导出补四项：供 lib/migrate.js 把自建食物一起搬（PWA 的迁移码默认不含它）
     (r"    toGrams: toGrams\n  \};",
      u"    toGrams: toGrams,\n"
-     u"    /* 以下三项是 mp_build.py 加的（PWA 不导出）—— 供 lib/migrate.js 搬自建食物 */\n"
+     u"    /* 以下四项是 mp_build.py 加的（PWA 不导出）—— 供 lib/migrate.js 搬自建食物 */\n"
      u"    CUSTOM_KEY: CUSTOM_KEY,\n"
      u"    loadCustom: loadCustom,\n"
-     u"    saveCustom: saveCustom\n  };"),
+     u"    saveCustom: saveCustom,\n"
+     u"    /* 🔴 导入自建食物后**必须**调它：rebuild() 从 storage 重读并重建检索索引。\n"
+     u"       只 saveCustom 不 rebuild ⇒ 数据在存储里、但本次会话搜不到（看着就像没导入成功）。\n"
+     u"       为什么不让 migrate.js 自己拼 foods（loadCustom + 库）：foods/index 是本闭包内的\n"
+     u"       私有变量，外部改不到，唯一的重建入口就是它。 */\n"
+     u"    rebuild: rebuild\n  };"),
 ]
 
 # load() 整段替换（懒加载两段式 → 同步就绪；FALLBACK 分支保留）
@@ -853,7 +886,7 @@ fs_js += (u"\n/* ============================================================\n"
           u" *      getStorageSync 兼容 PWA 留下的 JSON 串形态 ⇒ 迁移过来能直接读）\n"
           u" *   3) load() 简化：数据同步就绪，不再需要「懒加载 + 失败降级」两段式；\n"
           u" *      FALLBACK 分支保留，失败时功能不整块消失\n"
-          u" *   4) 多导出 CUSTOM_KEY / loadCustom / saveCustom，供 lib/migrate.js 搬自建食物\n"
+          u" *   4) 多导出 CUSTOM_KEY / loadCustom / saveCustom / rebuild，供 lib/migrate.js 搬自建食物\n"
           u" * ⚠️ 除以上四点，score / search / buildIndex / initialsOf / toGrams 与 PWA 逐字节一致\n"
           u" *    —— 搜索排序口径必须一致，否则用户在两端搜同一个词会得到不同结果。\n"
           u" * ============================================================ */\n"

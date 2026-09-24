@@ -511,6 +511,142 @@ head('10. 往返一致性 —— 导入后导出，条数与内容不漂移');
 }
 
 /* ============================================================
+ * 12. 自建食物的行李位 —— 导出/导入必须把它一起搬
+ *
+ * 起因（2026-09-24 Mak 真机反馈）：「json 导出的存档里为何没有自建的食物？」
+ * 根因：自建食物存在**另一个 storage 键**（jianpan_custom_foods_v1，见 lib/food-store.js），
+ *       而 calc.buildExportPayload() 只装 state ⇒ 导出的 JSON 天然不含它，换机就丢。
+ * 修法：在 PWA 的 payload 之上补一个顶层 customFoods 行李位（不改 PWA 内核）。
+ *
+ * 🔴 本节最要紧的一条不是「能搬」，而是**「没带 ≠ 空」**：
+ *    PWA 导出的存档里根本没有 customFoods 这个键。若把它当成「空数组」去替换，
+ *    用户导入一份 App 备份就会当场清空本机所有自建食物 —— 且全程无报错。
+ * ============================================================ */
+head('12. 自建食物 —— 导出/导入行李位（含「没带 ≠ 空」）');
+/* 解析兼容口：parse() 只回 state（历史语义，不能改），parsePayload() 才带行李位。
+   本节要用的是后者，包一层省得每处都写 parsePayload(...).data。 */
+function parse12(migrate, text) { return migrate.parsePayload(text); }
+const pending2 = [];
+{
+  const ctx = fresh();
+  const { store, migrate } = ctx;
+  store.init();
+  /* A 机先有真实历史：else 往返一趟两边都是空表，「state 也跟着搬」就成了同义反复 */
+  migrate.applyImport(migrate.parse(MOCK_TEXT));
+  const FoodStore = require(path.join(MINI, 'lib/food-store.js'));
+  /* ⚠️ 必须先 load()：rebuild() 是「自建 + 库里已有的」重排，
+     而 foods 要 load()/applyData() 之后才有内容。顺序颠倒不会报错，
+     但 rebuild 出来的索引里只有自建食物 —— 「存档搬来了但搜不到」这类断言会失真。 */
+  FoodStore.load();
+
+  /* 造两条自建食物。
+     ⚠️ py / ini 必须是**字符串**（food-store.buildIndex 会对 f.py 直接调 .replace）——
+        写成数字会让 rebuild 抛 TypeError，而那条异常会把整个导入流程打断。 */
+  const myFoods = [
+    { name: '自制蛋白奶昔', kcal: 310, unit: 'ml', gram: 350, py: 'zzdbnx', ini: 'ZZDBNX', src: 'custom' },
+    { name: '妈妈牌红烧肉', kcal: 540, unit: 'g', gram: 200, py: 'm mphsr', ini: 'MMPHSR', src: 'custom' },
+  ];
+  FoodStore.saveCustom(myFoods);
+  FoodStore.rebuild();
+  eq('前提 · 本机有 2 条自建食物', FoodStore.loadCustom().length, 2);
+
+  /* ---- 纯函数：键存在性就是口径 ---- */
+  const pwaBackup = { __app: 'fitness-trader', __schema: 1, state: MOCK_STATE };
+  ok('PWA 备份（没有 customFoods 键）⇒ present=false，一个字节都不动本机',
+    migrate.customFoodsOf(pwaBackup).present === false);
+  const withEmpty = { __app: 'fitness-trader', __schema: 1, state: MOCK_STATE, customFoods: [] };
+  ok('明确带了空数组 ⇒ present=true（这是「这台机器就是 0 条」的权威口径）',
+    migrate.customFoodsOf(withEmpty).present === true
+    && migrate.customFoodsOf(withEmpty).list.length === 0);
+  const nullv = { customFoods: null };
+  ok('键在但值是 null ⇒ present=true / list=[]（不是「没带」）',
+    migrate.customFoodsOf(nullv).present === true && migrate.customFoodsOf(nullv).list.length === 0);
+  const notArr = { customFoods: 'oops' };
+  ok('键在但不是数组 ⇒ present=false（形态不对就别拿它去覆盖本机）',
+    migrate.customFoodsOf(notArr).present === false);
+  const dirty = { customFoods: [{ name: '好的' }, { name: '  ' }, null, 'x', { nope: 1 }] };
+  ok('脏条目被滤掉（只留名字非空的）',
+    migrate.customFoodsOf(dirty).present === true && migrate.customFoodsOf(dirty).list.length === 1);
+
+  /* ---- 导出必须带上行李位（0 条也要带） ---- */
+  const payload = migrate.buildExportPayload();
+  ok('导出 payload 带 customFoods 键', Object.prototype.hasOwnProperty.call(payload, 'customFoods'));
+  eq('导出的自建食物条数', payload.customFoods.length, 2);
+  eq('导出的 state 与 PWA payload 同源（没被改动）',
+    payload.state.diet.length, store.exportPayload().state.diet.length);
+
+  /* ---- 负控：清空自建食物后导出，仍然必须有这个键（空就是 []） ---- */
+  FoodStore.saveCustom([]);
+  FoodStore.rebuild();
+  const p0 = migrate.buildExportPayload();
+  ok('0 条自建食物时仍照写 customFoods:[]（写成「不带」会把本机旧食物保下来 ⇒ 不是还原）',
+    Object.prototype.hasOwnProperty.call(p0, 'customFoods') && p0.customFoods.length === 0);
+  FoodStore.saveCustom(myFoods);
+  FoodStore.rebuild();
+
+  /* ---- 往返：A 机导出 → B 机导入，自建食物必须跟过去 ---- */
+  const text = JSON.stringify(migrate.buildExportPayload());
+  const ctxB = fresh();
+  ctxB.store.init();
+  const FoodStoreB = require(path.join(MINI, 'lib/food-store.js'));
+  FoodStoreB.load();
+  eq('B 机初始没有自建食物', FoodStoreB.loadCustom().length, 0);
+  ok('B 机食物库已装载（不是空索引 —— 否则「搜得到」是白送的）',
+    FoodStoreB.all().length > 1000, FoodStoreB.all().length + ' 条');
+
+  const r = parse12(ctxB.migrate, text);
+  ok('解析出的行李位 present=true', r.customFoods.present === true);
+  eq('解析出的自建食物条数', r.customFoods.list.length, 2);
+  const got = ctxB.migrate.applyImport(r.data, r.customFoods);
+  eq('导入后 B 机的自建食物条数', FoodStoreB.loadCustom().length, 2);
+  eq('import 返回值里带上条数（UI 靠它区分「搬了 0 条」与「没搬」）', got.customFoods, 2);
+  eq('名字一起搬过来了', FoodStoreB.loadCustom()[1].name, '妈妈牌红烧肉');
+  eq('state 也一起到位（不是只搬了食物）', got.diet, MOCK_STATE.diet.length);
+
+  /* 重建索引后自建食物真的能被搜到（只写 storage 不 rebuild ⇒ 存了但搜不到，
+     而「搜不到」正是用户会当成「迁移失败」的那种症状） */
+  const names = FoodStoreB.all().map((f) => f.name);
+  ok('rebuild 后自建食物进入运行索引（不是只躺在 storage 里）',
+    names.indexOf('妈妈牌红烧肉') >= 0, '索引里 ' + names.length + ' 条');
+  const hits = FoodStoreB.search('妈妈牌红烧肉');
+  ok('走应用的检索入口能搜到它（口径与真机一致）',
+    hits.length > 0 && hits[0].name === '妈妈牌红烧肉',
+    '搜到 ' + hits.length + ' 条' + (hits[0] ? '，首条 ' + hits[0].name : ''));
+  ok('自建食物带 src=custom 标记（否则「我的常吃/自建」分不出来）',
+    (hits[0] || {}).src === 'custom', (hits[0] || {}).src);
+
+  /* ---- 反向：PWA 备份导进来 ⇒ 本机自建食物一条不少 ---- */
+  ctxB.migrate.applyImport(parse12(ctxB.migrate, MOCK_TEXT).data,
+    parse12(ctxB.migrate, MOCK_TEXT).customFoods);
+  eq('导入 PWA 备份后自建食物一条没少（「没带」不覆盖本机）', FoodStoreB.loadCustom().length, 2);
+
+  /* ---- 负控：明确带空数组导进来 ⇒ 本机自建食物必须被清空 ---- */
+  const emptyPack = JSON.parse(MOCK_TEXT);
+  emptyPack.customFoods = [];
+  ctxB.migrate.applyImport(parse12(ctxB.migrate, JSON.stringify(emptyPack)).data, { present: true, list: [] });
+  eq('负控 · 明确带 0 条 ⇒ 本机被清成 0（证明 present=true 确实是「替换」权威口径）',
+    FoodStoreB.loadCustom().length, 0);
+}
+{
+  /* ---- 回滚联动：state 写失败时自建食物必须跟着回到导入前 ---- */
+  const ctx = fresh({ failWrite: true });
+  const { store, migrate } = ctx;
+  const FoodStore = require(path.join(MINI, 'lib/food-store.js'));
+  store.init();
+  /* failWrite 下写盘一律抛错，所以本机「原有的」1 条只能直接塞进 mock storage */
+  ctx.wx._storage['jianpan_custom_foods_v1'] = [{ name: '本机原有的', kcal: 100 }];
+
+  let threw = null;
+  try {
+    migrate.applyImport(migrate.parse(MOCK_TEXT), { present: true, list: [{ name: '别家的', kcal: 200 }, { name: '也别家的', kcal: 300 }] });
+  } catch (e) { threw = e; }
+  ok('写出错时抛错（不是静默失败）', !!threw, threw && threw.message.slice(0, 40));
+  eq('回滚后自建食物仍是本机原来那 1 条（两部分一起回滚，不是只还 state）',
+    FoodStore.loadCustom().length, 1);
+  eq('回滚后那 1 条还是原件', FoodStore.loadCustom()[0].name, '本机原有的');
+}
+
+/* ============================================================
  * 11. 边界：foodLog 之类的未知多余字段不能搞崩
  * ============================================================ */
 head('11. 边界 —— 存档带多余/未知字段');

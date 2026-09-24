@@ -41,7 +41,7 @@ SEL = [
     ".pheader", ".logo", ".avatar-sm", ".lt", ".lt .id",
     ".card", ".card-title",
     ".kline-title-right", ".kline-tabs", ".kline-tab",
-    ".kchart-wrap", ".ma-legend", ".ma7", ".ma30", ".kw-mini",
+    ".kchart-wrap", ".ma-legend", ".ma7", ".ma14", ".ma30", ".kw-mini",
     "#ex-heat-card", ".ex-heat", ".ex-heat-board", ".ex-heat-axis", ".ex-heat-days",
     ".ex-heat-scroll", ".ex-heat-months", ".ex-heat-grid", ".ex-heat-cell",
     ".ex-heat-foot", ".ex-heat-legend",
@@ -52,7 +52,22 @@ SEL = [
     "#history-chart", ".history-legend",
 ]
 
+# 🔴 小程序专属项（PWA 侧没有对应元素）—— 只量、不对比，但**量不到要算失败**。
+#    2026-09-24 补齐：这四项原来躺在 SEL 里，于是每跑必报「缺失（小程序 有 / PWA 无）」，
+#    这道闸**从写下那天起就不可能绿**，多跑几轮之后人就学会了忽略它的 FAIL。
+#    （本文件头部写着「只挑两端都存在的」，这四项是违反那条规则混进来的。）
+#      · .ma14        —— 小程序新增 MA14 均线（Mak 2026-09-24 要求；PWA 只有 MA7/MA30）
+#      · .kchart-wrap —— 小程序包 canvas 的定位壳（PWA 的 K 线就是一个 <svg id="kchart">）
+#      · .ex-heat-board / .ex-heat-axis —— 小程序把星期轴移出滚动容器后的两层壳（无 sticky）
+#      · .lt .id      —— PWA 用 <span id="hdr-id">（id），class 选不到；小程序用 class
+MP_ONLY = [".ma14", ".kchart-wrap", ".ex-heat-board", ".ex-heat-axis", ".lt .id"]
+
+# MA14 插进图例后，它**右边**的项必然整体右移（设计如此，不是错位）。
+# 这些选择器的 dl 要扣掉「MA14 宽 + 间距」再判，期望值全部从本次实测现算（不写死）。
+SHIFTED_BY_MP_ONLY = [".ma30"]
+
 EMPTY_MODE = "--empty" in sys.argv
+VP_MISMATCH = False
 OUT = []
 
 
@@ -170,6 +185,21 @@ try:
     p("小程序系统: " + json.dumps(mp_sys, ensure_ascii=False))
     p("状态栏高度: %d px（两端同侧注入，顶部同基准）" % sbh)
     p()
+
+    # 🔴 视口必须先对表，再谈 rect 差。
+    #    这一行是 2026-09-24 补的：当时开发者工具的模拟器停在 iPhone 12（宽 390），
+    #    而本闸与 PWA 侧都按 430 布（VW=430）⇒ 30 项差异**全部**由视口造成，
+    #    报告却长得像「布局全错」，需要人去逐行反推才有结论。
+    #    视口不对时下面的 rect 差没有任何意义（格宽会随容器宽重算）。
+    #    ⚠️ 只置标志、不在这里 raise：出口只有最下面那一个（写报告 + 非零退出码），
+    #       在中间直接 SystemExit(0) 会让「视口不对」变成一道假绿。
+    mvw = int(json.loads(mp_vp).get("scrollWidth") or 0)
+    if mvw != VW:
+        VP_MISMATCH = True
+        p("🔴 小程序视口宽 %d ≠ 本闸基准 %d —— 开发者工具的模拟器机型不对。" % (mvw, VW))
+        p("   rect 差会随容器宽整体漂移（格宽/云图列宽都会重算），下面的数值不可解读。")
+        p("   动作：开发者工具 → 模拟器机型切到 iPhone 15 Pro Max（逻辑像素 430×932）后重跑。")
+        p()
     p("-" * 92)
     p("数据一致性自检（两端必须看到同一组数字，否则 rect 差里会混进「内容不同」）")
     for k, lab in (("weight", "体重"), ("exSub", "运动网格副标题"), ("mmSub", "云图副标题"),
@@ -192,21 +222,46 @@ try:
     p("%-22s %-26s %-26s %s" % ("选择器", "小程序 (l,t,w,h)", "PWA (l,t,w,h)", "差 (dl,dt,dw,dh)"))
     p("-" * 92)
     bad, miss = [], []
-    for s in SEL:
+    if VP_MISMATCH:
+        bad.append(("__viewport__", [mvw - VW, 0, 0, 0]))
+        p("（视口宽不符，逐项对比已跳过 —— 视口不对时 rect 差不可解读）")
+    for s in ([] if VP_MISMATCH else SEL):
         a, b = mps.get(s), pwas.get(s)
+        # 小程序专属项（PWA 里没有对应元素）：不算「未测到」，但**必须真的量到**
+        # ——量不到说明这条新元素根本没渲染出来（那才是真问题）。
+        if s in MP_ONLY:
+            if a is None or a[1] is None:
+                miss.append(s)
+                p("%-22s %s" % (s, "缺失（小程序也要有，本闸要求它必须渲染出来）"))
+            else:
+                p("%-22s %-26s %-26s %s" % (s, "(%s,%s,%s,%s)" % tuple(a[1:]),
+                                            "—（PWA 无此项）", "—"))
+            continue
         if a is None or b is None or a[1] is None or b[1] is None:
             miss.append(s)
             p("%-22s %s" % (s, "缺失（小程序 %s / PWA %s）" % ("有" if a and a[1] is not None else "无",
                                                           "有" if b and b[1] is not None else "无")))
             continue
         d = [round(a[i] - b[i], 1) for i in range(1, 5)]
+        # MA14 造成的**设计性右移**：小程序在图例里多插了一条均线（Mak 2026-09-24 要求），
+        # 它后面的 .ma30 必然右移。期望位移 = .ma14 的宽 + 它两侧的间距，
+        # 全部从**本次实测**的小程序几何现算（不写死数字）——
+        # 这样「图例换行/溢出/间距被改坏」仍然会被这条抓住。
+        note = ""
+        if s in SHIFTED_BY_MP_ONLY and not VP_MISMATCH:
+            m14, m7 = mps.get(".ma14"), mps.get(".ma7")
+            if m14 and m7 and m14[1] is not None and m7[1] is not None:
+                gap = m14[1] - (m7[1] + m7[3])
+                exp_dl = round(m14[3] + gap, 1)
+                note = "  （含 MA14 设计性位移 %.1f）" % exp_dl
+                d[0] = round(d[0] - exp_dl, 1)
         flag = ""
-        if abs(d[1]) >= 2 or abs(d[2]) >= 4 or abs(d[3]) >= 2:
+        if abs(d[1]) >= 2 or abs(d[2]) >= 4 or abs(d[3]) >= 2 or abs(d[0]) >= 4:
             flag = "   <<< 关注"
             bad.append((s, d))
-        p("%-22s %-26s %-26s %s%s" % (
+        p("%-22s %-26s %-26s %s%s%s" % (
             s, "(%s,%s,%s,%s)" % tuple(a[1:]), "(%s,%s,%s,%s)" % tuple(b[1:]),
-            "(%s,%s,%s,%s)" % tuple(d), flag))
+            "(%s,%s,%s,%s)" % tuple(d), note, flag))
 
     p()
     p("差异超阈值的项：%d 个 %s" % (len(bad), "" if bad else "✅ 全部在阈值内"))
@@ -216,6 +271,8 @@ try:
         p("未测到的项（%d）：%s" % (len(miss), ", ".join(miss)))
     p()
     p("RESULT=" + ("OK" if (not bad and not miss) else
+                   ("FAIL → 视口不符（小程序 %d / 基准 %d）：模拟器机型不对，切到 iPhone 15 Pro Max 后重跑"
+                    % (mvw, VW)) if VP_MISMATCH else
                    "FAIL → 超阈值 %d 个 / 未测到 %d 个" % (len(bad), len(miss))))
 finally:
     if seeded:
