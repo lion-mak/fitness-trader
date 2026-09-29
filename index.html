@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.62"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.63"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -305,8 +305,21 @@ body {
 .ach-hero p { color:var(--muted2); font-size:12px; margin-top:4px; }
 .badge-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:14px; }
 .badge { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 8px; text-align:center; transition:all .2s; }
-.badge.locked { opacity:0.35; }
-.badge .b { width:48px; height:48px; margin:0 auto 8px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+/* 锁态压暗 0.35 → 0.72（v2.7.63）。
+   0.35 是给「深底 #2a3142 + 深图标 #0a0e1a」那套配的 —— 实测把两层透明度叠起来算，
+   图标与方块只有 1.13:1 对比，等于一个空方块（锁着的成就其实看不见图标）。
+   现在有像素画的锁态走「赛道底色方块 + brightness(0) 纯黑剪影」（宝可梦猜猜我是谁）：
+   剪影与赛道底色的对比 0.35 下 2.1:1（糊）、0.72 下 5.4:1（清楚）⇒ 取 0.72 保住可辨性，
+   同时保留「未解锁比已解锁暗一档」的语义。 */
+.badge.locked { opacity:0.72; }
+/* 方块 48 → 64、图标 26 → 44（v2.7.63）。
+   26px 下「22 个像素块横跨」= 每块 1.2px，像素画会糊成色斑；44px 每块 2px，块块分明。
+   44 是 4 的倍数，DPR 2 与 3 都是整数倍缩放（不靠 image-rendering 也干净）。
+   ⚠️ 三处必须同值：本处 + .badge .b svg（下面的兜底线稿）+ 小程序页 achievements.wxss 的 .ic-img。 */
+.badge .b { width:64px; height:64px; margin:0 auto 8px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+/* 成就像素画的运行期尺寸（两端同一个类名，rect 对拍直接配对）。
+   图源 assets/ach/ach-<icon>.png = 132×132（44 × DPR3），顺序由 ach_probe.py 硬校验。 */
+.ach-ic { width:44px; height:44px; display:block; }
 .badge .lbl { font-size:11px; font-weight:500; }
 .badge .sub { color:var(--muted); font-size:10px; margin-top:2px; }
 .prog-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
@@ -331,7 +344,8 @@ body {
 .badge .b-prog-fill { height:100%; border-radius:2px; }
 .badge .b-prog-txt { font-size:9px; color:var(--muted2); }
 .badge .b-done { font-size:10px; color:var(--amber); margin-top:4px; font-weight:600; }
-.badge .b svg { width:26px; height:26px; }
+/* 没换像素画的成就仍走 SVG 线稿，跟着方块放大到 34（26 → 34，与 44 的像素画同处一列不显小）。 */
+.badge .b svg { width:34px; height:34px; }
 
 /* 底部 Tab */
 .tabbar { display:flex; padding:12px 0 calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; }
@@ -5074,6 +5088,29 @@ function renderLeaderboard() {
 
 function achCat(id) { for (const c of ACH_CATS) if (c.id === id) return c; return ACH_CATS[0]; }
 
+/* ============ 成就像素画（v2.7.63 起逐批替换 SVG 线稿）============
+   下面这张表是「哪些成就已经有像素画」的唯一真源，图源 assets/ach/ach-<icon>.png
+   （132×132 = 44px 显示 × DPR3，由 promo/ach_probe.py 从生图流水线产出并硬校验）。
+   ⚠️ 小程序端 lib/ach_assets.js（云 fileID manifest）的键必须与本表逐字一致，
+      promo/mp_ach_test.js 会交叉校验 —— 两边漂了会出现「PWA 有图、小程序还是线稿」。
+   ⚠️ 图标名与赛道头图标有重名（bull / lightning / leek 同时是 cat.icon），
+      赛道头**照旧走 badgeIcon()**，⛔别一起换：赛道头是 20px 的 tinted 小方块，放彩色像素画会脏。 */
+const ACH_ART = ['leek', 'untie', 'wave', 'bull', 'exit', 'pen', 'half', 'allin', 'lightning', 'whale'];
+
+function achArtSrc(icon) {
+  return ACH_ART.indexOf(icon) >= 0 ? 'assets/ach/ach-' + icon + '.png' : null;
+}
+
+/* 成就格子里的图标：有像素画就用它；锁态 = 同一张图 filter:brightness(0) 变纯黑剪影
+   （brightness(0) 只压 RGB、保留 alpha ⇒ 正好是「剪影」，与另存一份剪影图肉眼无差，
+    而另存那套改图必漂 ⇒ 只留一份）。没图的仍回 badgeIcon() 的 SVG 线稿。 */
+function achIconHtml(a, got) {
+  const src = achArtSrc(a.icon);
+  if (!src) return badgeIcon(a.icon);
+  return '<img class="ach-ic" src="' + src + '" alt="" loading="lazy" decoding="async"'
+    + (got ? '' : ' style="filter:brightness(0);"') + '>';
+}
+
 function renderAchievementsPage() {
   let html = '';
   ACH_CATS.forEach(function(cat) {
@@ -5093,7 +5130,7 @@ function renderAchievementsPage() {
       const showBar = !got2 && a.target > 1;
       const progTxt = a.unit ? (Math.min(prog, a.target).toFixed(1) + ' / ' + a.target + ' ' + a.unit) : (Math.floor(prog) + ' / ' + a.target);
       html += '<div class="badge ' + (got2 ? '' : 'locked') + '">'
-        + '<div class="b" style="background:' + (got2 ? cat.color : '#2a3142') + ';">' + badgeIcon(a.icon) + '</div>'
+        + '<div class="b" style="background:' + ((got2 || achArtSrc(a.icon)) ? cat.color : '#2a3142') + ';">' + achIconHtml(a, got2) + '</div>'
         + '<div class="lbl" style="color:' + (got2 ? '#fff' : '#5a6478') + ';">' + a.name + '</div>'
         + '<div class="sub">' + a.desc + '</div>'
         + (showBar

@@ -897,10 +897,30 @@ sec('L 段位卡廊（rail）');
   must(d.rail.map((x) => x.name).join(',') === RANK_SPEC.map((x) => x.name).join(','),
     '卡片顺序 = 段位表顺序（错位会让卡面角色与段位名对不上）',
     d.rail.map((x) => x.name).join(','));
-  must(d.rail.every((x, i) => x.src === '/images/ranks/' + CARDS_SPEC[i]),
-    '每张卡 src = /images/ranks/ + 对应文件名', JSON.stringify(d.rail.map((x) => x.src)));
-  const missing = CARDS_SPEC.filter((f) => !fs.existsSync(path.join(MINI, 'images/ranks', f)));
-  must(missing.length === 0, '10 张卡面图在 images/ranks/ 下真实存在', missing.join(','));
+  must(d.rail.every((x) => typeof x.src === 'string' && x.src.indexOf('cloud://') === 0),
+    '每张卡 src = 云 fileID（cloud:// 开头，图不进主包）',
+    JSON.stringify(d.rail.map((x) => x.src)));
+  /* ⛔ 不得再有 local 字段：本地 images/ranks/ 已删，留着就是指向不存在文件的死路径 */
+  must(d.rail.every((x) => !('local' in x)),
+    '卡对象里已无 local 字段（本地回退路径 2026-09-29 撤除）',
+    JSON.stringify(Object.keys(d.rail[0])));
+  const manifestPath = path.join(MINI, 'lib/rank_assets.js');
+  const MANIFEST = require(manifestPath);
+  must(fs.existsSync(manifestPath) && MANIFEST.length === CARDS_SPEC.length,
+    'rank_assets.js manifest 存在且条数 = 段位数', manifestPath);
+  /* 序号必须对上：错位 = 卡面角色与段位名对不上（数错不报、只看数量会漏） */
+  const wrongOrder = MANIFEST
+    .map((fid, i) => (fid.indexOf('/ranks/' + CARDS_SPEC[i]) >= 0 ? null : i + ':' + fid))
+    .filter(Boolean);
+  must(wrongOrder.length === 0,
+    'manifest 第 i 条 = /ranks/<CARDS_SPEC[i]>（云路径名与本地文件名同序同字）',
+    wrongOrder.join(' | '));
+  const stillLocal = CARDS_SPEC.filter((f) => fs.existsSync(path.join(MINI, 'images/ranks', f)));
+  must(stillLocal.length === 0,
+    'images/ranks/ 下 10 张本地图已删（主包腾出 ~444KB；云存储是唯一图源）', stillLocal.join(','));
+  const meSrc = fs.readFileSync(path.join(MINI, 'pages/me/me.js'), 'utf8');
+  must(meSrc.indexOf("'/images/ranks/'") < 0,
+    'me.js 里已无 /images/ranks/ 硬编码回退路径（防死路径复活）');
 
   /* ② 解锁态（彩色 / 灰度）—— 判据与独立现算的集合逐项对齐 */
   const clsGot = d.rail.map((x) => x.cls);
@@ -940,8 +960,22 @@ sec('L 段位卡廊（rail）');
     '⛔ me.wxss 没有重写 .rail-*（页面后加载会盖掉 app.wxss 适配层的正确值）');
   must(/\.rail-card\s*\{[^}]*margin-right:\s*22px/.test(appWxss),
     'app.wxss 适配层 .rail-card 的 margin-right = 22（与 me.js 的 RAIL_GAP 必须一致）');
-  must(/\.rail-track\s*\{[^}]*height:\s*254px/.test(appWxss),
-    'app.wxss 适配层给 scroll-view 固定高 254px（否则高度塌陷 ⇒ 卡片全不见）');
+  /* ⚠️ 只校验「有固定高且不小于内容总高」，不锁死具体数值：
+     本条本意是防 scroll-view 高度塌陷（卡片全不见）。254 → 253 是把它改成精确的
+     5(padding-top)+240(卡高)+8(padding-bottom)，不是削弱约束；
+     真该拦的是「高度 < 253」——那会直接裁掉焦点卡。 */
+  const trk = /\.rail-track\s*\{[^}]*height:\s*(\d+(?:\.\d+)?)px/.exec(appWxss);
+  must(!!trk && parseFloat(trk[1]) >= 253,
+    'app.wxss 适配层给 scroll-view 固定高 ≥ 253px（5+240+8，否则塌陷或裁卡片）',
+    trk ? trk[1] + 'px' : '(无 height 声明)');
+  /* 2026-09-28 实战：inline-block 行盒的 strut 会把 .rail-inner 整体下推 19px
+     (16px 字号 × 1.2)，焦点卡底部因此超出 track 10px 被 overflow-y:hidden 裁掉 ——
+     用户看到的就是「卡片被横切、没完整展示」。line-height:0 + vertical-align:top
+     是那次的解药；单独立断言，防止下次调高度时被顺手删掉又复发。 */
+  must(/\.rail-track\s*\{[^}]*line-height:\s*0/.test(appWxss),
+    'app.wxss .rail-track 有 line-height:0（压掉 strut 隐性偏移，否则焦点卡底部被裁 10px）');
+  must(/\.rail-inner\s*\{[^}]*vertical-align:\s*top/.test(appWxss),
+    'app.wxss .rail-inner 有 vertical-align:top（同上，防基线偏移把卡片推下去）');
   must(/\.rail-inner\s*\{[^}]*font-size:\s*0/.test(appWxss),
     'app.wxss 适配层 .rail-inner font-size:0（抹掉 inline-block 之间的空白文本节点）');
 

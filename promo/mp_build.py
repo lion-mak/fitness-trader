@@ -333,6 +333,24 @@ for _f in funcs:
                          % (_f["name"], _left.group(0)))
     de_dom_done.append(_f["name"])
 
+# ────────────────────────────────────────────────────────────────
+# 2c. RENDER_ONLY —— PWA 渲染层专用，⛔不进内核
+#
+# 分档判据只看 DOM 痕迹，于是「拼 HTML 字符串」的函数会被误判成纯计算：
+#   achIconHtml() 返回 '<img class="ach-ic" src="assets/ach/ach-xxx.png" ...>'，
+#   它既不碰 document 也没有 window ⇒ 被搬进 calc.js，小程序内核里就永久躺着一份
+#   拼 PWA 资源路径（assets/ach/...）的死代码 —— 以后 grep 到会当成「小程序在引用 PWA 资源」。
+#   同类的还有 achArtSrc()（只判在不在 ACH_ART 里，同样不沾 DOM，但语义是 PWA 资源路径）。
+# ⚠️ 这里只按名字剔除，**不删逻辑**：PWA 自己照旧用它们；小程序侧由 pages/achievements 重写。
+# ⚠️ 必须放在 _swallowed 校验**之后**（那一步要求 funcs 覆盖所有顶层函数），也放在 DE_DOM 之后。
+RENDER_ONLY = {"achArtSrc", "achIconHtml"}
+_funcs_dropped = [f["name"] for f in funcs if f["name"] in RENDER_ONLY]
+funcs = [f for f in funcs if f["name"] not in RENDER_ONLY]
+_missing_render_only = RENDER_ONLY - set(_funcs_dropped)
+if _missing_render_only:
+    raise SystemExit(u"❌ RENDER_ONLY 里这些名字在 index.html 找不到顶层函数（改名/删了？）：%s"
+                     % u", ".join(sorted(_missing_render_only)))
+
 pure = [f for f in funcs if not DARK.search(f["body"])]
 dirty = [f for f in funcs if DARK.search(f["body"])]
 # 可变（let/var）顶层声明的名字 —— 列进报告，便于人工确认没有把状态变量当常量搬走
@@ -726,17 +744,42 @@ ADAPT = u"""
 
    ① scroll-view 没有内容自适应高度 ⇒ 必须给固定高（本工程踩过两次：
       scroll-view + display:flex 高度塌陷，页面看着"卡片全不见"其实就是塌成 0）。
-   ② 不要依赖 scroll-view 的 padding-right：滚动区宽度按内容算，右侧 padding 常被吃掉
-      ⇒ 末张卡片永远停不到正中。改用首尾 `.rail-pad` 占位（宽度由 me.js 按容器宽算好，
-      用 inline style 落），语义等价于 PWA 的 `padding:0 calc(50% - 84px)`。
+      🔴 光给固定高还不够 —— 还有一条**隐性偏移**（2026-09-28 实测踩到，用户报
+         「卡片被横切、没完整展示」）：内容用 inline-block 排布时，行盒的 strut 由
+         默认字号 × 行高撑出 **19px**（16 × 1.2）把 `.rail-inner` 整体下推，
+         而 `.rail-card` 高 240 ⇒ 焦点卡底部超出 track 边缘 10px，被 `overflow-y:hidden`
+         裁掉 —— 切掉的正好是卡片底部的名条，看着就是「图片被横切」。
+         判据（可复算）：`inner.top` 应 == `track.top + padding-top`；
+           实测 241 vs 217+5=222 ⇒ 差 19，即偏移量。
+         修法：`.rail-track` 加 `line-height:0` 压掉 strut + `.rail-inner` 加 `vertical-align:top`。
+         量法：`python promo/_mp_run.py mp_rail_height.js`，看每张卡 overflowBottom ≤ 0。
+         ⚠️ 这条只有在卡片**接近容器高**时才显形（240/254 刚好卡在边界），矮一截的
+            容器会掩盖它 —— 别因为「看着没问题」就删掉 line-height:0。
+   ② 首尾居中留白：PWA 的 `.rail-track` 带 `padding: 5px calc(50% - 84px) 8px`，
+      scroll-view 不能沿用（右侧 padding 会被吃掉，末张卡停不到正中）⇒ 改用首尾
+      `.rail-pad` 占位（宽度由 me.js 按容器宽算好，用 inline style 落）。
+
+      🔴 两条必须同时成立，否则前导留白**变双份**（2026-09-28 实测踩到：焦点卡偏右
+         111px，用户看到的是「滑到某张卡它反而缩小、不居中」）：
+         a) 本类的左右 padding 必须显式清 0（见下面 .rail-track 声明）——
+            PWA 那行 padding 是搬进来的，不清就与 .rail-pad 叠加。
+         b) me.wxml 必须用 `<view class="rail">` 包住 scroll-view：靠 `.rail` 的
+            `align-self:stretch` + `margin:16px -18px 0` 把宽度从 354 撑到 390。
+            少了这层（实测 HAS_RAIL=false、track 宽 354），me.js 的 railPad 仍按
+            windowWidth(390) 算出 111 ⇒ 差 18px，而焦点判定 `round(sl/196)` 又假设
+            前导留白恰好 111 ⇒ 全链偏移，吸附后卡片还会跳位。
+      ⭐ 判据：补完后 track 宽应 = 390，焦点卡中心应 ≈ 视口中心 195。
+         量法：`python promo/_mp_run.py mp_rail_measure.js`（改前改后各跑一次比真数）。
    ③ scroll-view 的内容不参与 flex ⇒ 排布靠 white-space:nowrap + inline-block。
       PWA 的 `gap` 对 inline-block 无效，间距改用 margin-right。
       ⚠️ 值 22 必须与 me.js 的 RAIL_GAP、PWA 的 .rail-track gap 三处一致 —— 吸附位置
          按「等差排布」推算，差一个像素会在第 10 张累积成 9px。
    ④ inline-block 之间会因 WXML 的换行产生空白文本节点（约 4px）⇒ .rail-inner 上
       font-size:0 抹掉。卡片内只有 image，不受影响。 */
-.rail-track { height:254px; white-space:nowrap; }
-.rail-inner { display:inline-block; font-size:0; }
+/* ⚠️ height 必须 ≥ padding-top(5) + 卡高(240) + padding-bottom(8) = 253，且必须配
+   line-height:0（见注释 ①）：少了 line-height 就会多出 19px strut ⇒ 焦点卡被裁 10px。 */
+.rail-track { height:253px; line-height:0; white-space:nowrap; padding-left:0; padding-right:0; }
+.rail-inner { display:inline-block; font-size:0; vertical-align:top; }
 .rail-pad { display:inline-block; width:0; height:1px; vertical-align:top; }
 .rail-card { display:inline-block; vertical-align:top; margin-right:22px; }
 """
