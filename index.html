@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.63"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.64"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5095,7 +5095,9 @@ function achCat(id) { for (const c of ACH_CATS) if (c.id === id) return c; retur
       promo/mp_ach_test.js 会交叉校验 —— 两边漂了会出现「PWA 有图、小程序还是线稿」。
    ⚠️ 图标名与赛道头图标有重名（bull / lightning / leek 同时是 cat.icon），
       赛道头**照旧走 badgeIcon()**，⛔别一起换：赛道头是 20px 的 tinted 小方块，放彩色像素画会脏。 */
-const ACH_ART = ['leek', 'untie', 'wave', 'bull', 'exit', 'pen', 'half', 'allin', 'lightning', 'whale'];
+const ACH_ART = ['leek', 'untie', 'wave', 'bull', 'exit', 'pen', 'half', 'allin', 'lightning', 'whale',
+                 'coin', 'bag', 'vault', 'dice', 'cards',
+                 'spark', 'gem', 'chosen', 'stamps', 'crown'];
 
 function achArtSrc(icon) {
   return ACH_ART.indexOf(icon) >= 0 ? 'assets/ach/ach-' + icon + '.png' : null;

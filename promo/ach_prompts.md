@@ -50,7 +50,7 @@
 ## 3. 通用前缀（30 张一字不改）
 
 ```
-Goofy low-res pixel art game badge, one single chunky object or creature, weird and ridiculous, absurd lopsided proportions, one comic face with an exaggerated expression, chunky pixels, big square pixel blocks, roughly 22 pixel blocks across the canvas, extra thick near-black outline on every shape, flat solid color blocks with light dithering, hard pixel edges, no gradients, no anti-aliasing, no blur, limited 8-color palette, very high contrast, big bold simple silhouette filling 80% of the frame, centered, at most 3 large shapes, no fine detail, no thin lines, no tiny texture, no small decoration, stays instantly readable when shrunk to 44px, flat solid magenta background #FF00FF edge to edge, even margin around the subject, no text, no letters, no numbers, no watermark, no signature, no frame, no border, no ground shadow, no drop shadow, no scenery, no background pattern, no cute, no kawaii, no chibi, no glossy shine, no sparkly eyes, no pastel colors, no mascot style. Subject:
+Goofy low-res pixel art game badge, one single chunky object or creature, weird and ridiculous, absurd lopsided proportions, one comic face with an exaggerated expression, chunky pixels, big square pixel blocks, roughly 22 pixel blocks across the canvas, extra thick near-black outline on every shape, flat solid color blocks with light dithering, hard pixel edges, no gradients, no anti-aliasing, no blur, limited 8-color palette, very high contrast, big bold simple silhouette filling 80% of the frame, centered, at most 3 large shapes, no fine detail, no thin lines, no tiny texture, no small decoration, stays instantly readable when shrunk to 44px, flat solid magenta background #FF00FF edge to edge, even margin around the subject, no text, no letters, no numbers, no watermark, no signature, no frame, no border, no ground shadow, no drop shadow, no scenery, no background pattern, no cute, no kawaii, no chibi, no glossy shine, no sparkly eyes, no pastel colors, no mascot style, no purple, no violet, no pink, no magenta anywhere inside the subject. Subject:
 ```
 
 四行不是装饰：
@@ -62,6 +62,9 @@ Goofy low-res pixel art game badge, one single chunky object or creature, weird 
 - `stays instantly readable when shrunk to 44px` —— 把最终显示尺寸写进提示词（段位卡同套路，那句是 `130px`）。
 - `flat solid magenta background #FF00FF` + `no cute, no kawaii, no chibi, no sparkly eyes, no pastel` ——
   洋红一次抠净；**反向约束必须写**，不写模型必滑回可爱吉祥物（段位卡上一版就是这么翻车的）。
+- `no purple, no violet, no pink, no magenta anywhere inside the subject` —— **2026-09-29 实测补的**：
+  洋红抠图键是 (R−G)>70，主体里的紫色/粉紫高光会被当成背景 ⇒ 抠出内孔 + 混色边超标
+  （`bag` 第一版混色边 3.61%，断言 0.5% 直接挂）。补上这句 + 指定配色族即可。
 
 ---
 

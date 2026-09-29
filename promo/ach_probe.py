@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 成就徽章 · 样张处理与「真尺寸预览板」生成
-入口：python promo/ach_probe.py            （前两个板块：持仓与套牢 + 盘中操作，10 张）
+入口：python promo/ach_probe.py            （已出图的板块，现四板块 20 张）
       python promo/ach_probe.py --all      （30 张，需 ach_src 里齐了才行）
 
 四件事，每件都有硬判据，不靠眼看：
@@ -30,10 +30,14 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 PROMO = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(PROMO)
 SRC = os.path.join(PROMO, 'ach_src')
-OUT = os.path.join(REPO, 'assets', 'ach')                        # 运行图 132×132（PWA 与小程序共用）
-MINI_ACH = r'E:\WeChatProjects\jianpan\miniprogram\images\ach'   # 现有 26px 图标（对照用）
+OUT = os.path.join(REPO, 'assets', 'ach')                        # 运行图 132×132（PWA 部署用）
+# 小程序侧的素材源（上传云存储时读这里）：两仓各自的素材是同一份产物的镜像，
+# 由本脚本一次写出两边，⛔不要手工 cp（漏一次就漂）。
+MP_ACH_SRC = os.environ.get('JP_MP_ACH_SRC') or r'E:\WeChatProjects\jianpan\assets_src\ach'
+MINI_ACH = r'E:\WeChatProjects\jianpan\miniprogram\images\ach'   # 主包内的线稿图标（对照用）
 
-# 前两个板块（持仓与套牢 / 盘中操作）—— 顺序 = index.html ACHIEVEMENTS 原序
+# 前两个板块（持仓与套牢 / 盘中操作）+ 资本游戏 / 交易员图鉴
+# 顺序 = index.html ACHIEVEMENTS 原序（也是 ACH_ART / 云函数 NAMES 的顺序）
 ITEMS = [
     ('hold',  'leek',      'Goofy_low_res_pixel_art_game_b_2026-09-29T12-40-19.png', '韭菜入场',   '记下人生第一笔',        '达到 1 次'),
     ('hold',  'untie',     'Goofy_low_res_pixel_art_game_b_2026-09-29T12-40-33.png', '解套成功',   '好不容易减掉 1kg',      '达到 1kg'),
@@ -45,9 +49,22 @@ ITEMS = [
     ('trade', 'allin',     'Goofy_low_res_pixel_art_game_b_2026-09-29T12-45-23.png', '梭哈选手',   '三次运动，满仓出击',    '达到 3 次'),
     ('trade', 'lightning', 'Goofy_low_res_pixel_art_game_b_2026-09-29T12-42-23.png', '高频交易员', '30笔成交，手速惊人',    '达到 30 次'),
     ('trade', 'whale',     'Goofy_low_res_pixel_art_game_b_2026-09-29T12-42-37.png', '量化巨鲸',   '100笔，机构级交易量',   '达到 100 次'),
+    # ── 资本游戏（#5ac8fa）──
+    ('capital', 'coin',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-55-46.png', '回口小肉',   '累计赚到 500 币',       '达到 500'),
+    ('capital', 'bag',     'Goofy_low_res_pixel_art_game_b_2026-09-29T13-52-29.png', '小财主',     '累计赚到 2000 币',      '达到 2000'),
+    ('capital', 'vault',   'Goofy_low_res_pixel_art_game_b_2026-09-29T13-49-32.png', '分红大户',   '持币过千，利息（没有）香', '达到 1000'),
+    ('capital', 'dice',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-49-10.png', '首抽欧皇',   '第一次打开交易员图鉴',  '达到 1 次'),
+    ('capital', 'cards',   'Goofy_low_res_pixel_art_game_b_2026-09-29T13-54-16.png', '图鉴庄家',   '抽了 20 次，包场了',    '达到 20 次'),
+    # ── 交易员图鉴（#ffb800）──
+    ('codex', 'spark',     'Goofy_low_res_pixel_art_game_b_2026-09-29T13-50-07.png', '开光',       '首张卡入库',            '达到 1 次'),
+    ('codex', 'gem',       'Goofy_low_res_pixel_art_game_b_2026-09-29T13-55-29.png', '欧气初显',   '抽到第一张稀有(R)',     '达到 1 次'),
+    ('codex', 'chosen',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-55-06.png', '天选之子',   '抽到第一张传说(SR)',    '达到 1 次'),
+    ('codex', 'stamps',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-51-00.png', '集邮狂魔',   '集齐所有普通(N)卡 6 张', '达到 6 次'),
+    ('codex', 'crown',     'Goofy_low_res_pixel_art_game_b_2026-09-29T13-51-16.png', '满星收藏家', '45 星全部点亮',         '达到 45 次'),
 ]
 
-CATS = {'hold': ('持仓与套牢', '#00c896'), 'trade': ('盘中操作', '#ff3b47')}
+CATS = {'hold': ('持仓与套牢', '#00c896'), 'trade': ('盘中操作', '#ff3b47'),
+        'capital': ('资本游戏', '#5ac8fa'), 'codex': ('交易员图鉴', '#ffb800')}
 LOCKED_BG = '#2a3142'          # .badge.locked 的底（index.html / achievements.wxss 同值）
 INK = (0x0a, 0x0e, 0x1a)       # 剪影色（现存 24×24 图标语言）
 PAPER = (0x0d, 0x12, 0x1f)
@@ -243,6 +260,16 @@ def process(code, fname):
     kb = os.path.getsize(col_p) / 1024.0
     print('      产出 assets/ach/%s  %dx%d  %.1f KB' % (os.path.basename(col_p), *d132.size, kb))
     assert kb < 40, '单张运行图 %.1f KB 过大（%dpx 纯色块不该这么肥，检查来源）' % (kb, d132.size[0])
+
+    # 镜像到小程序仓库的素材源（上传云存储读的就是这份；一次写两边，杜绝手工 cp 漏拷）
+    if os.path.isdir(os.path.dirname(MP_ACH_SRC)):
+        os.makedirs(MP_ACH_SRC, exist_ok=True)
+        mp_p = os.path.join(MP_ACH_SRC, 'ach-%s.png' % code)
+        d132.save(mp_p, optimize=True)
+        assert os.path.getsize(mp_p) == os.path.getsize(col_p), '镜像字节不一致：' + mp_p
+        print('      镜像 assets_src/ach/%s' % os.path.basename(mp_p))
+    else:
+        print('      ⚠️ 小程序仓库不在（%s）⇒ 跳过镜像，上线前必须补跑' % os.path.dirname(MP_ACH_SRC))
 
     return {'code': code, 'big': big, 'sil': sil, 'd132': d132, 's132': s132,
             'sprite': sprite, 'sw': sw, 'sh': sh, 'kb': kb}
