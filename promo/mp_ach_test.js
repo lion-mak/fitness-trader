@@ -112,17 +112,30 @@ global.getCurrentPages = () => [];
 function makeInstance(opt) {
   const inst = Object.create(opt);
   inst.data = Object.assign({}, opt.data || {});
+  /* ⚠️ setData 的路径**必须支持 `a[0].b[1].c` 下标写法**。
+     早期版本按 '.' 简单切分 ⇒ `achCats[0].list[0].src` 被当成**字面 key** 挂到
+     inst.data 上，真格子一个字节没动 ⇒「云图失败 ⇒ 回退本地线稿」那条断言在上传前是
+     **假绿**（那格原值恰好就是本地路径，页面护栏 `indexOf('/images/ach/')===0` 直接 return），
+     manifest 一有真 fileID 就立刻现形。⛔别退回字符串切分。 */
+  const segs = (k) => String(k).split('.').reduce((acc, part) => {
+    const m = /^([^[]*)((?:\[\d+\])*)$/.exec(part);
+    if (!m) { acc.push(part); return acc; }
+    if (m[1]) acc.push(m[1]);
+    (m[2].match(/\d+/g) || []).forEach((i) => acc.push(Number(i)));
+    return acc;
+  }, []);
   inst.setData = function (o, cb) {
     Object.keys(o || {}).forEach((k) => {
-      const val = o[k];
-      if (k.indexOf('.') === -1) { inst.data[k] = val; return; }
-      const seg = k.split('.');
+      const path = segs(k);
       let cur = inst.data;
-      for (let i = 0; i < seg.length - 1; i++) {
-        if (cur[seg[i]] == null || typeof cur[seg[i]] !== 'object') cur[seg[i]] = {};
-        cur = cur[seg[i]];
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+        if (cur[key] == null || typeof cur[key] !== 'object') {
+          cur[key] = (typeof path[i + 1] === 'number') ? [] : {};
+        }
+        cur = cur[key];
       }
-      cur[seg[seg.length - 1]] = val;
+      cur[path[path.length - 1]] = o[k];
     });
     if (typeof cb === 'function') cb();
   };
@@ -420,6 +433,110 @@ sec('G 空存档');
     must(empty.data.pend.length === 3, '空存档也有 3 条近期目标（wave/bull/exit 都是 0 进度的不算，靠饮食与运动那几项）',
       'got ' + empty.data.pend.map((x) => x.id + ':' + x.pct).join(','));
   }
+}
+
+/* ---------- H 成就像素画接线（v2.7.63） ----------
+ *
+ * 前两个板块 10 项已有像素画：PWA 取 assets/ach 相对路径、小程序取云 fileID（A 路线）。
+ * 这节盯四件事，全部独立现算，不复用页面表达式：
+ *   ① 三方对账：calc.ACH_ART（PWA 真源，mp_build 抽进来的）/ lib/ach_assets.js（云 fileID 清单）/ images/ach 兜底图
+ *   ② 每格的 hasArt / src / boxBg / sil 四条口径
+ *   ③ manifest 不许是「半截」（有的项彩图、有的线稿，看着像 bug）
+ *   ④ 云图挂了要能回退本地、且不会死循环
+ */
+sec('H 成就像素画接线（图源 / manifest / PWA 真源三方对账）');
+{
+  const C = require(path.join(MINI, 'lib/calc.js'));      // ⚠️ 本节自己 require 一份（bootPage 会清 require.cache）
+  const M_ART = require(path.join(MINI, 'lib/ach_assets.js'));
+  const PWA_ART = C.ACH_ART;                 // ⚠️ 来自 index.html，由 mp_build 抽进内核
+  const MKEYS = Object.keys(M_ART);
+  const ALL_ICONS = C.ACHIEVEMENTS.map((a) => a.icon);
+
+  /* ① PWA 真源本身 */
+  must(Array.isArray(PWA_ART) && PWA_ART.length === 10,
+    'calc.ACH_ART（PWA 侧「已有像素画」真源）= 10 项', 'got ' + JSON.stringify(PWA_ART));
+  must(new Set(PWA_ART).size === PWA_ART.length, 'ACH_ART 无重复项', 'got ' + PWA_ART.join(','));
+  const stray = PWA_ART.filter((i) => ALL_ICONS.indexOf(i) < 0);
+  must(stray.length === 0, 'ACH_ART 里每个 icon 都能在 ACHIEVEMENTS 里找到',
+    'got 找不到的：' + stray.join(','));
+  /* 赛道头图标与前两板块的成就图标有重名（bull/lightning/leek）—— 这是刻意的：
+     赛道头照旧走线稿 badgeIcon()，那张 10 项的表是「成就徽章位有图」，不是「图标名有图」。 */
+  const catIcons = C.ACH_CATS.map((c) => c.icon);
+  must(catIcons.filter((i) => PWA_ART.indexOf(i) >= 0).sort().join(',') === 'bull,leek,lightning',
+    '与赛道头重名的 3 个（bull/leek/lightning）确实在表里 —— 提醒别顺手把赛道头也换掉',
+    'got ' + catIcons.filter((i) => PWA_ART.indexOf(i) >= 0).join(','));
+
+  /* ② 本地兜底图必须都在（云图挂了回退用；也是赛道头/近期目标行在用的那套） */
+  const missLocal = PWA_ART.filter((i) => !fs.existsSync(path.join(MINI, 'images/ach', 'ach-' + i + '.png')));
+  must(missLocal.length === 0, '10 项都有本地线稿兜底图 images/ach/ach-<icon>.png',
+    'got 缺：' + missLocal.join(','));
+
+  /* ③ manifest：键必须在 ACH_ART 内，且要么空、要么齐 */
+  const over = MKEYS.filter((i) => PWA_ART.indexOf(i) < 0);
+  must(over.length === 0, 'manifest 的键不得超出 ACH_ART（否则 PWA 没图、小程序却有）',
+    'got ' + over.join(','));
+  must(MKEYS.length === 0 || MKEYS.length === PWA_ART.length,
+    'manifest 要么空（还没上传）、要么 10 键齐 —— 不许半截（半截会出现「有的彩图有的线稿」混档）',
+    'got ' + MKEYS.length + ' 键');
+
+  /* ④ 逐格对账：hasArt / src / boxBg / sil 四条口径独立现算。
+     ⚠️ 期望值一律由 **manifest 是否已上传** 推出来，不写死 10 —— 上传前 manifest 是空表，
+        页面（正确地）全走线稿，这时写死 10 会假红。 */
+  const pg2 = bootPage(seed, 'pages/achievements/achievements.js');
+  let nArt = 0, nArtLocked = 0, bad = [];
+  const artIds = [];
+  pg2.data.achCats.forEach((cat) => {
+    const col = C.achCat(cat.id).color;
+    cat.list.forEach((b) => {
+      const isArt = MKEYS.indexOf(b.icon) >= 0;
+      const wantSrc = isArt ? M_ART[b.icon] : '/images/ach/ach-' + b.icon + '.png';
+      const wantBox = (b.got || isArt) ? col : '#2a3142';
+      const wantSil = !b.got && isArt;
+      if (b.hasArt !== isArt) bad.push(b.id + ' hasArt=' + b.hasArt + '≠' + isArt);
+      if (b.src !== wantSrc) bad.push(b.id + ' src=' + b.src);
+      if (b.boxBg !== wantBox) bad.push(b.id + ' boxBg=' + b.boxBg + '≠' + wantBox);
+      if (b.sil !== wantSil) bad.push(b.id + ' sil=' + b.sil + '≠' + wantSil);
+      if (isArt && MKEYS.length && String(b.src).indexOf('cloud://') !== 0) {
+        bad.push(b.id + ' 云 src 不是 fileID：' + b.src);
+      }
+      if (isArt) { nArt++; artIds.push(b.id); if (b.sil) nArtLocked++; }
+    });
+  });
+  must(bad.length === 0, '30 格的 hasArt/src/boxBg/sil 全部与独立现算一致',
+    'got ' + bad.slice(0, 5).join(' | '));
+  must(nArt === MKEYS.length, '走像素画的格子数 = manifest 键数（上传前 0、上传后 10）',
+    'got ' + nArt + ' / manifest ' + MKEYS.length);
+  /* 独立现算「哪些成就该有图」，与页面扫出来的 id 集合对账（比只数个数强：能抓错项） */
+  const wantArtIds = C.ACHIEVEMENTS.filter((a) => MKEYS.indexOf(a.icon) >= 0).map((a) => a.id);
+  must(artIds.slice().sort().join(',') === wantArtIds.slice().sort().join(','),
+    '走像素画的正是「icon 在 manifest 里」的那几项（逐 id 对账）',
+    'got ' + artIds.join(',') + ' want ' + wantArtIds.join(','));
+  /* 锁态剪影数 = 有图的项里没解锁的那些（独立按 seed.ach 现算） */
+  const wantSilN = wantArtIds.filter((id) => !seed.ach[id]).length;
+  must(nArtLocked === wantSilN, '有图的锁态格子数 = 有图项里未解锁的数量',
+    'got ' + nArtLocked + ' want ' + wantSilN);
+
+  /* ⑤ 降级：把某一格的 src 换成假 fileID 再触发 onAchImgError。
+     ⚠️ 不用「找一个 hasArt 的格子」当入口 —— 上传前没有这种格子，那条路会静默测不到；
+        直接改 data 就与 manifest 状态无关，上传前后都能验。 */
+  const ICON0 = pg2.data.achCats[0].list[0].icon;
+  pg2.setData({ 'achCats[0].list[0].src': 'cloud://fake-env.bucket/ach/ach-' + ICON0 + '.png' });
+  pg2.onAchImgError({ currentTarget: { dataset: { ci: 0, bi: 0 } } });
+  must(pg2.data.achCats[0].list[0].src === '/images/ach/ach-' + ICON0 + '.png',
+    '加载失败 ⇒ src 回退本地线稿（' + ICON0 + '）', 'got ' + pg2.data.achCats[0].list[0].src);
+  const after = pg2.data.achCats[0].list[0].src;
+  pg2.onAchImgError({ currentTarget: { dataset: { ci: 0, bi: 0 } } });
+  must(pg2.data.achCats[0].list[0].src === after,
+    '再触发一次 src 不变（本地图也不存在时不会 binderror 死循环）',
+    'got ' + pg2.data.achCats[0].list[0].src);
+  /* 越界 / 缺字段不能抛（真机上 binderror 的 dataset 可能拿不到） */
+  let thr = null;
+  try {
+    pg2.onAchImgError({ currentTarget: { dataset: {} } });
+    pg2.onAchImgError({ currentTarget: { dataset: { ci: 99, bi: 99 } } });
+    pg2.onAchImgError({});
+  } catch (e) { thr = e; }
+  must(!thr, 'dataset 缺字段 / 越界时不抛错', thr && thr.message);
 }
 
 out('');

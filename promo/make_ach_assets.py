@@ -6,8 +6,9 @@ make_ach_assets.py —— 成就殿堂 / 抽卡图鉴所需的图标位图资产
 在 Android 不渲染），而 PWA 的成就图标全部是 `badgeIcon(type)` 现拼的 `<svg>`。
 
 产出 → E:\\WeChatProjects\\jianpan\\miniprogram\\images\\ach\\ach-<type>.png
-  26px 图标的 3 倍图 = 78×78（`.badge .b` 里的图标在 PWA 是 26×26）
-  ⚠️ `.ach-cat-ic` 的图标 PWA 只给 20×20 —— 同一张 78px 图缩到 20px 相当于 3.9 倍图，
+  34px 图标的 3 倍图 = 102×102（`.badge .b` 里的线稿图标，v2.7.62 前是 26px/78px；
+  v2.7.63 徽章方块 48→64、线稿跟到 34，与 44px 的像素画同列不显小）。
+  ⚠️ `.ach-cat-ic` 的图标 PWA 只给 20×20 —— 同一张 102px 图缩到 20px 相当于 5.1 倍图，
      仍然够清晰，所以**不生成第二套**，避免两份资产日后不同步。
 
 ⚠️ 图标 path **从 index.html 的 badgeIcon() 正则提取**（不手抄坐标）——
@@ -26,8 +27,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, ".."))
 SRC = os.path.join(ROOT, "index.html")
 OUTDIR = r"E:\WeChatProjects\jianpan\miniprogram\images\ach"
-ICON_PX = 26           # 渲染基准尺寸（与 PWA `.badge .b svg` 一致）
-DPR = 3                # ⇒ 输出 78×78
+ICON_PX = 34           # 渲染基准尺寸（与 PWA `.badge .b svg` 一致，v2.7.63 由 26 放大）
+DPR = 3                # ⇒ 输出 102×102
 
 html_src = open(SRC, encoding="utf-8", newline="").read()
 

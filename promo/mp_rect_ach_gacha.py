@@ -18,7 +18,11 @@ mp_rect_ach_gacha.py —— 成就殿堂 / 涨停抽卡 两屏元素级对拍（
      对拍正是这条补偿的验收：如果忘补 class，这两项在 PWA 有值、小程序侧字号会退回继承值。
   2. `svg` ↔ `image`：PWA 的成就图标是 badgeIcon() 现拼的 `<svg>`，
      小程序视图层不解析 SVG ⇒ 已烘焙成 PNG（promo/make_ach_assets.py）。
-     配对量的是**图标盒**（26×26 / 20×20），不量图形本身。
+     配对量的是**图标盒**（34×34 / 20×20），不量图形本身。
+  3. 像素画（v2.7.63 起，前两板块 10 项）：两端**同名同类** —— PWA 是 `<img class="ach-ic">`、
+     小程序是 `<image class="ach-ic">`，尺寸都取 app.wxss 搬进去的 `.ach-ic`（44×44），
+     所以直接用字符串选择器配对，不需要 dict。（PWA 侧 20 项线稿、小程序侧同 20 项线稿，
+     第 2 条那个 dict 仍然有效：两边第一个命中项都是「主升浪」。）
 
 排除项（无同源选择器，另由运行时断言盯内容）：
   · `.g-cell .g-emoji` 的 emoji 在不同平台的字体差异 —— 已测，仅供观察不设阈值判据；
@@ -64,6 +68,9 @@ GROUPS = [
             {"mp": ".ach-cat-ic .ic-img", "pwa": ".ach-cat-ic svg"},
             ".ach-cat-meta", ".ach-cat-meta .n", ".ach-cat-meta .s", ".ach-cat-prog",
             ".badge-grid", ".badge", ".badge .b",
+            # 像素画徽章（v2.7.63 起）：两端同名同类，直接同选择器配对
+            ".badge .b .ach-ic",
+            # 未换图的线稿徽章：PWA 是内联 svg，小程序是烘焙 PNG ⇒ dict 配对
             {"mp": ".badge .b .ic-img", "pwa": ".badge .b svg"},
             ".badge .lbl", ".badge .sub", ".badge .b-prog", ".badge .b-prog-fill",
             ".badge .b-prog-txt", ".badge .b-done",
