@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.66"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.67"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1011,11 +1011,11 @@ body {
         </div>
         <div class="menu-item" onclick="showGacha()">
           <div class="ic" style="background:#1f1608;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="12" rx="2" stroke="#ffb800" stroke-width="1.5"/><path d="M7 6 V4 M17 6 V4 M7 18 V20 M17 18 V20" stroke="#ffb800" stroke-width="1.5"/></svg></div>
-          <div class="n">涨停抽卡 · 图鉴</div>
+          <div class="n">藏品图鉴</div>
           <div class="v" id="p-card-count" style="color:var(--amber);">0%</div>
           <div class="arr">›</div>
         </div>
-        <div class="menu-item" onclick="scrollToProfile()" data-page-node-id="rEmQEfK1KVKpVivBewVDov">
+        <div class="menu-item" onclick="showBodyArchive()" data-page-node-id="rEmQEfK1KVKpVivBewVDov">
           <div class="ic" style="background:#0d2335;" data-page-node-id="pRFyYmnF4iDEKeaGCluEV7"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" data-page-node-id="qftqDB3cxsuMg9VuoGFQGL"><circle cx="12" cy="12" r="9" stroke="#5ac8fa" stroke-width="1.5" data-page-node-id="AFIuAEA9q7B3Tkr89D9nrz"/><path d="M12 7 V12 L15 14" stroke="#5ac8fa" stroke-width="1.5" data-page-node-id="0oF5DNyej6D86HkOscySU3"/></svg></div>
           <div class="n" data-page-node-id="8Bts7lIMBUOtawOXYSq7xF">身体档案</div>
           <div class="v" data-page-node-id="mZZFCewvw1ykxFme1sWuyY">影响 BMR</div>
@@ -1023,29 +1023,14 @@ body {
         </div>
       </div>
 
-      <div class="card" data-page-node-id="JDZ90eJ7mjDoRMmP4CIPCH">
+      <!-- 身体档案（v2.7.67）：只读可视化摘要 —— 人形图 + 四项资料。
+           可编辑字段 / BMR·TDEE 盒 / 上传按钮已移进 #page-body-archive 子页
+           （入口＝上面的菜单项，以及本卡右下角这颗按钮，两处都走 showBodyArchive()）。 -->
+      <div class="card" id="body-card" data-page-node-id="JDZ90eJ7mjDoRMmP4CIPCH">
         <div class="card-title" data-page-node-id="eTvFnTxQG8THSxQBSpStdS"><span class="t" data-page-node-id="0ffr3zmcjXD9ZLeZHyU8fK">身体档案</span><span class="m" data-page-node-id="lKoTrlM15VAAF8HvLEdz5n">上传后重算 BMR</span></div>
         <div class="body-viz" id="body-viz" data-page-node-id="DSiTmTynUqFn4bnzjT2diQ"></div>
         <div class="viz-stats" id="viz-stats" data-page-node-id="AkGk01JOd4fHrCVHStauyh"></div>
-        <div class="edit-fields" data-page-node-id="QVGI6bRzDJJo0xQNCK72R7">
-          <div class="ef-title" data-page-node-id="lLfD3Qce9XUf7PUMKAvADD">编辑数据</div>
-          <div class="field" data-page-node-id="2GXeGx4Bj88vg1a2HIKpmd"><label data-page-node-id="JCKg4SNvFhQgz315zxPHr8">性别</label><select id="f-gender" onchange="renderBodyViz()" data-page-node-id="4XfE6IQikxot51sIuqKGtN"><option value="male" data-page-node-id="9DHCEVC20Bu9HPmzsBjYKv">男</option><option value="female" data-page-node-id="ExLxDNLoLqQZGncGf1ePST">女</option></select></div>
-          <div class="field" data-page-node-id="8XFlUkYs5jxvFj2HG6L26J"><label data-page-node-id="A3q9qOMUV1xJAIdeETgPyK">年龄</label><input id="f-age" type="number" min="10" max="100" data-page-node-id="x5JUaYiGHjAFe8BpaZzxWu"></div>
-          <div class="field" data-page-node-id="Q5CvVb6ygwQHAKE7gBXxrb"><label data-page-node-id="KjxNi0V47gWKccknvCryBE">身高（cm）</label><input id="f-height" type="number" min="100" max="230" data-page-node-id="BAG0mLWO9KTydGsWXibuFH"></div>
-          <div class="field" data-page-node-id="3OMgRX0mg3cEltYpcvqg9n"><label data-page-node-id="gMwxauBh840XZ0JemigbZa">体重（kg）</label><input id="f-weight" type="number" min="30" max="200" step="0.1" data-page-node-id="wxRZfGbdAYVZ6Qx5UzNky4"></div>
-          <div class="field" data-page-node-id="8YTK8fJ9iOmw59hvUOOOs8"><label data-page-node-id="n4Y2rT9fBNcT2r8Ntkdr1z">体脂率（%，可选）</label><input id="f-bf" type="number" min="3" max="60" step="0.1" placeholder="填了 BMR 更准" data-page-node-id="yBnPVbhAeEF6Fs0PrWuhXu"></div>
-          <div class="field" data-page-node-id="GyjH3DlYUEZvei7PE7tsIh"><label data-page-node-id="65oYNMnyxwJgzMVmTCCbhs">静息心率（bpm，可选）</label><input id="f-rhr" type="number" min="35" max="120" placeholder="晨起静息心率" data-page-node-id="YGL6HqdPpEUXTj5lVY9mD0"></div>
-          <div class="field" data-page-node-id="gTEbPaa6E9NlhpEKfCff5C"><label data-page-node-id="7iKxPPUPoKED5CEMXxUsXo">日常活动水平</label><select id="f-act" data-page-node-id="OJx8602BImIlbMTmFzcVFN">
-            <option value="sedentary" data-page-node-id="qX7VwVbMIhj3pX1nhsRSXV">久坐（几乎不运动）</option>
-            <option value="light" data-page-node-id="udILQ7TLtEtgoEBewoOcrm">轻度（每周 1～3 天）</option>
-            <option value="moderate" data-page-node-id="yMz4bptOtSkdBJ2Ri3ubHB">中度（每周 3～5 天）</option>
-            <option value="active" data-page-node-id="wRWpaF2YESLTTyLe11wxqc">高度（每周 6～7 天）</option>
-            <option value="athlete" data-page-node-id="gOLQwHC7u2qmY4KyZg6kCG">极高（体力劳动/每日两练）</option>
-          </select></div>
-          <div class="field" data-page-node-id="GbgDlIoGlPZojTHXqXuQp4"><label data-page-node-id="qcIcKasoAPwYVOOGyBhFmZ">每日目标缺口（kcal，负数=减重）</label><input id="f-target" type="number" step="50" data-page-node-id="67cYGbmpUC2cp1ZBreWxVE"></div>
-        </div>
-        <div class="bmr-box" id="bmr-box" data-page-node-id="BiKuD4WO4BborrHgJkGht5"></div>
-        <button class="confirm sell" onclick="saveProfile()" data-page-node-id="9HXvO0LNLRPiB9Ada3Oj8E">上传档案数据</button>
+        <button class="confirm sell" onclick="showBodyArchive()" data-page-node-id="9HXvO0LNLRPiB9Ada3Oj8E">编辑详细数据</button>
       </div>
 
       <!-- 数据备份（防丢：跨源/清缓存/换手机均可恢复） -->
@@ -1177,6 +1162,39 @@ body {
       <div class="bd-card" id="bd-card" data-page-node-id="OGOYfVL8BYIYI5FH3JMKTp"></div>
       <div class="bd-ai" id="bd-ai" data-page-node-id="DpuvjrcL5K8s5wMMHBaCbC"></div>
       <div class="bd-trend" id="bd-trend" data-page-node-id="LIkMXee3dwbrlEatGCQBBy"></div>
+    </section>
+
+    <!-- ============ 身体档案（v2.7.67 子页）============
+         从我的页 #body-card 搬来的：8 个可编辑字段 + BMR/TDEE 盒 + 上传按钮。
+         我的页仍保留人形图 + 四项资料的**只读**可视化；入口两处（菜单「身体档案」/
+         卡片右下角按钮）都走 showBodyArchive()。
+         ⚠️ id 与 class 一字未改（`f-*` 字段 id 是 saveProfile()/renderBodyViz() 的取值口，
+            `.edit-fields`/`.bmr-box` 的样式单源在 <style>）⇒ 搬的是位置，不是形态。 -->
+    <section class="page" id="page-body-archive">
+      <div class="backrow" onclick="backFromBodyArchive()"><div class="arrow">‹</div><div class="tt">身体档案</div></div>
+      <div class="pagetitle"><div class="k">BODY ARCHIVE</div><div class="t">身体档案</div></div>
+
+      <div class="card">
+        <div class="edit-fields">
+          <div class="ef-title">编辑数据</div>
+          <div class="field"><label>性别</label><select id="f-gender" onchange="renderBodyViz()"><option value="male">男</option><option value="female">女</option></select></div>
+          <div class="field"><label>年龄</label><input id="f-age" type="number" min="10" max="100"></div>
+          <div class="field"><label>身高（cm）</label><input id="f-height" type="number" min="100" max="230"></div>
+          <div class="field"><label>体重（kg）</label><input id="f-weight" type="number" min="30" max="200" step="0.1"></div>
+          <div class="field"><label>体脂率（%，可选）</label><input id="f-bf" type="number" min="3" max="60" step="0.1" placeholder="填了 BMR 更准"></div>
+          <div class="field"><label>静息心率（bpm，可选）</label><input id="f-rhr" type="number" min="35" max="120" placeholder="晨起静息心率"></div>
+          <div class="field"><label>日常活动水平</label><select id="f-act">
+            <option value="sedentary">久坐（几乎不运动）</option>
+            <option value="light">轻度（每周 1～3 天）</option>
+            <option value="moderate">中度（每周 3～5 天）</option>
+            <option value="active">高度（每周 6～7 天）</option>
+            <option value="athlete">极高（体力劳动/每日两练）</option>
+          </select></div>
+          <div class="field"><label>每日目标缺口（kcal，负数=减重）</label><input id="f-target" type="number" step="50"></div>
+        </div>
+        <div class="bmr-box" id="bmr-box"></div>
+        <button class="confirm sell" onclick="saveProfile()">上传档案数据</button>
+      </div>
     </section>
 
     <!-- ============ 涨停仪式 ============ -->
@@ -5854,6 +5872,19 @@ function saveProfile() {
   showBcCard(Math.round(calcBMR()), NutritionEngine.bmr(getUserProfile()).primaryName);
 }
 
+/* ============ 身体档案子页（v2.7.67）============
+   我的页只留「人形图 + 四项资料」只读摘要；8 个编辑字段 / BMR·TDEE 盒 / 上传按钮
+   搬进 #page-body-archive。入口两处：菜单「身体档案」+ 摘要卡右下角按钮。
+   ⚠️ 进子页**不需要**先手动灌表单：render() 每次都会把 state 写进 #f-*（DOM 存在即生效，
+      哪怕子页此刻是 display:none）。这与 showGacha() 必须先 renderGacha() 不同 ——
+      抽卡的 DOM 是运行时拼出来的，而档案字段是写死在 HTML 里的。 */
+function showBodyArchive() { switchTab('body-archive'); }
+/* ⚠️ 返回时**故意不调 render()**：调了就把用户在子页里没点上传的编辑擦回旧值
+   （render() 会无条件把 state 灌进 #f-*）。state 没变 ⇒ 我的页的人形图与统计本来就无需重画。
+   注：`#f-gender` 的 onchange 会即时重画人形图（图文同源，都读该控件当前值），
+   未保存返回时「图变了、其余三项没变」是既有设计，不是不一致 bug。 */
+function backFromBodyArchive() { switchTab('profile'); }
+
 /* ============ 身体档案结果卡（v2.7.66 替代 alert）============
    原生 alert：阻塞、白底、系统「确定」按钮，每次保存档案都弹 —— 与产品视觉割裂。
    现在改成自建深色卡：给出 BMR 新值 + 用的哪条公式 + 下一步去哪儿。 */
@@ -5871,6 +5902,9 @@ function closeBcCard() {
 }
 function bcGoMarket() { closeBcCard(); switchTab('market'); }
 
+/* ⚠️ v2.7.67 起我的页菜单「身体档案」不再走这里（改为 showBodyArchive() 进子页），
+   当前无调用者。保留是因为它仍是「滚到我的页底部」这个通用动作，不留死链。
+   注：`#body-card` 已瘦身（只剩人形图 + 四项资料），滚到底看到的就是它。 */
 function scrollToProfile() { document.getElementById('screen').scrollTop = document.getElementById('screen').scrollHeight; }
 
 /* ============ 身体档案 · 人体模型可视化 ============ */
