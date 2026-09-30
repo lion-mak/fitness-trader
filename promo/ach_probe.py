@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 成就徽章 · 样张处理与「真尺寸预览板」生成
-入口：python promo/ach_probe.py            （已出图的板块，现四板块 20 张）
-      python promo/ach_probe.py --all      （30 张，需 ach_src 里齐了才行）
+入口：python promo/ach_probe.py            （全量 30 张 · 六板块）
+      python promo/ach_probe.py --all      （同上；--all 只是显式声明要跑齐 30 张）
 
 四件事，每件都有硬判据，不靠眼看：
   1. 去水印：右下角平台水印区（位置已实测为固定框，见 WATERMARK）。⛔不是矩形硬铺 ——
@@ -36,7 +36,7 @@ OUT = os.path.join(REPO, 'assets', 'ach')                        # 运行图 132
 MP_ACH_SRC = os.environ.get('JP_MP_ACH_SRC') or r'E:\WeChatProjects\jianpan\assets_src\ach'
 MINI_ACH = r'E:\WeChatProjects\jianpan\miniprogram\images\ach'   # 主包内的线稿图标（对照用）
 
-# 前两个板块（持仓与套牢 / 盘中操作）+ 资本游戏 / 交易员图鉴
+# 六个板块（持仓与套牢 / 盘中操作 / 资本游戏 / 交易员图鉴 / 涨停板敢死队 / 散户的自我修养）
 # 顺序 = index.html ACHIEVEMENTS 原序（也是 ACH_ART / 云函数 NAMES 的顺序）
 ITEMS = [
     ('hold',  'leek',      'Goofy_low_res_pixel_art_game_b_2026-09-29T12-40-19.png', '韭菜入场',   '记下人生第一笔',        '达到 1 次'),
@@ -61,10 +61,23 @@ ITEMS = [
     ('codex', 'chosen',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-55-06.png', '天选之子',   '抽到第一张传说(SR)',    '达到 1 次'),
     ('codex', 'stamps',    'Goofy_low_res_pixel_art_game_b_2026-09-29T13-51-00.png', '集邮狂魔',   '集齐所有普通(N)卡 6 张', '达到 6 次'),
     ('codex', 'crown',     'Goofy_low_res_pixel_art_game_b_2026-09-29T13-51-16.png', '满星收藏家', '45 星全部点亮',         '达到 45 次'),
+    # ── 涨停板敢死队（#ffb800）· 2026-09-30 第三批 ──
+    ('limitup', 'board',   'Goofy_low_res_pixel_art_game_b_2026-09-30T02-08-20.png', '首板',       '第一次涨停，开盘即巅峰', '达到 1 次'),
+    ('limitup', 'second',  'Goofy_low_res_pixel_art_game_b_2026-09-30T02-08-35.png', '二板换手',   '连续两天涨停，龙头气质', '达到 2 次'),
+    ('limitup', 'pro',     'Goofy_low_res_pixel_art_game_b_2026-09-30T02-08-49.png', '打板专业户', '涨停 5 次，手法渐熟',    '达到 5 次'),
+    ('limitup', 'demon',   'Goofy_low_res_pixel_art_game_b_2026-09-30T02-09-05.png', '连板妖股',   '涨停 10 次，市场总龙头', '达到 10 次'),
+    ('limitup', 'god',     'Goofy_low_res_pixel_art_game_b_2026-09-30T02-09-19.png', '封神榜',     '涨停 20 次，入庙受香火', '达到 20 次'),
+    # ── 散户的自我修养（#ff9f43）· 2026-09-30 第三批 ──
+    ('retail', 'threeday', 'Goofy_low_res_pixel_art_game_b_2026-09-30T02-13-11.png', '三日游',     '连打卡 3 天，短线思维',  '达到 3 次'),
+    ('retail', 'weekline', 'Goofy_low_res_pixel_art_game_b_2026-09-30T02-10-02.png', '周线级别',   '连打卡 7 天，拿成周线',  '达到 7 次'),
+    ('retail', 'cut',      'Goofy_low_res_pixel_art_game_b_2026-09-30T02-12-55.png', '割肉离场',   '连续打卡断过，含泪止损', '达到 1 次'),
+    ('retail', 'bomb',     'Goofy_low_res_pixel_art_game_b_2026-09-30T02-10-56.png', '爆仓体验',   '单日净热量超标 800 kcal', '达到 800 次'),
+    ('retail', 'diamond',  'Goofy_low_res_pixel_art_game_b_2026-09-30T02-11-11.png', '价值投资',   '连打卡 100 天，时间的朋友', '达到 100 次'),
 ]
 
 CATS = {'hold': ('持仓与套牢', '#00c896'), 'trade': ('盘中操作', '#ff3b47'),
-        'capital': ('资本游戏', '#5ac8fa'), 'codex': ('交易员图鉴', '#ffb800')}
+        'capital': ('资本游戏', '#5ac8fa'), 'codex': ('交易员图鉴', '#ffb800'),
+        'limitup': ('涨停板敢死队', '#ffb800'), 'retail': ('散户的自我修养', '#ff9f43')}
 LOCKED_BG = '#2a3142'          # .badge.locked 的底（index.html / achievements.wxss 同值）
 INK = (0x0a, 0x0e, 0x1a)       # 剪影色（现存 24×24 图标语言）
 PAPER = (0x0d, 0x12, 0x1f)

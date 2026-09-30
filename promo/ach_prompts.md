@@ -283,7 +283,7 @@ a small stone shrine statue with a golden plaque floating above its head, one th
 **`threeday` · 三日游** —— 连打卡 3 天，短线思维
 
 ```
-three identical small round suns in a diagonal row, the last one melting and drooping, a tiny exhausted face on the middle one
+three identical chunky round suns in a diagonal row, the last one melting and drooping downward into a puddle, a tiny exhausted face with heavy eyelids on the middle sun. Each sun is a flat deep dark burnt umber brown disc with a small flat bright yellow core dot in its middle, and every sun has an extra thick near-black outline so it stays readable on a light orange background
 ```
 
 **`weekline` · 周线级别** —— 连打卡 7 天，拿成周线
@@ -295,7 +295,7 @@ a chunky calendar page with one single big circled mark in the middle, a bent pa
 **`cut` · 割肉离场** —— 连续打卡断过，含泪止损
 
 ```
-a pair of chunky scissors slicing through a thick sausage-like segment, the cut end wobbling, a tiny tearful face on the scissors handle, one drop falling
+a pair of chunky grey metal scissors slicing through a thick dark red-brown cured sausage, the cut end wobbling, a tiny tearful face on the scissors handle, one single dark red drop falling below. The sausage is flat dark maroon-brown, the scissors are flat grey, both with near-black outlines
 ```
 
 **`bomb` · 爆仓体验** —— 单日净热量超标 800 kcal
@@ -307,7 +307,7 @@ a round cartoon bomb with a lit burning fuse, a jagged crack across its bulging 
 **`diamond` · 价值投资** —— 连打卡 100 天，时间的朋友
 
 ```
-a chunky diamond with three big flat facets, a tiny patient half-closed eye on the front facet, one small pickaxe leaning against its base
+a chunky diamond with three big flat facets, a tiny patient half-closed eye on the front facet, one small pickaxe leaning against its base. The diamond facets are flat cyan and flat white only, strictly no purple, no violet, no pink, no magenta; the pickaxe is flat brown wood with a grey head
 ```
 
 ---

@@ -88,6 +88,15 @@ cat_of = {c["id"]: c for c in cats}
 # 2) 30 条画面描述（唯一的创作源，md/txt 共用）
 #    套路与段位卡一致：一个荒诞主体 + 夸张表情 + 一处惨/土/疯的细节。
 #    ⚠️ 44px 显示尺寸是硬约束 ⇒ 每条最多 3 个大形状、不写小道具细节。
+#
+#    🔴⭐ 两条**在描述里显式指定配色族**的硬约束（不靠 PREFIX 的 no-purple 兜底）：
+#      · 洋红抠图键 = R>140 & G<125 & (R−G)>70 & (B−G)>15 ⇒ 主体里任何**紫/粉/洋红高光**
+#        都会被判成背景，抠出内孔 + 混色边超标（阈值 0.5%）。实测炸过：bag 3.61% /
+#        cards 7.92% / chosen 6.68% / cut(初版香肠默认肉粉色) / diamond(初版紫高光)。
+#      · 贴底色可读性：成就格的底 = **赛道色**，所以主色亮度必须离赛道色远。
+#        threeday 初版三个黄太阳贴 #ff9f43（散户赛道橙）只有 **1.05:1**、近底 61.1%
+#        ⇒ 重出为「深棕本体 + 亮黄核心」后升到 5.58:1、近底 0.0%。
+#      ⇒ 凡主体的默认配色可能落在上述两类坑里（肉/粉色、赛道同色系），描述里必须写死色。
 # ---------------------------------------------------------------------------
 SUBJECT = {
     # —— 持仓与套牢 ——
@@ -126,11 +135,11 @@ SUBJECT = {
     "god":       "a small stone shrine statue with a golden plaque floating above its head, one thin incense stick on each side, two tiny closed serene eyes, one chipped ear",
 
     # —— 散户的自我修养 ——
-    "threeday":  "three identical small round suns in a diagonal row, the last one melting and drooping, a tiny exhausted face on the middle one",
+    "threeday":  "three identical chunky round suns in a diagonal row, the last one melting and drooping downward into a puddle, a tiny exhausted face with heavy eyelids on the middle sun. Each sun is a flat deep dark burnt umber brown disc with a small flat bright yellow core dot in its middle, and every sun has an extra thick near-black outline so it stays readable on a light orange background",
     "weekline":  "a chunky calendar page with one single big circled mark in the middle, a bent paper clip holding the page, a tiny proud face on the corner",
-    "cut":       "a pair of chunky scissors slicing through a thick sausage-like segment, the cut end wobbling, a tiny tearful face on the scissors handle, one drop falling",
+    "cut":       "a pair of chunky grey metal scissors slicing through a thick dark red-brown cured sausage, the cut end wobbling, a tiny tearful face on the scissors handle, one single dark red drop falling below. The sausage is flat dark maroon-brown, the scissors are flat grey, both with near-black outlines",
     "bomb":      "a round cartoon bomb with a lit burning fuse, a jagged crack across its bulging body, a tiny panicked wide-open mouth, both eyes popped wide",
-    "diamond":   "a chunky diamond with three big flat facets, a tiny patient half-closed eye on the front facet, one small pickaxe leaning against its base",
+    "diamond":   "a chunky diamond with three big flat facets, a tiny patient half-closed eye on the front facet, one small pickaxe leaning against its base. The diamond facets are flat cyan and flat white only, strictly no purple, no violet, no pink, no magenta; the pickaxe is flat brown wood with a grey head",
 }
 
 missing = [r["icon"] for r in rows if r["icon"] not in SUBJECT]
