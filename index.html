@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.67"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.8.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -216,6 +216,62 @@ body {
 .menu-item .n { flex:1; font-size:14px; }
 .menu-item .v { color:var(--muted); font-size:11px; }
 .menu-item .arr { color:var(--muted); }
+
+/* ============ 交易人格测试子页（v2.8.0）============
+   V1 视觉 = 色块 + 4 字母 + 雷达图（插画由 Mak 后续供给）。
+   ⚠️ 遵守项目设计口径：字号统一、信息密度低 ⇒ 答题态一屏只有「进度 + 题干 + 选项」，
+      窄处垂直堆叠（选项文本自然换行），⛔ 不缩字号硬塞。 */
+.ps-hero { padding:16px 14px 14px; border-radius:14px; text-align:center; border:1px solid var(--border); background:linear-gradient(135deg,#2a1015,#141b2d); }
+.ps-hero.v { background:linear-gradient(135deg,#0b1f30,#141b2d); }
+.ps-hero.x { background:linear-gradient(135deg,#2a2008,#141b2d); }
+.ps-code { font-family:var(--mono); font-size:40px; font-weight:600; letter-spacing:6px; line-height:1.05; color:var(--red); }
+.ps-code.v { color:var(--blue); }
+.ps-code.x { color:var(--amber); }
+.ps-code .x { color:var(--muted); }
+.ps-name { font-size:19px; font-weight:600; margin-top:8px; color:#fff; line-height:1.4; }
+.ps-name .sep { color:var(--muted); font-weight:400; font-size:15px; }
+.ps-slogan { color:var(--muted2); font-size:12px; margin-top:6px; line-height:1.55; }
+.ps-egg { margin-top:10px; padding:8px 10px; border-radius:10px; background:rgba(255,184,0,.10); border:1px solid rgba(255,184,0,.28); font-size:12px; color:#ffd24d; line-height:1.6; }
+.ps-egg .m { color:var(--muted2); }
+.ps-sec { margin-top:14px; }
+.ps-sec-t { font-size:11px; color:var(--muted); margin-bottom:8px; }
+.ps-mini { margin-top:10px; font-size:12px; color:var(--muted2); line-height:1.9; }
+.ps-mini b { color:#fff; font-weight:500; }
+.ps-mini .w { color:var(--muted); }
+/* 四轴明细：一行 = 轴名 + 比分 + 双极条 + 一句判词（「你偏 X」/「中间态」） */
+.ps-ax { margin-bottom:12px; }
+.ps-ax .row { display:flex; align-items:baseline; justify-content:space-between; font-size:12px; margin-bottom:5px; }
+.ps-ax .row .w { color:#fff; }
+.ps-ax .row .sc { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.ps-track { position:relative; height:6px; border-radius:3px; background:var(--panel-hi); overflow:hidden; }
+.ps-track span { position:absolute; top:0; bottom:0; }
+.ps-track .l { left:0; background:var(--red); }
+.ps-track .r { right:0; background:var(--blue); }
+.ps-ax .verdict { font-size:11px; color:var(--amber); margin-top:5px; }
+.ps-ax .verdict.tie { color:var(--muted); }
+.ps-radar { width:100%; height:auto; display:block; margin:2px auto 0; }
+.ps-desc { font-size:13px; line-height:1.75; color:var(--muted2); margin-top:12px; }
+.ps-desc b { color:#fff; font-weight:500; }
+.ps-gb { margin-top:12px; font-size:12px; line-height:1.7; }
+.ps-gb .g { color:var(--green); }
+.ps-gb .b { color:#ff8a3d; }
+.ps-meta { margin-top:12px; font-size:11px; color:var(--muted); line-height:1.7; }
+/* 答题态 */
+.ps-bar { height:4px; border-radius:2px; background:var(--panel-hi); overflow:hidden; }
+.ps-bar i { display:block; height:100%; background:var(--amber); transition:width .25s; }
+.ps-no { font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:10px; }
+.ps-q { font-size:16px; font-weight:600; line-height:1.5; margin-top:6px; color:#fff; }
+.ps-opts { margin-top:12px; }
+.ps-opt { padding:11px 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel-hi); font-size:13px; line-height:1.5; color:var(--muted2); margin-bottom:8px; cursor:pointer; transition:border-color .15s, background .15s, color .15s; }
+.ps-opt:active { background:#20293c; }
+.ps-opt.on { border-color:var(--amber); background:rgba(255,184,0,.10); color:#fff; }
+.ps-opt.fun { display:flex; gap:8px; align-items:flex-start; color:var(--muted); }
+.ps-opt.fun .tag { flex-shrink:0; font-size:10px; padding:1px 5px; border-radius:6px; background:rgba(197,134,192,.16); color:var(--purple); border:1px solid rgba(197,134,192,.3); }
+.ps-opt.fun.on { border-color:var(--purple); background:rgba(197,134,192,.12); }
+.ps-foot { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+.ps-foot .tip { font-size:11px; color:var(--muted); }
+.ps-prev { padding:8px 14px; border-radius:10px; border:1px solid var(--border); background:var(--panel-hi); color:var(--muted2); font-size:12px; cursor:pointer; }
+.ps-prev[disabled] { opacity:.35; cursor:default; }
 
 /* 健康币 / 等级详情页 */
 .coin-hero { margin:10px 14px 0; padding:20px 18px; background:linear-gradient(135deg,#2c1f0a,#1a1306); border:1px solid #4a3010; border-radius:18px; text-align:center; }
@@ -1021,6 +1077,13 @@ body {
           <div class="v" data-page-node-id="mZZFCewvw1ykxFme1sWuyY">影响 BMR</div>
           <div class="arr" data-page-node-id="i8bfs3rP7DQ6c8ObLNxLPM">›</div>
         </div>
+        <!-- 交易人格测试（v2.8.0）：.v 未测显示「去测试」、已测显示 4 字母码（由 render() 写） -->
+        <div class="menu-item" onclick="showPersona()">
+          <div class="ic" style="background:#1b1030;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 20 V10 M9 20 V4 M14 20 V13 M19 20 V7" stroke="#c586c0" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="n">交易人格</div>
+          <div class="v" id="p-persona-code">去测试</div>
+          <div class="arr">›</div>
+        </div>
       </div>
 
       <!-- 身体档案（v2.7.67）：只读可视化摘要 —— 人形图 + 四项资料。
@@ -1194,6 +1257,53 @@ body {
         </div>
         <div class="bmr-box" id="bmr-box"></div>
         <button class="confirm sell" onclick="saveProfile()">上传档案数据</button>
+      </div>
+    </section>
+
+    <!-- ============ 交易人格测试（v2.8.0）============
+         与 #page-body-archive 同一套切页机制（switchTab('persona') + SUB_BACK 手势返回）。
+         ⚠️ 子页**不挂** <celeb>（涨停仪式只属于 5 个 tab 页）；
+            子页**要挂** <hint>（首次完成若解锁成就，提示走「路由给当前页」——本页 display 层
+            同 tab 页，不需要额外挂载；见 jianpan-mp-port 技能里的 hint 路由说明）。
+         三态共用一个 section：#ps-intro（未测）/ #ps-quiz（答题）/ #ps-result（结果），
+         由 renderPersona() 决定显示哪一个 —— ⛔ 不用三个 section，否则返回手势/滚动位置要各管一份。 -->
+    <section class="page" id="page-persona">
+      <div class="backrow" onclick="backFromPersona()"><div class="arrow">‹</div><div class="tt">交易人格测试</div></div>
+      <div class="pagetitle"><div class="k">PERSONA TEST</div><div class="t">交易人格测试</div></div>
+
+      <!-- 态 1 · 未测：介绍 + 开始 -->
+      <div class="card" id="ps-intro">
+        <div class="card-title"><span class="t">16 型交易人格</span><span class="m">16 题 · 约 3 分钟</span></div>
+        <div class="ps-desc">四个维度，看清你<b>怎么下决定、拿多久、信什么、动不动手</b>。没有对错，只有像不像你。</div>
+        <div class="ps-mini" id="ps-axis-mini"></div>
+        <button class="confirm buy" style="margin-top:12px;" onclick="personaStart()">开始测试</button>
+      </div>
+
+      <!-- 态 2 · 答题：一页一题（§3.2 —— 一页 16 题滚动会劝退，进度感是完成率的关键）-->
+      <div class="card" id="ps-quiz" style="display:none;">
+        <div class="ps-bar"><i id="ps-bar-i" style="width:0;"></i></div>
+        <div class="ps-no" id="ps-no">1 / 16</div>
+        <div class="ps-q" id="ps-q"></div>
+        <div class="ps-opts" id="ps-opts"></div>
+        <div class="ps-foot">
+          <button class="ps-prev" id="ps-prev" onclick="personaPrev()">上一题</button>
+          <span class="tip">选完自动进入下一题</span>
+        </div>
+      </div>
+
+      <!-- 态 3 · 结果：色块 + 4 字母 + 雷达图（插画由 Mak 后续供给，规划文档 §4.4）-->
+      <div class="card" id="ps-result" style="display:none;">
+        <div class="ps-hero" id="ps-hero">
+          <div class="ps-code" id="ps-code"></div>
+          <div class="ps-name" id="ps-name"></div>
+          <div class="ps-slogan" id="ps-slogan"></div>
+          <div class="ps-egg" id="ps-egg" style="display:none;"></div>
+        </div>
+        <div class="ps-sec"><div class="ps-sec-t">四轴明细</div><div id="ps-axes"></div></div>
+        <div class="ps-sec"><div class="ps-sec-t">人格雷达</div><div id="ps-radar"></div></div>
+        <div id="ps-portrait"></div>
+        <div class="ps-meta" id="ps-meta"></div>
+        <button class="confirm sell" style="margin-top:12px;" onclick="personaRestart()">重新测试</button>
       </div>
     </section>
 
@@ -2139,6 +2249,303 @@ const RANKS = [
   { name:'股神', minLv:30, color:'#d4af37', desc:'登顶健交所 · 封神' },
 ];
 
+/* ==== PERSONA_BEGIN（由 tools/gen_persona_js.py 从「交易人格测试-题面.json」生成，⛔ 勿手改）==== */
+/* 改题面 = 改 JSON ⇒ 跑 gen_persona_js.py ⇒ 跑 mp_build.py。手改这里会被 --check 判红。 */
+const FUN_EGG_THRESHOLD = 6;
+
+const PERSONA_AXES = [
+  { id:1, name:'决策依据', a:{L:'K', label:'K线流'}, b:{L:'V', label:'价值流'} },
+  { id:2, name:'持仓周期', a:{L:'S', label:'短线派'}, b:{L:'L', label:'长线派'} },
+  { id:3, name:'信息偏好', a:{L:'E', label:'情绪流'}, b:{L:'R', label:'逻辑流'} },
+  { id:4, name:'操作风格', a:{L:'A', label:'主动派'}, b:{L:'P', label:'躺平派'} }
+];
+
+const PERSONA_QUESTIONS = [
+  { no:1, q:'周一开盘前 15 分钟，你通常在做什么？',
+    opts:[
+      { t:'刷财经群/短视频，看大家都在吹什么热点', axis:3, L:'E' },
+      { t:'已经列好今日计划、挂好单，等开盘成交', axis:4, L:'A' },
+      { t:'打开持仓看一眼，反正拿了很久，不打算动', axis:2, L:'L' },
+      { t:'打开K线看一眼昨天的收盘价，找支撑位', axis:1, L:'K' }
+    ],
+    fun:'打开群先骂一句“狗庄今天又要割我了”' },
+  { no:2, q:'你持仓的票突然闪崩跌 5%，你的第一反应是？',
+    opts:[
+      { t:'立刻割肉，先跑了再说', axis:2, L:'S' },
+      { t:'打开K线看支撑位，没破就拿着', axis:1, L:'K' },
+      { t:'赶紧去群里问别人怎么办', axis:3, L:'E' },
+      { t:'关掉软件，该吃吃该练练，不看了', axis:4, L:'P' }
+    ],
+    fun:'把软件最小化，假装它没发生' },
+  { no:3, q:'你靠最近一笔操作赚了 10%，你会？',
+    opts:[
+      { t:'立刻加仓，这次感觉能梭哈', axis:4, L:'A' },
+      { t:'止盈一半，落袋为安', axis:1, L:'V' },
+      { t:'继续拿着，感觉还能涨更多', axis:2, L:'L' },
+      { t:'把这一笔记下来，复盘自己的判断', axis:3, L:'R' }
+    ],
+    fun:'立刻截图发家族群，说自己是股神' },
+  { no:4, q:'朋友给你推荐了一只他“内部渠道”的票，你会？',
+    opts:[
+      { t:'立刻满仓冲，跟着一起喝汤', axis:4, L:'A' },
+      { t:'自己查基本面、看估值，再决定', axis:3, L:'R' },
+      { t:'先买一点点试试水', axis:2, L:'S' },
+      { t:'不买，我不信这种消息', axis:1, L:'V' }
+    ],
+    fun:'先转三个财经群，问大家这票能不能接盘' },
+  { no:5, q:'你连续 3 天坚持记录交易/饮食，今天突然看到一个热门机会/高油外卖，你会？',
+    opts:[
+      { t:'管他什么计划，先冲了再说', axis:2, L:'S' },
+      { t:'先记一笔，等明天复盘再决定', axis:3, L:'R' },
+      { t:'算了一下，这一顿/这一笔不值，忍住了', axis:1, L:'V' },
+      { t:'完全没感觉，按原计划走', axis:4, L:'P' }
+    ],
+    fun:'满仓冲，赢了换手机，输了吃一个月泡面' },
+  { no:6, q:'你能接受账户最大浮亏是多少？',
+    opts:[
+      { t:'亏 1% 我就睡不着', axis:3, L:'E' },
+      { t:'5% 以内可以接受，超了立刻止损', axis:2, L:'S' },
+      { t:'20% 以内都能拿住，相信它会回来', axis:1, L:'V' },
+      { t:'只要方向对，亏 50% 我也能扛着不动', axis:4, L:'P' }
+    ],
+    fun:'跌 50% 我就当存定期了，假装没这回事' },
+  { no:7, q:'你做交易/健身计划的周期通常是？',
+    opts:[
+      { t:'今天赚了/吃爽了就行，不想明天', axis:2, L:'S' },
+      { t:'先看一周的行情/体重数据，再决定怎么调', axis:3, L:'R' },
+      { t:'按月做计划，一步步执行', axis:4, L:'A' },
+      { t:'我是拿 3 年以上的价投/长期减脂目标', axis:1, L:'V' }
+    ],
+    fun:'早上买下午卖，再不卖我手心出汗' },
+  { no:8, q:'当大盘连涨 3 天，身边人都在晒盈利截图，你会？',
+    opts:[
+      { t:'立刻冲进去，怕踏空', axis:3, L:'E' },
+      { t:'等回调了再买，不追高', axis:1, L:'K' },
+      { t:'我已经在里面拿了很久，继续持有', axis:2, L:'L' },
+      { t:'和我没关系，我该干嘛干嘛', axis:4, L:'P' }
+    ],
+    fun:'急得拍大腿，感觉全世界就我没赚钱' },
+  { no:9, q:'你看盘的频率通常是？',
+    opts:[
+      { t:'每 5 分钟看一次，不看我心慌', axis:3, L:'E' },
+      { t:'每天开盘收盘各看一次', axis:1, L:'K' },
+      { t:'一周看一次就行', axis:2, L:'L' },
+      { t:'买完就卸载软件，半年后再看', axis:4, L:'P' }
+    ],
+    fun:'每分钟刷一次，手机电量 80% 看盘耗到 10%' },
+  { no:10, q:'一笔操作亏了钱，你通常会怎么做？',
+    opts:[
+      { t:'骂两句庄，转头就想赶紧把亏的赚回来', axis:2, L:'S' },
+      { t:'复盘自己哪里错了，记到交易日记里', axis:3, L:'R' },
+      { t:'再也不碰这个板块/这种吃的了', axis:4, L:'P' },
+      { t:'无所谓，亏了就亏了，长期会回来', axis:1, L:'V' }
+    ],
+    fun:'发个朋友圈写“又给庄上供了”' },
+  { no:11, q:'你认为赚钱的核心是？',
+    opts:[
+      { t:'消息快、手速快，追热点就能赚', axis:2, L:'S' },
+      { t:'主动找圈子、跟对人一起动手，比自己瞎研究稳', axis:4, L:'A' },
+      { t:'自己摸透规律，有一套自己的交易系统', axis:3, L:'R' },
+      { t:'拿住好东西，时间会给你回报', axis:1, L:'V' }
+    ],
+    fun:'运气好，碰到了就是我的，碰不到骂街' },
+  { no:12, q:'当你在交易里连续亏了 3 次 / 连续 3 天没管住嘴吃多了，你会？',
+    opts:[
+      { t:'加大仓位/报复性吃一顿，把损失赚回来', axis:3, L:'E' },
+      { t:'停下来空仓/断食一天，调整状态', axis:4, L:'A' },
+      { t:'想想自己这套方法到底值不值得继续', axis:1, L:'V' },
+      { t:'按原计划继续，反正长期会回来', axis:2, L:'L' }
+    ],
+    fun:'删软件三个月，三个月后又手痒下回来' },
+  { no:13, q:'你的交易/健身桌面是？',
+    opts:[
+      { t:'堆满了各种打开的软件、聊天框、外卖订单', axis:4, L:'A' },
+      { t:'只有必要的行情软件/备忘录，干净清爽', axis:3, L:'R' },
+      { t:'各种指标、提醒、闹钟拉满', axis:1, L:'K' },
+      { t:'啥软件都没有，想操作了随手点一下', axis:2, L:'S' }
+    ],
+    fun:'开了 8 个炒股群、3 个财经号、2 个外卖软件' },
+  { no:14, q:'你最讨厌哪种情况？',
+    opts:[
+      { t:'卖了之后股票立刻涨停，位置没看准', axis:1, L:'K' },
+      { t:'拿着不动一直跌，被套牢', axis:2, L:'L' },
+      { t:'别人赚得比我多，我在这干着急', axis:3, L:'E' },
+      { t:'老老实实按计划执行，结果还是做错了', axis:4, L:'A' }
+    ],
+    fun:'刚卖就涨停，感觉庄在我电脑摄像头里盯着我' },
+  { no:15, q:'如果用一句话形容你的交易/健身风格，你选？',
+    opts:[
+      { t:'一顿操作猛如虎，一看亏损二百五', axis:3, L:'E' },
+      { t:'小打小闹，赚点奶茶钱就满足', axis:4, L:'P' },
+      { t:'看准了就干，赚一波大的', axis:1, L:'K' },
+      { t:'等风来，风来了我就是主角', axis:2, L:'L' }
+    ],
+    fun:'我的持仓和我的体重，都在等一个奇迹' },
+  { no:16, q:'有个新机会摆在你面前，你最想先搞清楚的是？',
+    opts:[
+      { t:'这事儿背后的逻辑和依据站不站得住', axis:3, L:'R' },
+      { t:'K线和量能给的位置好不好', axis:1, L:'K' },
+      { t:'我能不能拿得住、要拿多久', axis:2, L:'L' },
+      { t:'能不能先不动它，等等看', axis:4, L:'P' }
+    ],
+    fun:'先转发到三个群，听听大家怎么说再决定' }
+];
+
+/* 16 个正经型：码 → 名 + 描述 + 优势 + 风险 */
+const PERSONA_TYPES = {
+  KLEA: { name:'情绪捕手', desc:'你对市场情绪特别敏感，谁在喊、谁在跑你都感觉得到，而且真敢顺着大势下重注。看图做波段，拿得住，也常被人声推着走。', good:'顺势能力强，敢在大行情里重仓。', bad:'情绪来得快，你下手的动作比判断还快一步。' },
+  KLEP: { name:'长线画饼师', desc:'一被套就翻开月线，告诉自己这点波动不算什么，长期一定没问题；然后给自己画一张饼，关掉软件。饼画得越来越圆，仓位一动不动。', good:'情绪稳，不会因为几天浮亏就割在地板上。', bad:'把「拿长线」当安慰剂，问题一直没被处理。' },
+  KLRA: { name:'大波段猎手', desc:'你看图看周期，也看逻辑；平时安静，等形态和周期都对上才出手，一次要吃一大段。饮食也是——不折腾小动作，要改就一次性把习惯改到位。', good:'出手少但每次都想清楚，技术派里少数真动手的人。', bad:'一旦判断错了周期，认错会比止损更晚。' },
+  KLRP: { name:'趋势跟随者', desc:'你信趋势不信手速：看懂了就上车，然后关掉软件，让它自己走。饮食和运动走同一套——定好结构就不折腾，细枝末节不看。', good:'不折腾，跟得住的都是大趋势。', bad:'出场也靠「感觉」，容易把趋势走到结束才醒。' },
+  KSEA: { name:'打板敢死队', desc:'眼里只有盘面和热点：哪个板块在动、哪根线快要突破，你比谁都先看见。看见就想上手，从不隔夜观察。吃也一样——想吃就今天吃，先干为敬。', good:'出手快、不犹豫，机会来了你总在场。', bad:'全靠盘面情绪拍板，回头多半是接下最后一棒。' },
+  KSEP: { name:'模拟盘之王', desc:'看盘比谁都勤，群里喊得比谁都响：今天追这个、明天打那个，分析头头是道，只是从没真下过手。热点收藏了一堆，然后就忘了。', good:'看得准、说得清，判断力其实在线。', bad:'永远停在「再看看」，机会和缺口一起溜走。' },
+  KSRA: { name:'K线大师', desc:'看图画线是你的母语：支撑位、量能、形态一眼就懂，该出手时干脆利落。饭桌上也一样——这顿多少卡、值不值，你心里有数，说吃就吃、说停就停。', good:'有自己的一套方法，快而不乱。', bad:'短线跑得太勤，赚的常被自己的手速磨掉。' },
+  KSRP: { name:'空仓战术家', desc:'复盘、画线、做计划样样都干，脑子里的作战图能铺满一桌，唯独手上一直空仓。日记记了三本、提醒设了十几个，就是不真按下去。', good:'想得最清楚，风险看得比谁都明白。', bad:'战术攒了一柜子，全在纸上，一次没落地。' },
+  VLEA: { name:'价投跟单员', desc:'你认同价值投资、也愿意拿很久，但买什么总要看看别人买没买——有人说好、群里热闹，你才敢动手，而且一动手就主动加。方向没错，节奏常是别人的。', good:'拿得住，长期心态好，不会追涨杀跌。', bad:'把别人的判断当成自己的理由，错了也不知道错在哪。' },
+  VLEP: { name:'佛系盘外人', desc:'你不盯盘、不算细账，软件半个月开一次；买了就放着，涨了高兴几天，跌了也不动。饮食同一套——不太计划，但也没什么执念。', good:'心态最稳，几乎不会被短期波动影响生活。', bad:'太随缘，等到想管的时候，问题已经积了大半年。' },
+  VLRA: { name:'产业挖井人', desc:'你习惯把一件事挖到底：行业怎么运转、这个位置贵不贵、要等多久，都想明白才动手；一旦动手就长期陪跑。饮食也一样，你会研究到分子层面。', good:'研究深、拿得久、还敢在低位加，长期胜率高。', bad:'挖得太深，容易对已经错了的判断投入更多。' },
+  VLRP: { name:'时间的朋友', desc:'你只认两件事——东西够好、价格够便宜，剩下交给时间。买完就不看，跌了反而踏实，因为能买得更便宜。减脂也是这套：慢慢来，方向对就行。', good:'真正的长期主义，拿得住也放得开。', bad:'把「长期」当成不看不管的理由，可能几年都不复盘。' },
+  VSEA: { name:'价值快闪舞王', desc:'开口就是估值、现金流、便宜不便宜，说得像要拿十年；结果持仓只活三天。群里一喊，你冲得比谁都快——舞步花哨，节奏全靠现场气氛。', good:'价值这套语言你张口就来，判断有底子。', bad:'持仓时长和你的说辞对不上，赚的常被自己跳没。' },
+  VSEP: { name:'打折囤货仓鼠', desc:'看到便宜就想囤一点，囤完就忘：涨了不卖、跌了不看，小仓库越堆越满。冰箱和自选股是一个逻辑——只要打折，就没法空手离开。', good:'天生对「便宜」敏感，出手不情绪化。', bad:'囤着不动，仓库越满越乱，最后自己都记不清有什么。' },
+  VSRA: { name:'事件驱动猎手', desc:'你不太看图形，更关心事情本身：这条消息到底改了什么、逻辑站不站得住。想清楚就快速出手，赚完就撤，不恋战。', good:'抓事件抓得准，行动力强，进出都利落。', bad:'事件的热度走得快，慢半拍就变成买单的人。' },
+  VSRP: { name:'评论区精算师', desc:'你能把一笔账算到小数点后两位，估值、赔率、性价比讲得比谁都清楚；只不过这些多发生在评论区。真到下手那一刻，你通常会再想想。', good:'算得清、看得透，几乎不犯低级错误。', bad:'账算得越细，越容易一直不下手。' }
+};
+
+/* 6 个彩蛋型：名字即键（彩蛋没有码） */
+const PERSONA_EGGS = {
+  '追高本高': { desc:'你追高追出了本能：涨得越猛你越兴奋，等它开始跌，你刚好买在最高点。上次的教训你记得，但下次机会来了，你还是会冲。', good:'热情是真的，行动力也是真的。', bad:'买点永远比别人贵一点，这是你的特色。' },
+  '气氛组荣誉组长': { desc:'你最大的贡献是气氛：有热闹的地方一定有你，涨了喊牛、跌了喊庄，操作很少，情绪很满。健身房里也一样——装备先买齐。', good:'你在的地方就不冷场，社群活跃度全靠你。', bad:'喊得多做得少，热闹完了账还是那个账。' },
+  '盘口外卖员': { desc:'你的主线任务是把外卖从楼下送上楼：行情看两眼，订单下得快，跟着热门跑，热度和热量一起送上门。收盘了，人也饿了。', good:'执行力一流，说干就干。', bad:'跑得最勤的那个，账单也最长。' },
+  '广场舞操盘手': { desc:'跌了不慌、涨了不追，你有自己的节奏：该跳跳、该吃吃、该记记。看着像不管，其实每天都在慢慢变好，只是你不爱声张。', good:'心态好、节奏稳，能坚持到最后。', bad:'太低调了，没人知道你其实操作得不错。' },
+  '持仓段子手': { desc:'不管赚还是亏，你都能写成段子发出去。亏了叫「给庄上供」，赚了叫「手感来了」；账不一定好看，但你的评论区一定好看。', good:'情绪出口健康，从不为亏钱难过太久。', bad:'段子写得比复盘勤，同一个笑点把问题盖过去了。' },
+  '消息搬运工': { desc:'你的特长是转发：财经号、群消息、朋友的小道消息，你都第一时间搬到各个群里。搬得飞快，只是很少自己验证。', good:'信息面最广，热点你从不落后。', bad:'消息自己没消化，容易替别人抬轿子。' }
+};
+
+/* 平局（X）在**命名展示层**的处置：判据不动，只是名字怎么显示 */
+const PERSONA_TIE_JOIN = ' ↔ ';
+const PERSONA_SWING_NAME = '多面摇摆型';   /* ≥2 轴中间态时的通用名 */
+const PERSONA_SWING_DESC = '你不是「哪边都行」，而是「哪边都看得懂」—— 四轴里有两轴以上，两边你都能接受，所以风格随场景切换。不算缺点（不死守一套方法），只是要留神：摇摆的时候，最容易在同一个坑里换着姿势踩两次。';   /* 上面这个名字的专属描述（摇摆型没有码，取不到 PERSONA_TYPES 条目）*/
+
+/* 彩蛋名按**抽象指数**分档（越高越离谱）；最低档 == FUN_EGG_THRESHOLD */
+const PERSONA_EGG_TIERS = [
+  { minFun:6, name:'消息搬运工' },
+  { minFun:7, name:'持仓段子手' },
+  { minFun:8, name:'气氛组荣誉组长' },
+  { minFun:9, name:'盘口外卖员' },
+  { minFun:10, name:'广场舞操盘手' },
+  { minFun:11, name:'追高本高' }
+];
+/* ==== PERSONA_END ==== */
+
+/* ---- 交易人格测试 · 内核纯函数（v2.8.0 起）----
+   ⚠️ 三个函数都**不沾 DOM**，就是为了被 mp_build.py 抽进小程序 lib/calc.js，
+      两端判定口径逐字节一致。⛔ 别在这里加任何 document / 渲染代码，
+      否则会被判成渲染层 ⇒ 在小程序侧变成 __fire 空壳 ⇒ **静默算出错的码**。
+
+   🔴 判据（⛔ 别改）：每轴**轴内比绝对分**（A 极票数 vs B 极票数），票多者胜；
+      平局出 `X`，**不做任何次级判据**（不加权、不看顺序、不回退看总分）。
+   ⚠️ 曾有人提过"比占比"看起来更公平 —— 现量否决：机会少的一极每分更值钱
+      （A 8 个机会 / B 7 个机会时，B 只要也拿 1 分就反超）⇒ 占比会**反向放大**偏斜。
+      公平性由**输入侧硬约束**保证（16 题下每轴两极各 8 个机会，见题面闸 A3）。
+
+   入参约定（两端页面层必须一致）：
+     answers = 数组，下标 = 题序号（0-based，长度 = 题数）
+       · 0..3  ⇒ 选了第 n 个正经选项
+       · -1    ⇒ 选了搞笑项（只累计抽象指数，不计任何轴）
+       · null / undefined ⇒ 未答（不计）
+   ⚠️ 判"未答"必须用严格判等：`0` 是合法选项下标，⛔ 别写 `if (!v) continue`。 */
+function personaScore(answers) {
+  var perAxis = {}, fun = 0, a, ax, i, v, o;
+  for (a = 0; a < PERSONA_AXES.length; a++) {
+    ax = PERSONA_AXES[a];
+    perAxis[ax.id] = {};
+    perAxis[ax.id][ax.a.L] = 0;
+    perAxis[ax.id][ax.b.L] = 0;
+  }
+  for (i = 0; i < PERSONA_QUESTIONS.length; i++) {
+    v = answers ? answers[i] : null;
+    if (v === null || v === undefined) continue;
+    if (v < 0) { fun += 1; continue; }
+    o = PERSONA_QUESTIONS[i].opts[v];
+    if (!o) continue;
+    perAxis[o.axis][o.L] += 1;
+  }
+  return { perAxis: perAxis, fun: fun };
+}
+
+/* 4 轴轴内比绝对分 ⇒ 4 字母码；平局该轴记 'X'（最常见的是 1 个 X，占约 42%） */
+function personaCode(answers) {
+  var sc = personaScore(answers), code = '', a, ax, m, ca, cb;
+  for (a = 0; a < PERSONA_AXES.length; a++) {
+    ax = PERSONA_AXES[a]; m = sc.perAxis[ax.id];
+    ca = m[ax.a.L]; cb = m[ax.b.L];
+    code += (ca > cb) ? ax.a.L : (cb > ca) ? ax.b.L : 'X';
+  }
+  return code;
+}
+
+/* 彩蛋名：按**抽象指数**分档（越高越离谱），低于阈值返回空串 */
+function personaEggName(fun) {
+  var i, hit = '';
+  for (i = 0; i < PERSONA_EGG_TIERS.length; i++) {
+    if (fun >= PERSONA_EGG_TIERS[i].minFun) hit = PERSONA_EGG_TIERS[i].name;
+  }
+  return (fun >= FUN_EGG_THRESHOLD) ? hit : '';
+}
+
+/* 结果组装（纯数据，不碰 DOM）—— 输入是「码 + 每轴比分 + 抽象分」，输出是页面要显示的一切。
+   🔴 为什么必须**独立于 answers**（v2.8.0 实测踩到）：结果页要从**存档**还原显示，而存档里
+      只有 { code, axes:[{id,a,b}], fun }，**没有原始答案**（也不该存：§3.2 明令不存答卷）。
+      一开始把这段逻辑写在 personaOf(answers) 里、结果页直接用存档字段 ⇒ 存档缺 names /
+      tieCount / axes[].aLabel ⇒ 答完 16 题直接 TypeError 白屏。
+      ⇒ 口径只能有一份：personaOf 只是「answers → 三件套」的薄封装，显示一律走 personaDisplay。
+   ⭐ 平局只在**命名层**处理（判据保持纯净，⛔ 不许把 X 代入某一极消歧 —— 那会让
+      含 X 的人被系统性归到那一极，正是文档警告过的隐蔽偏斜）：
+        0 个 X ⇒ 单一名字（约 31.5%）
+        1 个 X ⇒ 两个候选名并列（约 42.2%，如 `KXEA` ⇒ 打板敢死队 ↔ 价值快闪舞王）
+        ≥2 个 X ⇒ 通用名「多面摇摆型」（约 26.3%）
+   ⚠️ axes 的数组顺序/长度必须与 PERSONA_AXES 对齐（页面与存档都按这个约定传）。 */
+function personaDisplay(code, axes, fun) {
+  code = String(code || ''); fun = fun || 0;
+  var detail = [], xIdx = [], names = [], name = '';
+  var a, ax, ca, cb, win, i, k1, k2;
+  for (a = 0; a < PERSONA_AXES.length; a++) {
+    ax = PERSONA_AXES[a];
+    ca = (axes && axes[a]) ? (axes[a].a || 0) : 0;
+    cb = (axes && axes[a]) ? (axes[a].b || 0) : 0;
+    win = (ca > cb) ? ax.a : (cb > ca) ? ax.b : null;
+    if (!win) xIdx.push(a);
+    detail.push({ id: ax.id, name: ax.name, aLabel: ax.a.label, bLabel: ax.b.label,
+                  a: ca, b: cb, tie: !win, winLabel: win ? win.label : '' });
+  }
+  if (xIdx.length === 0) {
+    name = PERSONA_TYPES[code] ? PERSONA_TYPES[code].name : code;
+    names = [name];
+  } else if (xIdx.length === 1) {
+    i = xIdx[0]; ax = PERSONA_AXES[i];
+    k1 = code.slice(0, i) + ax.a.L + code.slice(i + 1);
+    k2 = code.slice(0, i) + ax.b.L + code.slice(i + 1);
+    names = [PERSONA_TYPES[k1] ? PERSONA_TYPES[k1].name : k1,
+             PERSONA_TYPES[k2] ? PERSONA_TYPES[k2].name : k2];
+    name = names.join(PERSONA_TIE_JOIN);
+  } else {
+    name = PERSONA_SWING_NAME;
+    names = [name];
+  }
+  return { code: code, name: name, names: names, fun: fun,
+           eggName: personaEggName(fun), tieCount: xIdx.length, axes: detail };
+}
+
+/* answers → 码 / 逐轴比分 / 抽象指数 → personaDisplay（⛔ 显示逻辑不在这里重复一份） */
+function personaOf(answers) {
+  var sc = personaScore(answers), arr = [], i, ax, m;
+  for (i = 0; i < PERSONA_AXES.length; i++) {
+    ax = PERSONA_AXES[i]; m = sc.perAxis[ax.id];
+    arr.push({ id: ax.id, a: m[ax.a.L], b: m[ax.b.L] });
+  }
+  return personaDisplay(personaCode(answers), arr, sc.fun);
+}
+
 /* ---- 经验 → 等级 换算（v2.7.59 起）----
    ⚠️ 这里是**唯一**的等级换算口径：PWA 的 currentRank()、「我的」页 lv、段位页进度条，
    以及小程序 lib/calc.js（由 mp_build.py 抽取）全部走它。⛔任何地方都不要再写 exp/100。
@@ -2817,6 +3224,9 @@ function render() {
   document.getElementById('p-coins').textContent = state.coins;
   document.getElementById('p-badge-count').textContent = unlocked + ' / ' + ACHIEVEMENTS.length;
   document.getElementById('p-card-count').textContent = collectPct() + '%';
+  /* 交易人格菜单右侧：未测「去测试」/ 已测 4 字母码。⚠️ 键存在性判定（⛔ 不用 falsy） */
+  const _pce = document.getElementById('p-persona-code');
+  if (_pce) _pce.textContent = (('persona' in state) && state.persona && state.persona.code) ? state.persona.code : '去测试';
 
   // 成就殿堂
   const tier = currentAchTier(unlocked);
@@ -5885,6 +6295,266 @@ function showBodyArchive() { switchTab('body-archive'); }
    未保存返回时「图变了、其余三项没变」是既有设计，不是不一致 bug。 */
 function backFromBodyArchive() { switchTab('profile'); }
 
+/* ══════════════════════════════════════════════════════════════════════
+   交易人格测试子页（v2.8.0）—— 规划文档《健身交易员-交易人格测试-规划》§3
+   ──────────────────────────────────────────────────────────────────────
+   判据全在内核：personaOf / personaCode / personaScore / personaEggName 都是 PWA 顶层纯函数
+   ⇒ 已被 mp_build 抽进小程序 lib/calc.js（两端同一份字节）。本段只写**渲染 + 答题态**。
+   🔴 题面 / 名字 / 文案一律取自 PERSONA_* 常量（由 tools/gen_persona_js.py 从题面 JSON 生成）
+      ⇒ ⛔ 本段不许再抄一份文字，否则「改 JSON ⇒ 两端就一致」这条保证会在这里断掉。
+   🔴 答案不落盘：答题态挂在 window.__ps（页面私有临时态），中途退出即丢（§3.2 ⛔ 不存半截答卷）。
+      ⛔ 也不写**列 0** 的 var：mp_build 的 DECL_RE 会把列 0 的 const/let/var 一律当常量抽进
+      小程序内核 ⇒ 页面私有态会躺进 lib/calc.js，将来 grep 到会被误读成「小程序在用这份状态」。
+   ⚠️ 老档兼容：判定用**键存在性**（'persona' in state）。defaultState() 里⛔ 不加 persona 字段 ——
+      加了它就变成「键存在但值为空」，与「老档根本没这个键」再也分不开（本项目铁律「没带 ≠ 空」）。
+   ⚠️ 本段这几个纯字符串函数（psMem / psGbHtml / personaSkin / personaRadarSvg）已登记进
+      mp_build.py 的 RENDER_ONLY —— 它们不沾 DOM，否则会被搬进内核当「内核逻辑」。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 答题临时态（惰性建一次）。🔴 不进 state：state 会被 saveState 落盘。 */
+function psMem() {
+  return window.__ps || (window.__ps = { a: null, i: 0, lock: false, poleMax: null });
+}
+
+/* 主色皮肤：按**第 1 轴（决策依据）**取 —— K 红 / V 蓝 / 中间态琥珀。
+   ⛔ 不做「4 个字母 4 种颜色」：色块是背景，颜色一多就变成噪音、盖住 4 字母本身。 */
+function personaSkin(code) {
+  var c = String(code || '').charAt(0);
+  if (c === 'V') return { cls: 'v', hex: '#5ac8fa' };
+  if (c === 'K') return { cls: 'k', hex: '#ff3b47' };
+  return { cls: 'x', hex: '#ffb800' };
+}
+
+/* 优势 / 风险两行 */
+function psGbHtml(good, bad) {
+  var s = '';
+  if (good) s += '<div class="g">优势：' + escHtml(good) + '</div>';
+  if (bad) s += '<div class="b">风险：' + escHtml(bad) + '</div>';
+  return s ? '<div class="ps-gb">' + s + '</div>' : '';
+}
+
+/* 8 根辐条的雷达图。⭐ 为什么是 8 根而不是 4 根：
+     每个维度的两极必须落在**对角**（K↔V / S↔L / E↔R / A↔P）⇒ 顶点天然按角度排序
+     ⇒ 多边形**永远不会自交**。（4 根轴 + 顶点落在正负两侧的画法会画出蝴蝶结，已排掉。）
+   ⚠️ 半径 = 该极得分 ÷ **该极的机会数**（⛔ 不是 ÷ 总分）：轴内比的是绝对分，
+      两端必须同尺度 —— 否则答的搞笑项越多，图形越缩，看起来像「什么都不像」。 */
+function personaRadarSvg(axes, hex) {
+  var R = 62, cx = 160, cy = 96, i, j, o, ang, ux, uy, r;
+  var mx = {}, t = {};
+  for (i = 0; i < PERSONA_QUESTIONS.length; i++) {
+    for (j = 0; j < PERSONA_QUESTIONS[i].opts.length; j++) {
+      o = PERSONA_QUESTIONS[i].opts[j]; t[o.axis + o.L] = (t[o.axis + o.L] || 0) + 1;
+    }
+  }
+  var seq = [];
+  for (i = 0; i < PERSONA_AXES.length; i++) {
+    seq.push({ label: PERSONA_AXES[i].a.label, v: axes[i].a, key: PERSONA_AXES[i].id + PERSONA_AXES[i].a.L });
+  }
+  for (i = 0; i < PERSONA_AXES.length; i++) {
+    seq.push({ label: PERSONA_AXES[i].b.label, v: axes[i].b, key: PERSONA_AXES[i].id + PERSONA_AXES[i].b.L });
+  }
+  var spokes = '', ring = [], poly = [], dots = '', labs = '', pt;
+  for (i = 0; i < seq.length; i++) {
+    ang = (-90 + i * 45) * Math.PI / 180;
+    ux = Math.cos(ang); uy = Math.sin(ang);
+    spokes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + (cx + ux * R).toFixed(1) +
+              '" y2="' + (cy + uy * R).toFixed(1) + '" stroke="#1f2638"/>';
+    ring.push((cx + ux * R).toFixed(1) + ',' + (cy + uy * R).toFixed(1));
+    r = R * (seq[i].v / (t[seq[i].key] || 1));
+    pt = [(cx + ux * r).toFixed(1), (cy + uy * r).toFixed(1)];
+    poly.push(pt.join(','));
+    dots += '<circle cx="' + pt[0] + '" cy="' + pt[1] + '" r="2.4" fill="' + hex + '"/>';
+    labs += '<text x="' + (cx + ux * (R + 15)).toFixed(1) + '" y="' + (cy + uy * (R + 15) + 3.5).toFixed(1) +
+            '" text-anchor="' + (Math.abs(ux) < 0.01 ? 'middle' : (ux > 0 ? 'start' : 'end')) +
+            '" font-size="10" fill="#9aa8be">' + escHtml(seq[i].label) + '</text>';
+  }
+  return '<svg class="ps-radar" viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg">' +
+    '<polygon points="' + ring.join(' ') + '" fill="none" stroke="#1f2638"/>' + spokes +
+    '<polygon points="' + poly.join(' ') + '" fill="' + hex + '" fill-opacity="0.18" stroke="' + hex +
+    '" stroke-width="1.5"/>' + dots + labs + '</svg>';
+}
+
+function showPersona() { switchTab('persona'); renderPersona(); }
+/* ⚠️ 返回即丢弃答题态（§3.2：中途退出默认不保存，重进从头开始） */
+function backFromPersona() {
+  var m = psMem();
+  m.a = null; m.i = 0; m.lock = false;
+  switchTab('profile');
+}
+function personaStart() {
+  var m = psMem();
+  m.a = new Array(PERSONA_QUESTIONS.length).fill(null);   // null=未答 / -1=搞笑项 / 0..3=正经选项
+  m.i = 0; m.lock = false;
+  renderPersona();
+}
+function personaRestart() { personaStart(); }
+function personaPrev() {
+  var m = psMem();
+  if (!m.a || m.i <= 0) return;
+  m.i--; renderPersona();
+}
+/* 点选项：先给出 300ms 反馈（让「点到了」看得见），再进下一题；期间上锁防连点跳题 */
+function personaPick(k) {
+  var m = psMem();
+  if (!m.a || m.lock) return;
+  m.a[m.i] = (k === 4) ? -1 : k;
+  var box = document.getElementById('ps-opts');
+  var btns = box ? box.querySelectorAll('.ps-opt') : [];
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('on');
+  if (btns[k]) btns[k].classList.add('on');
+  m.lock = true;
+  var at = m.i;
+  setTimeout(function () {
+    var mm = psMem();
+    /* 这 300ms 里用户可能已经返回上一题 / 退出子页 ⇒ 这一次切换作废（否则会跳题或误判答完） */
+    if (!mm.a || mm.i !== at || curTab !== 'persona') { mm.lock = false; return; }
+    mm.lock = false;
+    if (mm.i < PERSONA_QUESTIONS.length - 1) { mm.i++; renderPersona(); }
+    else personaFinish();
+  }, 300);
+}
+
+/* 答完 16 题 ⇒ 落盘（这是**唯一**写 state.persona 的地方；中途退出绝不走到这里） */
+function personaFinish() {
+  var m = psMem();
+  if (!m.a) return;
+  var r = personaOf(m.a);
+  var prev = ('persona' in state) ? state.persona : null;
+  var hist = (prev && prev.history) ? prev.history.slice() : [];    // P2 漂移用，本轮只存不显示
+  if (prev && prev.code) hist.push({ code: prev.code, name: prev.name, fun: prev.fun, answeredAt: prev.answeredAt });
+  state.persona = {
+    code: r.code, name: r.name, fun: r.fun, eggName: r.eggName,
+    /* ⚠️ 规划文档 §4.3 写的是 { k:'K', a:8, b:8 }；这里落 { id, a, b }：
+       平局轴**没有字母**（k 会是 'X'，一个丢了「哪一极」的假字段），而字母随时能从
+       code 的第 i 位取回 ⇒ 存 id 才是**可逆**的那一份。
+       🔴 这四项**就是**结果页的全部输入：显示走 personaDisplay(code, axes, fun) 重建
+          （names / tieCount / 每轴标签都不落盘 —— 落了就多一份会漂的副本）。 */
+    axes: r.axes.map(function (d) { return { id: d.id, a: d.a, b: d.b }; }),
+    answeredAt: todayStr(),
+    history: hist
+  };
+  saveState();
+  m.a = null; m.i = 0; m.lock = false;
+  var mv = document.getElementById('p-persona-code');
+  if (mv) mv.textContent = r.code;                 // 我的页菜单右侧：未测「去测试」⇒ 已测 4 字母码
+  renderPersona();
+}
+
+/* 三态总控：未测 ⇒ 答题 ⇒ 结果。⚠️ 判定用键存在性（⛔ 不用 falsy —— 铁律「没带 ≠ 空」）
+   ⚠️ 存档完整性的判据是「**能不能重建显示**」：code 是 4 个字符、axes 是 4 条 ——
+      缺一个就只能当未测（显示不出来），但必须 console.error 报出来，⛔ 不许静默吞掉。 */
+function personaStored() {
+  var p = ('persona' in state) ? state.persona : null;
+  if (!p) return null;
+  if (typeof p.code !== 'string' || p.code.length !== PERSONA_AXES.length) {
+    console.error('[人格] state.persona.code 不是 ' + PERSONA_AXES.length + ' 位字符，按「未测」显示');
+    return null;
+  }
+  if (!(p.axes instanceof Array) || p.axes.length !== PERSONA_AXES.length) {
+    console.error('[人格] state.persona.axes 缺失或长度不对，按「未测」显示');
+    return null;
+  }
+  return p;
+}
+function renderPersona() {
+  var m = psMem();
+  var p = personaStored();
+  document.getElementById('ps-intro').style.display = (!m.a && !p) ? 'block' : 'none';
+  document.getElementById('ps-quiz').style.display = m.a ? 'block' : 'none';
+  document.getElementById('ps-result').style.display = (!m.a && p) ? 'block' : 'none';
+  if (m.a) renderPersonaQuiz(m);
+  else if (p) renderPersonaResult(p);
+  else renderPersonaIntro();
+}
+
+function renderPersonaIntro() {
+  var el = document.getElementById('ps-axis-mini');
+  if (!el) return;
+  el.innerHTML = PERSONA_AXES.map(function (ax) {
+    return '<div><b>' + escHtml(ax.name) + '</b> <span class="w">· ' + escHtml(ax.a.label) +
+           ' / ' + escHtml(ax.b.label) + '</span></div>';
+  }).join('');
+}
+
+function renderPersonaQuiz(m) {
+  var n = PERSONA_QUESTIONS.length, q = PERSONA_QUESTIONS[m.i];
+  document.getElementById('ps-bar-i').style.width = (m.i / n * 100).toFixed(1) + '%';
+  document.getElementById('ps-no').textContent = (m.i + 1) + ' / ' + n;
+  document.getElementById('ps-q').textContent = q.q;
+  var html = '';
+  for (var i = 0; i < q.opts.length; i++) {
+    html += '<div class="ps-opt' + (m.a[m.i] === i ? ' on' : '') + '" onclick="personaPick(' + i + ')">' +
+            escHtml(q.opts[i].t) + '</div>';
+  }
+  html += '<div class="ps-opt fun' + (m.a[m.i] === -1 ? ' on' : '') + '" onclick="personaPick(4)">' +
+          '<span class="tag">抽象</span><span>' + escHtml(q.fun) + '</span></div>';
+  document.getElementById('ps-opts').innerHTML = html;
+  document.getElementById('ps-prev').disabled = (m.i === 0);
+  document.getElementById('screen').scrollTop = 0;      // 一页一题：换题回到顶部
+}
+
+function renderPersonaResult(p) {
+  /* 🔴 存档里只有 { code, axes:[{id,a,b}], fun } ⇒ 显示一律**重建**（personaDisplay）。
+     ⛔ 不要在这里读 p.names / p.axes[i].aLabel —— 那些字段存档里没有（v2.8.0 踩过：
+        直接读 ⇒ 答完 16 题 TypeError 白屏）。 */
+  var r = personaDisplay(p.code, p.axes, p.fun);
+  var sk = personaSkin(r.code), T = PERSONA_TYPES[r.code];
+  var egg = r.eggName, EX = egg ? PERSONA_EGGS[egg] : null;
+  document.getElementById('ps-hero').className = 'ps-hero ' + sk.cls;
+  var codeEl = document.getElementById('ps-code');
+  codeEl.className = 'ps-code ' + sk.cls;
+  codeEl.innerHTML = r.code.split('').map(function (ch) {
+    return ch === 'X' ? '<span class="x">X</span>' : escHtml(ch);   // 中间态那一位弱化显示
+  }).join('');
+
+  /* 主名：命中彩蛋 ⇒ 彩蛋名接管；否则正经名（1 个中间态 ⇒ 两个候选名并列，⛔ 不替用户选一边） */
+  document.getElementById('ps-name').innerHTML = egg ? escHtml(egg)
+    : (r.names.length > 1
+        ? r.names.map(escHtml).join('<span class="sep">' + escHtml(PERSONA_TIE_JOIN) + '</span>')
+        : escHtml(r.name));
+
+  /* 副标题：命中彩蛋时退回「正经风格是什么」，否则用该型的优势句当 slogan */
+  document.getElementById('ps-slogan').textContent =
+    egg ? ('正经交易风格：' + r.code + ' 型 · ' + r.name) : (T ? T.good : '');
+
+  /* 抽象指数**常驻**（§3.3-5）：不靠阈值也能看见彩蛋维度 */
+  var eggEl = document.getElementById('ps-egg');
+  eggEl.style.display = 'block';
+  eggEl.innerHTML = '抽象指数 <b>' + r.fun + ' / ' + PERSONA_QUESTIONS.length + '</b>' +
+    (egg ? ' —— 彩蛋人格已接管主名' : ' <span class="m">（' + FUN_EGG_THRESHOLD + ' 及以上解锁彩蛋人格）</span>');
+
+  /* 四轴明细：可解释比标签重要 —— 每轴给「谁赢了 + 比分」，平局直说中间态 */
+  document.getElementById('ps-axes').innerHTML = r.axes.map(function (d) {
+    var tot = d.a + d.b, la = tot ? Math.round(d.a / tot * 100) : 50;
+    return '<div class="ps-ax">' +
+      '<div class="row"><span class="w">' + escHtml(d.name) + '</span><span class="sc">' +
+        d.a + ' : ' + d.b + '</span></div>' +
+      '<div class="ps-track"><span class="l" style="width:' + la + '%"></span>' +
+        '<span class="r" style="width:' + (100 - la) + '%"></span></div>' +
+      '<div class="verdict' + (d.tie ? ' tie' : '') + '">' +
+        (d.tie ? '中间态（' + escHtml(d.aLabel) + ' / ' + escHtml(d.bLabel) + '）'
+               : '你偏 ' + escHtml(d.winLabel)) + '</div></div>';
+  }).join('');
+  document.getElementById('ps-radar').innerHTML = personaRadarSvg(r.axes, sk.hex);
+
+  /* 画像：命中彩蛋用彩蛋文案；否则正经型；1 个中间态 ⇒ 两个候选型的画像都给 */
+  var out = '';
+  if (EX) out = '<div class="ps-desc">' + escHtml(EX.desc) + '</div>' + psGbHtml(EX.good, EX.bad);
+  else if (r.tieCount === 0 && T) out = '<div class="ps-desc">' + escHtml(T.desc) + '</div>' + psGbHtml(T.good, T.bad);
+  else if (r.tieCount === 1) out = r.names.map(function (nm) {
+    var k = Object.keys(PERSONA_TYPES).filter(function (c) { return PERSONA_TYPES[c].name === nm; })[0];
+    var t = k ? PERSONA_TYPES[k] : null;
+    return t ? '<div class="ps-desc"><b>' + escHtml(nm) + '</b>：' + escHtml(t.desc) + '</div>' + psGbHtml(t.good, t.bad) : '';
+  }).join('');
+  else out = '<div class="ps-desc">' + escHtml(PERSONA_SWING_DESC) + '</div>';   // ≥2 中间态：摇摆型专属文案
+  document.getElementById('ps-portrait').innerHTML = out;
+
+  /* 段位：**只读**引一句（§2.5 人格与成长体系无任何加成），让用户知道这结果不改变任何数值 */
+  document.getElementById('ps-meta').innerHTML =
+    '测得于 ' + escHtml(p.answeredAt || '—') + '（' + escHtml(r.code) + ' 型）' +
+    '<br>当前段位 ' + escHtml(currentRank().rank.name) + ' —— 人格只作展示，不影响段位、健康币与经验。';
+}
+
 /* ============ 身体档案结果卡（v2.7.66 替代 alert）============
    原生 alert：阻塞、白底、系统「确定」按钮，每次保存档案都弹 —— 与产品视觉割裂。
    现在改成自建深色卡：给出 BMR 新值 + 用的哪条公式 + 下一步去哪儿。 */
@@ -6394,7 +7064,7 @@ function closeGachaResult() {
 
 /* ============ Tab 切换 ============ */
 let curTab = 'market';
-const SUB_BACK = { coins:'profile', level:'profile', gacha:'profile', achievements:'profile', 'body-detail':'market' };
+const SUB_BACK = { coins:'profile', level:'profile', gacha:'profile', achievements:'profile', 'body-detail':'market', 'body-archive':'profile', persona:'profile' };
 function switchTab(tab) {
   curTab = tab;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
