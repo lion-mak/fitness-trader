@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.7.65"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.7.66"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -606,17 +606,49 @@ body {
 .fs-macros .mkv { flex:1; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:6px 2px; text-align:center; }
 .fs-macros .mkv div:first-child { font-size:14px; font-weight:600; color:#fff; }
 .fs-macros .mkv div:last-child { font-size:10px; color:var(--muted2); margin-top:2px; }
-#coin-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#5ac8fa; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(90,200,250,.38); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
+/* ============ 三条操作反馈浮层（记录得币 / 一般信息 / 成就解锁）============
+   ⚠️ 顶部偏移必须带 `env(safe-area-inset-top)`（v2.7.66 加）：这三条是 position:fixed
+   ⇒ 相对**视口**定位，**绕过 `.app` 的 `padding-top:env(safe-area-inset-top)`**。
+   iOS 把 PWA 加到主屏（standalone + black-translucent）时页面从屏幕最顶开始
+   ⇒ 裸偏移会落进状态栏／灵动岛那条带。小程序侧同理（navigationStyle:custom）。
+   ⚠️ 小程序侧这三条落成两份：`miniprogram/app.wxss`（由 tools/mp_build.py 从本段
+   **自动生成，勿手工改**）+ `components/hint/hint.wxss`（class 版 —— 微信官方禁止
+   自定义组件内用 id 选择器，故那些 `#coin-toast` 在组件里永不命中）。
+   三方的基础偏移 18 / 72 / 110 由 tools/mp_hint_test.js 的同源闸守。 */
+#coin-toast { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 18px); left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#5ac8fa; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(90,200,250,.38); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
 #coin-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-#ach-toast { position:fixed; top:72px; left:50%; transform:translateX(-50%) scale(.8); transform-origin:top center; min-width:210px; max-width:86vw; background:linear-gradient(135deg, rgba(30,38,62,.98), rgba(20,26,44,.98)); color:#fff; padding:15px 18px 14px; border-radius:16px; border:1px solid rgba(255,184,0,.55); box-shadow:0 12px 36px rgba(0,0,0,.5); opacity:0; pointer-events:none; z-index:999; text-align:center; transition:opacity .25s ease, transform .3s cubic-bezier(.34,1.56,.64,1); }
+#ach-toast { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 72px); left:50%; transform:translateX(-50%) scale(.8); transform-origin:top center; min-width:210px; max-width:86vw; background:linear-gradient(135deg, rgba(30,38,62,.98), rgba(20,26,44,.98)); color:#fff; padding:15px 18px 14px; border-radius:16px; border:1px solid rgba(255,184,0,.55); box-shadow:0 12px 36px rgba(0,0,0,.5); opacity:0; pointer-events:none; z-index:999; text-align:center; transition:opacity .25s ease, transform .3s cubic-bezier(.34,1.56,.64,1); }
 #ach-toast.show { opacity:1; transform:translateX(-50%) scale(1); }
 #ach-toast .a-ic { display:block; font-size:28px; line-height:1; margin-bottom:5px; animation:achPop .5s ease; }
 #ach-toast .a-cap { font-size:11px; letter-spacing:2px; color:#ffb800; font-weight:700; }
 #ach-toast .a-name { font-size:15px; font-weight:700; margin:4px 0 2px; }
 #ach-toast .a-rew { font-size:12px; color:#9fe2a0; font-weight:600; }
 @keyframes achPop { 0%{transform:scale(0) rotate(-20deg)} 60%{transform:scale(1.3) rotate(8deg)} 100%{transform:scale(1) rotate(0)} }
-#info-toast { position:fixed; top:110px; left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#00c896; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(0,200,150,.4); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
+#info-toast { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 110px); left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#00c896; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(0,200,150,.4); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
 #info-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ============ 身体档案结果卡（v2.7.66：替代浏览器原生 alert） ============
+   为什么不用 alert：阻塞式、白底、带系统「确定」按钮，完全脱离产品视觉；
+   而它每次保存身体档案都会弹。小程序侧原本是 wx.showModal（同类系统弹窗），
+   同一轮一起换掉 ⇒ 双端 1:1。
+   ⚠️ 值与 miniprogram/pages/me/me.wxss 的 .bc-* **逐值一致**（双端同源闸守）。
+   ⚠️ bc- 前缀是刻意选的：小程序侧首版用了 .bmr-*，撞上 app.wxss 的全局 .bmr-row/.bmr-v，
+      页面样式后加载把全局那条整条覆盖 ⇒ BMR 盒错乱。双端统一避开 bmr- 前缀。 */
+.bc-card { width:272px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:20px 18px 0; overflow:hidden; }
+.bc-h { display:flex; align-items:center; gap:8px; }
+.bc-ic { font-size:19px; line-height:1; }
+.bc-ht { font-size:15px; font-weight:600; color:#fff; }
+.bc-bmr { margin-top:14px; background:var(--panel-hi); border-radius:10px; padding:11px 12px; }
+.bc-lb { display:block; font-size:11px; color:var(--muted2); }
+.bc-v { display:block; font-size:22px; font-weight:700; color:var(--blue); margin-top:4px; }
+.bc-u { font-size:12px; font-weight:600; color:var(--muted2); }
+.bc-f { margin-top:8px; font-size:11px; color:var(--muted2); }
+.bc-note { margin-top:10px; font-size:11px; color:var(--muted); }
+/* 按钮条撑满卡片宽度：负 margin 吃掉 .bc-card 的左右 padding（18px） */
+.bc-btns { display:flex; margin:16px -18px 0; border-top:1px solid var(--border); }
+.bc-btn { flex:1; text-align:center; padding:14px 0; font-size:14px; color:var(--muted2); cursor:pointer; }
+.bc-btn.primary { color:var(--blue); font-weight:600; border-left:1px solid var(--border); }
+.bc-btn:active { background:rgba(255,255,255,.04); }
 
 /* ================= 持仓页视觉体系（v2.7.50 / 三级层级 + 账本母题）=================
    设计意图：过去这一页 4 张卡长得一模一样（同底同边同圆角），视觉上没有主次。
@@ -2392,9 +2424,12 @@ function awardRecordCoins(kind) {
   // 到账提示
   const el = document.getElementById('coin-toast');
   if (el) {
+    /* v2.7.66：emoji 作动作锚点（三条浮层形状相同，先于文字被识别）+ 显示今日进度
+       （COIN_DAILY_CAP 原本从不展示，用户看不到离上限还差几次） */
+    var emi = isFood ? '🍚' : '🏃';
     el.textContent = granted > 0
-      ? '+' + granted + ' 健康币 · ' + (isFood ? '记录饮食' : '记录运动')
-      : '今日记录奖励已达上限';
+      ? emi + ' +' + granted + ' 健康币 · 今日 ' + state.coinToday + '/' + COIN_DAILY_CAP
+      : emi + ' 已记录 · 今日奖励已达上限';
     el.classList.add('show');
     clearTimeout(el._t);
     el._t = setTimeout(function() { el.classList.remove('show'); }, 1600);
@@ -5776,7 +5811,7 @@ function saveQuickWeight() {
   recordWeight();
   closeQuickWeight();
   render();
-  try { toastInfo('✓ 已记录今日体重 ' + state.user.weight + ' kg'); } catch(e) {}
+  try { toastInfo('⚖️ 今日体重 ' + state.user.weight + ' kg'); } catch(e) {}
 }
 /* 持仓页「🎯 调整目标仓位」：手动设定目标体重（未设时默认 起点-7.5kg） */
 function currentTargetW() {
@@ -5816,9 +5851,26 @@ function saveProfile() {
   state.user.target = parseInt(document.getElementById('f-target').value) || -500;
   recordWeight();   // 每次保存档案即写入一条真实体重日志
   render(); switchTab('market');
-  var note = '基础代谢 BMR 重算为 ' + calcBMR() + ' kcal/天（公式：' + (NutritionEngine.bmr(getUserProfile()).primaryName) + '）';
-  alert('身体档案已上传，' + note);
+  showBcCard(Math.round(calcBMR()), NutritionEngine.bmr(getUserProfile()).primaryName);
 }
+
+/* ============ 身体档案结果卡（v2.7.66 替代 alert）============
+   原生 alert：阻塞、白底、系统「确定」按钮，每次保存档案都弹 —— 与产品视觉割裂。
+   现在改成自建深色卡：给出 BMR 新值 + 用的哪条公式 + 下一步去哪儿。 */
+function showBcCard(bmr, formula) {
+  var v = document.getElementById('bc-v');
+  if (v) v.innerHTML = bmr + '<span class="bc-u"> kcal/天</span>';
+  var f = document.getElementById('bc-f');
+  if (f) f.textContent = '公式：' + formula;
+  var m = document.getElementById('bc-mask');
+  if (m) m.classList.add('show');
+}
+function closeBcCard() {
+  var m = document.getElementById('bc-mask');
+  if (m) m.classList.remove('show');
+}
+function bcGoMarket() { closeBcCard(); switchTab('market'); }
+
 function scrollToProfile() { document.getElementById('screen').scrollTop = document.getElementById('screen').scrollHeight; }
 
 /* ============ 身体档案 · 人体模型可视化 ============ */
@@ -6552,6 +6604,25 @@ scheduleMidnightSettle();
 <div id="coin-toast"></div>
 <div id="ach-toast"></div>
 <div id="info-toast"></div>
+
+<!-- ============ 身体档案结果卡（v2.7.66，替代 alert）============
+     ⚠️ 复用 .sheet-mask，但**用行内 style 把对齐覆盖成居中** ——
+     ⛔ 不去改 .sheet-mask 本身：它是所有底部弹层共用的类，改一条会连带改掉全部弹层。 -->
+<div class="sheet-mask" id="bc-mask" style="align-items:center;justify-content:center;" onclick="closeBcCard()">
+  <div class="bc-card" onclick="event.stopPropagation()">
+    <div class="bc-h"><span class="bc-ic">📐</span><span class="bc-ht">身体档案已更新</span></div>
+    <div class="bc-bmr">
+      <span class="bc-lb">基础代谢 BMR</span>
+      <span class="bc-v" id="bc-v">0<span class="bc-u"> kcal/天</span></span>
+    </div>
+    <div class="bc-f" id="bc-f">公式：--</div>
+    <div class="bc-note">体重已写入今日记录</div>
+    <div class="bc-btns">
+      <div class="bc-btn" onclick="closeBcCard()">留在本页</div>
+      <div class="bc-btn primary" onclick="bcGoMarket()">去行情看</div>
+    </div>
+  </div>
+</div>
 <input type="file" id="import-file" accept="application/json,.json" style="display:none;" onchange="doImport(this)">
 
 <!-- 抽卡结果弹层 -->
