@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.8.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.9.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1183,7 +1183,7 @@ body {
       <div class="card">
         <div class="card-title"><span class="t">段位晋升</span><span class="m">经验累积</span></div>
         <div id="l-ranks"></div>
-        <div class="gap-note">段位由累计经验决定：记录饮食 +1、运动 +2、涨停 +30。升到下一级需要「当前等级 ×10」经验 —— 等级越高，每级越沉，慢慢来。</div>
+        <div class="gap-note">段位由累计经验决定：记录饮食 +1、运动 +2、涨停 +20。LV1–LV10：前 4 级升级快，第 5 级起进入时间梯度，越往后越需长期坚持。</div>
       </div>
     </section>
 
@@ -2041,7 +2041,7 @@ function simulateNewDay() {
    ⭐ 规则（写新代码时照着做）：loadState() 调用链上用到的一切 **const/let 都必须在本行之前初始化**。
       function 声明会整体提升，不受影响；只有 const/let 有 TDZ 这一层。
       闸：promo/pwa_gate_state.py（灌一份完整存档 → 冷启动 → 断言存档存活且零 console error）。 */
-const CURVE_VER = 2;
+const CURVE_VER = 3;
 
 /* 同上：loadState / saveState 都要用 ⇒ 必须在这里初始化（放后面同样会 TDZ）。
    语义 = 「存储里明明有东西，但这次启动读不出来」。 */
@@ -2230,27 +2230,24 @@ const COIN_DAILY_CAP = 100;     // 每日记录得币上限（涨停奖励不受
 const EXP_PER_FOOD = 1;         // 记一笔饮食：+1 经验
 const EXP_PER_EX = 2;           // 记一次运动：+2 经验
 const COIN_LIMITUP = 200;       // 涨停奖励（每日缺口达标）
-const EXP_LIMITUP = 30;         // 涨停经验
+const EXP_LIMITUP = 20;         // 涨停经验（每日至多一次，幂等锚 state.settledDate）
 
-/* ---- 操盘手段位（等级成长体系）----
-   ⚠️ 这里的顺序 = 「我的」页段位卡廊的卡片顺序 = assets/ranks/*.webp 的编号顺序。
-      三者错位会让卡面角色与段位名对不上（promo/build_rank_assets.py 会硬校验，别靠人眼）。
-   v2.7.60：11 段 → 10 段（Mak 出图时去掉了「小散」）。minLv 重排的**唯一原则是零掉段** ——
-      每一段的门槛都 ≤ 原表同名段位的门槛 ⇒ 任何 exp 下新段位 index ≥ 旧段位 index，只升不降，
-      所以这次换代**不需要**新的补偿锚（state.curve 的曲线口径没变，只是段位表少了中间一档）。
-      对照（旧 ⇒ 新）：中户 6⇒4、大户 8⇒7、牛散/游资/主力/机构/庄家/股神 不变。
-      副作用只有一个：lv3–5 不再有专属段位，散户会一直挂到 lv4 才换中户。 */
+/* ---- 操盘手段位（等级成长体系 · LV1–LV10 封顶）----
+   ⚠️ 顺序 = 「我的」页段位卡廊卡片顺序 = assets/ranks/*.webp 编号顺序，三者须一致。
+   v2.7.60：11 段 → 10 段（去掉「小散」）。本次（2026-10-01）：封顶 LV10 + 时间梯度曲线。
+   minLv 改为 1–10 连续：韭菜1 / 散户2 / 中户3 / 大户4 / 牛散5 / 游资6 / 主力7 / 机构8 / 庄家9 / 股神10。
+   ⚠️ 曲线换代 ⇒ 必须 bump CURVE_VER（见下方 expForLv 注释 + loadState 前的 CURVE_VER 声明）。 */
 const RANKS = [
   { name:'韭菜', minLv:1,  color:'#3fbf57', desc:'刚入场 · 从记第一笔开始' },
   { name:'散户', minLv:2,  color:'#7c8da6', desc:'起步 · 习惯正在形成' },
-  { name:'中户', minLv:4,  color:'#3d7be0', desc:'稳定达标 · 控制热量' },
-  { name:'大户', minLv:7,  color:'#5b4bc4', desc:'持续减脂 · 初见成效' },
-  { name:'牛散', minLv:10, color:'#c08a2e', desc:'节奏自控 · 个人高手' },
-  { name:'游资', minLv:13, color:'#e8781e', desc:'高频运动 · 缺口为王' },
-  { name:'主力', minLv:16, color:'#c43a2e', desc:'节奏在手 · 走势由我' },
-  { name:'机构', minLv:20, color:'#8e44ad', desc:'专业自律 · 模式成型' },
-  { name:'庄家', minLv:24, color:'#4a4a57', desc:'掌控节奏 · 稳定盈利' },
-  { name:'股神', minLv:30, color:'#d4af37', desc:'登顶健交所 · 封神' },
+  { name:'中户', minLv:3,  color:'#3d7be0', desc:'稳定达标 · 控制热量' },
+  { name:'大户', minLv:4,  color:'#5b4bc4', desc:'持续减脂 · 初见成效' },
+  { name:'牛散', minLv:5,  color:'#c08a2e', desc:'节奏自控 · 个人高手' },
+  { name:'游资', minLv:6,  color:'#e8781e', desc:'高频运动 · 缺口为王' },
+  { name:'主力', minLv:7,  color:'#c43a2e', desc:'节奏在手 · 走势由我' },
+  { name:'机构', minLv:8,  color:'#8e44ad', desc:'专业自律 · 模式成型' },
+  { name:'庄家', minLv:9,  color:'#4a4a57', desc:'掌控节奏 · 稳定盈利' },
+  { name:'股神', minLv:10, color:'#d4af37', desc:'登顶健交所 · 封神' },
 ];
 
 /* ==== PERSONA_BEGIN（由 tools/gen_persona_js.py 从「交易人格测试-题面.json」生成，⛔ 勿手改）==== */
@@ -2559,41 +2556,32 @@ function personaOf(answers) {
         新用户第一周看不到任何段位变化，谈不上新鲜感；
      ② 后期不贵 —— lv29→30 与 lv1→2 同价 100 经验，中度用户 10.8 个月就能「封神」，
         「持之以恒」四个字在数值上完全没有定价。
-   新口径：**升到下一级需要「当前等级 × 10」经验**，累计门槛 = 5·lv·(lv−1)。
-     lv1→2 需 10 / lv10→11 需 100 / lv20→21 需 200 / lv29→30 需 290
-     ⇒ 每级耗时随等级线性增长：前期密集给反馈，后期必须长期使用才推得动。
-   节奏实测（日均 9 经验的中度画像）：首日 lv2 散户、一月 lv4 中户、一年 lv20 机构、
-     1.3 年 lv30 股神；只记饮食不运动不涨停的轻度用户 4.4 年才封神。
-   调参入口：改 expForLv 的系数（5 ⇒ 每级 ×10）即整条曲线等比缩放，跑 promo/rank_curve.py 看效果。 */
-function expForLv(lv) { return 5 * lv * (lv - 1); }   // 累计到 lv 所需总经验
-function lvFromExp(exp) {                             // 反解：exp → lv
+   设计目标（Mak 2026-10-01）：LV1–LV10 封顶 + 时间梯度，⛔ 不写公式，只给数值。
+   · 前 4 级升级快：常态化记录约 3 天到 LV2、7 天 LV3、半个月 LV4；
+   · 第 5 级起进入时间梯度：1 月 LV5、2 月 LV6、3 月 LV7、半年 LV8、9 月 LV9、1 年 LV10。
+   · 「常态化记录」= 记 1 笔饮食(+1) + 1 笔运动(+2) ≈ 3 经验/天；涨停额外 +20（见 EXP_LIMITUP）。
+   累计经验门槛（索引 = lv−1，LV1 = 0）：
+     LV1=0   LV2=9   LV3=21  LV4=45  LV5=90  LV6=180 LV7=270 LV8=540 LV9=810 LV10=1095
+   数值 = 天数目标 × 3（常态化日经验）；整体调快/调慢 ⇒ 同比缩放记录单价，梯度形状不变。
+   🔴 换代锚：CURVE_VER 已 bump 到 3（loadState 前声明），老存档门槛只降不升 ⇒ 段位只升不降。 */
+const LV_EXP = [0, 9, 21, 45, 90, 180, 270, 540, 810, 1095];
+function expForLv(lv) { return LV_EXP[Math.max(1, Math.min(10, lv)) - 1]; }   // 累计到 lv 所需总经验
+function lvFromExp(exp) {                                                     // 反解：exp → lv（封顶 10）
   const e = Math.max(0, +exp || 0);
-  // 解 5·lv·(lv−1) ≤ e ⇒ lv = floor((1 + √(1+0.8e)) / 2)
-  // +1e-9：e 让根号落在整数上时（如 e=60 ⇒ √49=7）浮点可能算出 3.9999…，不加会少算一级
-  return Math.floor((1 + Math.sqrt(1 + 0.8 * e) + 1e-9) / 2);
+  let lv = 1;
+  for (let i = 1; i < LV_EXP.length; i++) { if (e >= LV_EXP[i]) lv = i + 1; else break; }
+  return lv;
 }
 
-/* ---- 段位曲线换代补偿（v2.7.59：每级固定 100 经验 → 每级 = 当前等级 × 10）----
-   同一个 exp 在两套曲线下算出的 lv 不一样：
-     exp < 1900（= 新曲线 lv20 的门槛）⇒ 新 lv **高于**旧 lv，老用户白赚；
-     exp > 1900 ⇒ 新 lv **低于**旧 lv，老用户会掉段。
-   掉段是没道理的：那是用户按旧定价一天天攒出来的身份，不该替曲线定错的账买单。
-   所以老存档一律「只升不降」：若新曲线算出的 lv 低于旧曲线，就把 exp 抬到新曲线上该 lv 的门槛。
-   ⚠️ 幂等锚 = state.curve（CURVE_VER），**必须有**：补偿后再用旧公式反推 lv 只会更大，
-      没有锚的话每次冷启动都会继续往上抬，exp 指数膨胀。
-   ⚠️ defaultState() 里**不要**放 curve 字段：两端 loadState 都是 `Object.assign({}, def, s)` 起手，
-      一旦 def 带了新锚，导入一份老存档时锚会从 def 继承进来 ⇒ 补偿被跳过 ⇒ 老存档照样掉段。
-      新用户走 defaultState（exp=0 ⇒ lv1 ⇒ 门槛 0）本来就不需要补偿。
-   实测（promo/mock.json · 96 天演示存档 exp=2610）：旧 lv27 庄家 ⇒ 抬到 3510 ⇒ 新 lv27 仍是庄家，
-      等级不动；此后按新曲线继续爬（再去股神需 4350−3510=840 经验）。
-   🔴 声明位置：CURVE_VER **已前置到 `let state = loadState()` 之前**（约 1843 行），
-      原因见那里的注释 —— 留在这里会让 loadState() 在 TDZ 里抛错、静默清空用户存档。 */
+/* ---- 段位曲线换代补偿（CURVE_VER 3 · LV1–10 时间梯度表）----
+   新表每级门槛都 ≤ 旧表（5·lv·(lv−1)）⇒ 同一 exp 算出的段位**称号只升不降**。
+   ⚠️ 比的是**段位下标**，不是 lv 数字：旧曲线 30 级、新表只有 10 级，lv 数字必然变小
+      （exp2610：旧 lv23 ⇒ 新 lv10），但段位是 机构(7) ⇒ 股神(9)，升了。
+   故老存档无需抬 exp，只把幂等锚 curve 标到 CURVE_VER 即可（⚠️ defaultState 不放 curve 字段）。
+   抽查（旧 idx ⇒ 新 idx）：exp150 中户2⇒牛散4；exp1000 游资5⇒庄家8；
+     exp2610 机构7⇒股神9；exp4350 股神9⇒股神9（封顶持平）——全程不降（闸：mp_calc_test 2.11c 全扫）。 */
 function applyCurveUpgrade(s) {
   if (!s || (s.curve || 1) >= CURVE_VER) return false;
-  const exp = Math.max(0, +s.exp || 0);
-  const lvOld = Math.floor(exp / 100) + 1;   // 旧曲线：100 经验一级
-  const keep = expForLv(lvOld);              // 新曲线下「保住这个段位」的最低经验
-  if (exp < keep) s.exp = keep;
   s.curve = CURVE_VER;
   return true;
 }
