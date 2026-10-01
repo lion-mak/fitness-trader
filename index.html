@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.8.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.8.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1081,11 +1081,11 @@ body {
           <div class="v" data-page-node-id="mZZFCewvw1ykxFme1sWuyY">影响 BMR</div>
           <div class="arr" data-page-node-id="i8bfs3rP7DQ6c8ObLNxLPM">›</div>
         </div>
-        <!-- 交易人格测试（v2.8.0）：.v 未测显示「去测试」、已测显示 4 字母码（由 render() 写） -->
+        <!-- 交易人格测试（v2.8.0）：.v 未测显示「去测试」、已测显示中文称号（由 render() 写，走 personaDisplay().name，⛔ 不显示 4 字母码） -->
         <div class="menu-item" onclick="showPersona()">
           <div class="ic" style="background:#1b1030;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 20 V10 M9 20 V4 M14 20 V13 M19 20 V7" stroke="#c586c0" stroke-width="1.5" stroke-linecap="round"/></svg></div>
           <div class="n">交易人格</div>
-          <div class="v" id="p-persona-code">去测试</div>
+          <div class="v" id="p-persona-name">去测试</div>
           <div class="arr">›</div>
         </div>
       </div>
@@ -3228,9 +3228,12 @@ function render() {
   document.getElementById('p-coins').textContent = state.coins;
   document.getElementById('p-badge-count').textContent = unlocked + ' / ' + ACHIEVEMENTS.length;
   document.getElementById('p-card-count').textContent = collectPct() + '%';
-  /* 交易人格菜单右侧：未测「去测试」/ 已测 4 字母码。⚠️ 键存在性判定（⛔ 不用 falsy） */
-  const _pce = document.getElementById('p-persona-code');
-  if (_pce) _pce.textContent = (('persona' in state) && state.persona && state.persona.code) ? state.persona.code : '去测试';
+  /* 交易人格菜单右侧：未测「去测试」/ 已测中文称号（personaDisplay().name）。⚠️ 键存在性判定（⛔ 不用 falsy） */
+  const _pce = document.getElementById('p-persona-name');
+  if (_pce) {
+    const _pp = ('persona' in state) ? state.persona : null;
+    _pce.textContent = (_pp && _pp.code && _pp.axes) ? personaDisplay(_pp.code, _pp.axes, _pp.fun).name : '去测试';
+  }
 
   // 成就殿堂
   const tier = currentAchTier(unlocked);
@@ -6439,8 +6442,8 @@ function personaFinish() {
   };
   saveState();
   m.a = null; m.i = 0; m.lock = false;
-  var mv = document.getElementById('p-persona-code');
-  if (mv) mv.textContent = r.code;                 // 我的页菜单右侧：未测「去测试」⇒ 已测 4 字母码
+  var mv = document.getElementById('p-persona-name');
+  if (mv) mv.textContent = r.name;                 // 我的页菜单右侧：未测「去测试」⇒ 已测显中文称号（与小程序端一致，⛔ 不显示 4 字母码）
   renderPersona();
 }
 
