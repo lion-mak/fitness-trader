@@ -42,18 +42,28 @@ KEY = u'jianpan_v2'
 OUT = os.path.join(HERE, u'_pwa_gate_state_out.txt')
 
 # ---- 期望值独立现算（⛔不从被测代码里抄，否则闸会跟着代码一起错）----
-RANKS = [(u'韭菜', 1), (u'散户', 2), (u'中户', 4), (u'大户', 7), (u'牛散', 10),
-         (u'游资', 13), (u'主力', 16), (u'机构', 20), (u'庄家', 24), (u'股神', 30)]
+# ⚠️ 这两份表曾长期停留在 **三代前** 的口径（30 级 minLv + `5·lv·(lv−1)`），
+#    新版换代时没人回来改 ⇒ 闸一直按错误期望判 A/B 段（假红或假绿）。
+#    换代时**必须**同时改这里（与 mp_calc_test.js / mp_me_test.js 同规矩）。
+RANKS = [(u'韭菜', 1), (u'散户', 2), (u'中户', 3), (u'大户', 4), (u'牛散', 5),
+         (u'游资', 6), (u'主力', 7), (u'机构', 8), (u'庄家', 9), (u'股神', 10)]
+
+# 门槛表（LV1–LV10 封顶 · 基准 25 经验/天 = 3 餐+3 / 1 运动+2 / 当日涨停+20）
+LV_EXP = [0, 75, 175, 375, 750, 1500, 2250, 4500, 6750, 9125]
 
 
 def exp_for_lv(lv):
-    return 5 * lv * (lv - 1)
+    return LV_EXP[max(1, min(10, lv)) - 1]
 
 
 def lv_from_exp(e):
+    e = max(0, e)
     lv = 1
-    while exp_for_lv(lv + 1) <= e:
-        lv += 1
+    for i in range(1, len(LV_EXP)):
+        if e >= LV_EXP[i]:
+            lv = i + 1
+        else:
+            break
     return lv
 
 
@@ -62,9 +72,25 @@ def rank_of(lv):
 
 
 def curve_upgraded_exp(e):
-    """applyCurveUpgrade 的口径：旧曲线 lv 保底。"""
-    lv_old = e // 100 + 1
-    return max(e, exp_for_lv(lv_old))
+    """applyCurveUpgrade 的口径：**只盖幂等锚，绝不改 exp**（恒等）。
+
+    历史上它曾是「抬到旧曲线段位门槛」，但那一代的前提是"门槛只降"；
+    v2.9.1 把基准从 3 经验/天修成 25 经验/天（补回占日收入 80% 的涨停），
+    门槛**抬高** 8.33 倍 ⇒ 补偿再抬 exp 就等于把所有人推回满级、白改。
+    """
+    return max(0, e)
+
+
+def curve_ver_from_src(src):
+    """从 index.html 现读 `const CURVE_VER = N;` —— ⛔别在断言里写死版本号。
+
+    事故：锚断言曾写死 `curve == 2`，CURVE_VER bump 到 3 之后就永远红/失效，
+    而这道闸要开浏览器、不常跑 ⇒ 烂了很久没人发现。现读即免疫后续换代。
+    """
+    m = re.search(u'const CURVE_VER = (\\d+);', src)
+    if not m:
+        raise AssertionError(u'index.html 里找不到 `const CURVE_VER = N;`')
+    return int(m.group(1))
 
 
 LOAD_PATH_FNS = (u'loadState', u'applyCurveUpgrade', u'defaultState', u'seedBodyLog')
@@ -285,6 +311,8 @@ def main():
 
     # ---- S 段：静态闸（不开浏览器）----
     src = io.open(os.path.join(ROOT, u'index.html'), encoding=u'utf-8').read()
+    CURVE_VER_WANT = curve_ver_from_src(src)          # A6 的期望锚值：现读，⛔不写死
+    p(u'  当前曲线代 CURVE_VER = %d（从 index.html 现读）' % CURVE_VER_WANT)
     p(u'## S 静态闸')
     static_checks(g, p, src)
 
@@ -358,7 +386,10 @@ def main():
         g.ok(snap['ex'] == want_ex, u'A3 exercise 条数 = %d' % want_ex, snap['ex'])
         g.ok(snap['exp'] == want_exp, u'A4 exp = %d（含曲线补偿）' % want_exp, snap['exp'])
         g.ok(snap['avLen'] > 1000, u'A5 avatar 字段存活（>1000 字符）', snap['avLen'])
-        g.ok(snap['curve'] == 2, u'A6 curve 幂等锚 = 2', snap['curve'])
+        # A6 锚值**从源码现读**：写死版本号会在每次 bump 之后静默失效（本闸要开浏览器、
+        #    不常跑，烂了没人发现 —— 已实际发生过一次，锚值曾停留在 2）。
+        g.ok(snap['curve'] == CURVE_VER_WANT,
+             u'A6 curve 幂等锚 = 当前代 %d（从 index.html 现读）' % CURVE_VER_WANT, snap['curve'])
         # A7-A9 自动快照环（新防线）：被写坏了要有回滚源
         snaps = snap['snaps']
         g.ok(1 <= len(snaps) <= 5, u'A7 自动快照已生成且 ≤5 份', u'%d 份' % len(snaps))

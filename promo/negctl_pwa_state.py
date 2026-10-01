@@ -22,6 +22,7 @@
 """
 import io
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -35,11 +36,23 @@ OUT = os.path.join(HERE, u"_negctl_pwa_state_out.txt")
 PY = sys.executable
 
 # ---- 坏化锚点（每处都必须唯一，脚本会断言）----
-EARLY_DECL = u"const CURVE_VER = 2;\n\n/* 同上"
+# ⚠️ CURVE_VER 的字面量**从 index.html 现读**，⛔ 不写死版本号：
+#    每次换代都会 bump（2 → 3 → 4 …），写死过一次的代价是锚点匹配 0 次 ——
+#    负控会当场 AssertionError（响亮，但等于这道负控报废不再守东西）。
+#    2026-10-01 换代时实际踩到：锚点还写着 "= 2"，而源码已经 "= 3"。
+def _curve_decl():
+    _src = io.open(TARGET, encoding=u"utf-8").read()
+    _m = re.search(u"const CURVE_VER = \\d+;", _src)
+    if not _m:
+        raise SystemExit(u"锚点失效：index.html 里找不到 `const CURVE_VER = N;`")
+    return _m.group(0)
+
+CURVE_DECL = _curve_decl()
+EARLY_DECL = CURVE_DECL + u"\n\n/* 同上"
 BAD_EARLY = u"/* 同上"
 LATE_ANCHOR = u"function applyCurveUpgrade(s) {"
 BAD_LATE = (u"/* 负控·临时挪回：声明在调用点之后 ⇒ TDZ */\n"
-            u"const CURVE_VER = 2;\nfunction applyCurveUpgrade(s) {")
+            + CURVE_DECL + u"\nfunction applyCurveUpgrade(s) {")
 
 GUARD = (u"  if (__loadFailed) {\n"
          u"    console.error('[存档] 保护模式生效：拒绝写入，避免覆盖磁盘上的原存档（本次改动未落盘）');\n"
