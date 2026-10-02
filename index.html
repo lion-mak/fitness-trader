@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.9.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.10.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5249,9 +5249,9 @@ function renderAccount() {
 const REVIEW_HIT_KCAL = 150;      // 达标线：与 GAP_TIERS「小阴线 · 温和减脂」一致
                                   // 热量换算复用全局 KCAL_PER_KG_FAT（7700），不重复声明
 
-function reviewPeriod() {
-  const isWeek = lbRange === 'week';
-  const start = lbRangeStart();
+function reviewPeriod(isWeek_) {
+  const isWeek = (isWeek_ === undefined) ? (lbRange === 'week') : !!isWeek_;
+  const start = rangeStartFor(isWeek ? 'week' : 'month');   // ⛔ 唯一真源，⛔ 别另抄一份月起始
   const m = new Date().getMonth() + 1;
   return {
     isWeek: isWeek,
@@ -5260,8 +5260,8 @@ function reviewPeriod() {
     label: isWeek ? ('本周 · ' + start.slice(5).replace('-', '/') + ' 起') : (m + '月')
   };
 }
-function reviewData() {
-  const p = reviewPeriod();
+function reviewData(isWeek_) {
+  const p = reviewPeriod(isWeek_);
   const bmr = calcBMR();
   const rows = dayAgg().filter(function(d) { return d.date >= p.start; })
     .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
@@ -5284,7 +5284,42 @@ function reviewData() {
   });
   let worst = null;
   pts.forEach(function(x) { if (!worst || x.def < worst.def) worst = x; });
-  return { p: p, total: total, hit: hit, cnt: rows.length, cum: cum, pts: pts, worst: worst, bigIn: bigIn, bigOut: bigOut };
+
+  /* ---- 数据加料（2026-10-02 · 分享海报需要，纯计算不碰 DOM ⇒ 自动同步小程序）----
+     ① streakBest / streakNow  最长连续达标 / 收官时还在连击几连
+     ② slump                 最长连续掉队（连续没达标）
+     ③ dowWorst              周内哪一天最容易崩（按 1..7 = 周一..周日 取平均净缺口最低）
+     ④ cumEnd / cumPeak      期末累计 / 期内累计峰值（峰值用来判「冲高回落」）
+     ⑤ avgDef                达标日均净缺口（写称号用）
+     ⑥ days                  期内自然日跨度（覆盖率分母） */
+  let streakBest = 0, streakNow = 0, slump = 0, slumpNow = 0, cumPeak = 0;
+  pts.forEach(function (x) {
+    if (x.def >= REVIEW_HIT_KCAL) { streakNow++; slumpNow = 0; if (streakNow > streakBest) streakBest = streakNow; }
+    else { slumpNow++; if (slumpNow > slump) slump = slumpNow; streakNow = 0; }
+  });
+  cumPeak = cum.length ? Math.max.apply(null, cum) : 0;
+  const cumEnd = cum.length ? cum[cum.length - 1] : 0;
+  /* 掉队日（def < 达标线）里按星期几分组求均值，判「周几最容易崩」 */
+  const dowSum = {}, dowCnt = {};
+  pts.forEach(function (x) {
+    if (x.def >= REVIEW_HIT_KCAL) return;
+    const dow = new Date(x.date + 'T00:00:00').getDay();      // 0=周日
+    const k = dow === 0 ? 7 : dow;                              // 归一到 1..7 = 周一..周日
+    dowSum[k] = (dowSum[k] || 0) + x.def; dowCnt[k] = (dowCnt[k] || 0) + 1;
+  });
+  let dowWorst = 0, dowWorstDef = Infinity;
+  for (let k = 1; k <= 7; k++) {
+    if (!dowCnt[k]) continue;
+    const avg = dowSum[k] / dowCnt[k];
+    if (avg < dowWorstDef) { dowWorstDef = avg; dowWorst = k; }
+  }
+  const days = Math.max(1, Math.round((new Date() - new Date(p.start + 'T00:00:00')) / 86400000) + 1);
+  const avgDef = hit > 0 ? (pts.reduce(function (a, x) { return a + x.def; }, 0) / pts.length) : 0;
+
+  return { p: p, total: total, hit: hit, cnt: rows.length, cum: cum, pts: pts, worst: worst,
+    bigIn: bigIn, bigOut: bigOut,
+    streakBest: streakBest, streakNow: streakNow, slump: slump,
+    dowWorst: dowWorst, cumEnd: cumEnd, cumPeak: cumPeak, avgDef: avgDef, days: days };
 }
 function reviewTip(r) {
   const p = r.p;
@@ -5347,19 +5382,237 @@ function renderReview() {
   h += '</div>';
   h += '<div class="rv-tip"><div class="l">' + (r.p.isWeek ? '下周建议' : '下月建议') + '</div><div class="t">'
     + escHtml(reviewTip(r)) + '</div></div>';
-  h += '<div class="rv-acts"><button class="ghost-btn" onclick="copyReview()">复制战绩</button></div>';
+  h += '<div class="rv-acts"><button class="ghost-btn" onclick="copyReview()">复制战绩</button>'
+    + '<button class="ghost-btn" onclick="saveReviewPoster()">保存海报</button></div>';
   h += '</div>';
   el.innerHTML = h;
+}
+/* ---- 分享海报 · PWA 画笔（2026-10-02）----
+   渲染层：碰 canvas ⇒ mp_build 的 DOM 判据会自动把它排除、不会进小程序内核
+   （小程序那边用 lib/canvas.js 的 painter 画同一份 reviewPosterData 布局）。
+   ⛔ 这里不写任何数字/文案判断 —— 全部来自 reviewPosterData()，保证双端同源。 */
+function _posterCanvas() {
+  let cv = document.getElementById('poster-cv');
+  if (!cv) { cv = document.createElement('canvas'); cv.id = 'poster-cv'; cv.style.display = 'none'; document.body.appendChild(cv); }
+  return cv;
+}
+function _posterFont(c, size, weight, mono) { c.font = (weight ? weight + ' ' : '') + size + 'px ' + (mono ? 'ui-monospace,Menlo,Consolas,monospace' : 'system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif'); }
+function drawReviewPoster(cv, d, W) {
+  const H = 720, S = 2;                                  // S = 超采样倍率（导出 2x 更清晰）
+  cv.width = W * S; cv.height = H * S; cv.style.width = W + 'px';
+  const c = cv.getContext('2d'); c.scale(S, S);
+  const ink = '#e8eef7', mut = '#8b97ab', dim = '#5a6478', line = '#1e2634', panel = '#141b28';
+  /* 底：深色盘口 + 顶部渐晕 */
+  c.fillStyle = '#0a0e1a'; c.fillRect(0, 0, W, H);
+  const g = c.createLinearGradient(0, 0, 0, 240); g.addColorStop(0, 'rgba(30,41,59,.55)'); g.addColorStop(1, 'rgba(10,14,26,0)');
+  c.fillStyle = g; c.fillRect(0, 0, W, 240);
+  const pad = 26, cx = pad;
+
+  /* 顶栏：左标题+期号 / 右段位徽章 */
+  _posterFont(c, 20, 700); c.fillStyle = ink; c.textBaseline = 'alphabetic';
+  c.fillText(d.title, cx, 52);
+  _posterFont(c, 12, 400); c.fillStyle = mut; c.fillText(d.label, cx, 72);
+  /* 段位徽章（右上） */
+  const bw = 92, bh = 34, bx = W - pad - bw, by = 34;
+  c.fillStyle = panel; c.strokeStyle = d.rankColor || '#3fbf57'; c.lineWidth = 1;
+  if (c.roundRect) { c.beginPath(); c.roundRect(bx, by, bw, bh, 8); c.fill(); c.stroke(); }
+  else { c.fillRect(bx, by, bw, bh); c.strokeRect(bx, by, bw, bh); }
+  _posterFont(c, 14, 700); c.fillStyle = d.rankColor || '#3fbf57'; c.textAlign = 'center';
+  c.fillText(d.rankName, bx + bw / 2, by + 22); c.textAlign = 'left';
+
+  /* 封号 chip（在段位下） */
+  _posterFont(c, 11, 500); const chipTxt = '封号 · ' + d.badge;
+  const cw = c.measureText(chipTxt).width + 20;
+  c.fillStyle = 'rgba(99,153,34,.15)'; c.strokeStyle = 'rgba(99,153,34,.5)'; c.lineWidth = 1;
+  if (c.roundRect) { c.beginPath(); c.roundRect(bx, by + bh + 8, cw, 24, 6); c.fill(); c.stroke(); } else { c.fillRect(bx, by + bh + 8, cw, 24); c.strokeRect(bx, by + bh + 8, cw, 24); }
+  c.fillStyle = '#97C459'; c.textAlign = 'left'; c.fillText(chipTxt, bx + 10, by + bh + 24); c.textAlign = 'left';
+
+  /* 英雄区：净缺口大数字 */
+  let y = 150;
+  _posterFont(c, 11, 400); c.fillStyle = mut; c.fillText('净缺口 (kcal)', cx, y);
+  _posterFont(c, 54, 700, true); c.fillStyle = d.col; c.fillText(d.totalTxt, cx, y + 52);
+  const tw = c.measureText(d.totalTxt).width;
+  _posterFont(c, 13, 400); c.fillStyle = d.kgUp ? '#4fd18b' : '#ff8b96';
+  c.fillText('≈ ' + d.kgTxt + (d.kgUp ? ' 减脂' : ' 增脂'), cx + tw + 10, y + 52);
+  y += 76;
+
+  /* 迷你走势图（累计曲线 + 达标基线） */
+  const gx = cx, gy = y, gw = W - pad * 2, gh = 64;
+  c.fillStyle = panel; c.fillRect(gx, gy, gw, gh);
+  c.strokeStyle = line; c.lineWidth = 1; c.strokeRect(gx + .5, gy + .5, gw - 1, gh - 1);
+  if (d.cum && d.cum.length >= 2) {
+    const mn = Math.min.apply(null, d.cum), mx = Math.max.apply(null, d.cum), span = (mx - mn) || 1;
+    const pxy = d.cum.map(function (v, i) { return [gx + 8 + i / (d.cum.length - 1) * (gw - 16), gy + 10 + (1 - (v - mn) / span) * (gh - 24)]; });
+    c.beginPath(); pxy.forEach(function (a, i) { i ? c.lineTo(a[0], a[1]) : c.moveTo(a[0], a[1]); });
+    c.strokeStyle = d.col; c.lineWidth = 2; c.lineJoin = c.lineCap = 'round'; c.stroke();
+    c.fillStyle = d.col; c.beginPath(); c.arc(pxy[pxy.length - 1][0], pxy[pxy.length - 1][1], 3, 0, Math.PI * 2); c.fill();
+  } else {
+    _posterFont(c, 11, 400); c.fillStyle = dim; c.textAlign = 'center'; c.fillText('数据点不足，多记几天就有曲线了', gx + gw / 2, gy + gh / 2); c.textAlign = 'left';
+  }
+  y = gy + gh + 26;
+
+  /* 三宫格：做多最狠 / 做空之王 / 达标 */
+  const cw3 = (W - pad * 2 - 16) / 3, cells = [
+    { l: '做多最狠', v: d.bigIn, s: d.bigInK != null ? '+' + d.bigInK : '暂无', c: '#ff8b96' },
+    { l: '做空之王', v: d.bigOut, s: d.bigOutK != null ? '' + d.bigOutK : '暂无', c: '#4fd18b' },
+    { l: '缺口达标', v: d.hit + ' / ' + d.cnt, s: d.rate + '%', c: '#ffd166' }
+  ];
+  cells.forEach(function (cell, i) {
+    const bx3 = cx + i * (cw3 + 8);
+    c.fillStyle = panel; c.fillRect(bx3, y, cw3, 62);
+    c.fillStyle = mut; _posterFont(c, 10, 400); c.fillText(cell.l, bx3 + 10, y + 18);
+    _posterFont(c, 13, 500); c.fillStyle = ink;
+    let nm = String(cell.v); while (c.measureText(nm).width > cw3 - 20 && nm.length > 1) nm = nm.slice(0, -1);
+    c.fillText(nm, bx3 + 10, y + 38);
+    _posterFont(c, 11, 400); c.fillStyle = cell.c; c.fillText(cell.s, bx3 + 10, y + 54);
+  });
+  y += 62 + 24;
+
+  /* 人格称号行（有才画） */
+  if (d.persona) {
+    c.fillStyle = panel; c.fillRect(cx, y, W - pad * 2, 44);
+    _posterFont(c, 10, 400); c.fillStyle = mut; c.fillText('交易人格', cx + 10, y + 18);
+    _posterFont(c, 14, 500); c.fillStyle = '#AFA9EC'; c.fillText(d.persona, cx + 10, y + 36);
+    y += 44 + 14;
+  }
+
+  /* 吐槽区（自动换行） */
+  c.fillStyle = 'rgba(99,153,34,.08)'; c.fillRect(cx, y, W - pad * 2, 74);
+  c.fillStyle = 'rgba(99,153,34,.5)'; c.fillRect(cx, y, 3, 74);
+  _posterFont(c, 10, 400); c.fillStyle = mut; c.fillText('本批复盘', cx + 14, y + 18);
+  _posterFont(c, 12, 400); c.fillStyle = '#c3ccdb';
+  (function () {   // 简易换行
+    const maxW = W - pad * 2 - 28; let line2 = '', ly = y + 38;
+    for (const ch of d.roast) {
+      if (c.measureText(line2 + ch).width > maxW) { c.fillText(line2, cx + 14, ly); line2 = ch; ly += 18; }
+      else line2 += ch;
+    }
+    c.fillText(line2, cx + 14, ly);
+  })();
+  y += 74 + 20;
+
+  /* 页脚 */
+  _posterFont(c, 10, 400); c.fillStyle = dim; c.fillText('健身交易员 · 亏损自负，盈亏自负', cx, H - 22);
+  c.textAlign = 'right'; c.fillText('长按或点「保存海报」存图分享', W - pad, H - 22); c.textAlign = 'left';
+  return cv;
+}
+function saveReviewPoster() {
+  const d = reviewPosterData();
+  const cv = drawReviewPoster(_posterCanvas(), d, 340);
+  try {
+    const a = document.createElement('a');
+    a.href = cv.toDataURL('image/png');
+    a.download = '健身交易员-' + d.title + '-' + d.label.replace(/[^\w]/g, '') + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { alert('海报导出失败：' + e.message); }
+}
+/* ---- 分享文案：称号 + 毒舌吐槽（2026-10-02 · 分享海报用）----
+   ⛔ 全部靠「数据指纹」取句，⛔ 不用 Math.random()：
+      同一份数据必须每次都得到同一句 —— ①「复制战绩」与海报要逐字一致
+      ②闸能把它写成断言（random 会让测试随机红，那是假红）。
+      ⚠️ 池子是数据不是逻辑：改文案只动下面三张表，不动判定。 */
+function _rvSeed(r) {
+  return Math.abs(Math.round(r.total || 0) * 31 + (r.cnt || 0) * 17 + (r.hit || 0) * 7
+    + (r.p && r.p.isWeek ? 3 : 11));
+}
+function _rvPick(arr, seed, salt) { return arr[(seed + (salt || 0) * 7) % arr.length]; }
+
+const RV_TITLE = {
+  hi:     ['纪律模范', '稳定输出', '不动明王', '压舱石'],
+  mid:    ['野生散户', '波段爱好者', '老手稳健型', '普通股民'],
+  low:    ['追高型选手', '新手村的智者', '情绪交易者', '深套观望户'],
+  streak: ['连板战神', '一路红盘', '强势认证'],
+  slumpy: ['一周休市', '系统性掉线', '掉队预备役'],
+  none:   ['待入场', '空仓观望中']
+};
+/* 吐槽池按「达标率分档 × 盈亏方向」两维切开，命中哪一格全看数据，不猜 */
+const RV_ROAST = {
+  hi: {
+    up:   ['这操作稳得离谱，仿佛提前看过剧本一样。', '连板不靠运气，靠你这双手。',
+           '本周你比自己的目标还准，纪律就该是这个样子。', 'K线一路上行，盘面都不用你救。'],
+    down: ['每天都达标，但方向反了——达标的是失控，不是进度。', '你把亏损做成了纪律，这很特别。',
+           '账面红转绿，问题不在运动，在嘴。']
+  },
+  mid: {
+    up:   ['不温不火，稳中有升——这种走势最养人。', '本周小幅盈利，持仓还在，故事没讲完。',
+           '慢慢建仓，气象不对但没破位。'],
+    down: ['小亏能忍，但别惯性拖延到变大亏。', '本周净盈余，K线翻绿；离场信号还没来，先别加仓。',
+           '震荡偏弱，观望为上。']
+  },
+  low: {
+    up:   ['赚了点点，但基本靠运气——这种浮盈最不经风。', '缺口是正的，只是日子过得随性。',
+           '小有红盘，别误以为自己是股神。'],
+    down: ['这样下去，K线要在低位横盘很久。', '本周净盈余，先别急着找理由。',
+           '回撤可控，但你该看看纪律了。']
+  },
+  none: ['本期没有记录——龙虎榜还没有你的名字。', '本周还在观望，席位空着。', '没有记录就没有曲线，先下第一单。']
+};
+/* 返回 { title, roast, rate }：海报上「称号」与「吐槽」两行文案。
+   优先级：长连击 > 连续掉队 > 达标率分档（称号讲的是"你是什么选手"，比数字更有晒点）。 */
+function reviewLines(r) {
+  const seed = _rvSeed(r);
+  if (r.cnt === 0) return { title: _rvPick(RV_TITLE.none, seed, 1), roast: _rvPick(RV_ROAST.none, seed, 2), rate: 0 };
+  const rate = r.hit / r.cnt;
+  const band = rate >= 0.8 ? 'hi' : (rate >= 0.4 ? 'mid' : 'low');
+  let title;
+  if (r.streakBest >= 4) title = _rvPick(RV_TITLE.streak, seed, 3);
+  else if (r.slump >= 3) title = _rvPick(RV_TITLE.slumpy, seed, 4);
+  else title = _rvPick(RV_TITLE[band], seed, 5);
+  const pool = RV_ROAST[band][r.total >= 0 ? 'up' : 'down'];
+  return { title: title, roast: _rvPick(pool, seed, 6), rate: Math.round(rate * 100) };
+}
+/* ---- 分享海报：布局数据（2026-10-02）----
+   把「画什么」从「怎么画」里剥出来：这份是纯数据（不碰 DOM/canvas ⇒ 会被 mp_build 同步进
+   小程序内核），两端各自用本地画笔渲染同一份布局 ⇒ 口径永远一致。
+   数字全部来自内核（确定性层），⛔ 海报上不出现任何模型生成/手写的数字。
+   ⚠️ isWeek **必须显式传入**，⛔ 别让它去读模块内的 lbRange ——
+      小程序那份 lbRange 是 mp 抽取后断了写入的孤立变量（恒为 'week'，只有 getter 没 setter），
+      隐式读它会让「本月」海报印上周的数据。PWA 侧由 renderReview 传当前 lbRange。 */
+function reviewPosterData(isWeek_) {
+  const isWeek = (isWeek_ === undefined) ? (lbRange === 'week') : !!isWeek_;
+  const r = reviewData(isWeek);
+  const ln = reviewLines(r);
+  const kg = r.total / KCAL_PER_KG_FAT;
+  const up = r.total >= 0;                       // 涨红跌绿（中国股市约定）
+  const col = up ? '#ff3b47' : '#00c896';
+  /* 段位称号：走内核 currentRank（唯一真源） */
+  const cr = currentRank();
+  /* 人格称号：走 personaStored（有档才显，没测过就不硬塞） */
+  let persona = '';
+  try {
+    const p = personaStored();
+    if (p && p.code) { const d = personaDisplay(p.code, p.axes, p.fun); if (d && d.name) persona = d.name; }
+  } catch (e) { persona = ''; }
+  return {
+    title: r.p.title, label: r.p.label,
+    totalTxt: (r.total > 0 ? '' : (r.total < 0 ? '+' : '')) + fmtNum(Math.abs(r.total)),
+    col: col, up: up,
+    kgTxt: (kg >= 0 ? '' : '+') + Math.abs(kg).toFixed(2) + ' kg',
+    kgUp: kg >= 0,
+    hit: r.hit, cnt: r.cnt, rate: ln.rate,
+    cum: r.cum, hitLine: r.pts.map(function (x) { return x.def >= REVIEW_HIT_KCAL; }),
+    bigIn: r.bigIn ? r.bigIn.name : '--', bigInK: r.bigIn ? Math.round(r.bigIn.kcal || 0) : null,
+    bigOut: r.bigOut ? r.bigOut.name : '--', bigOutK: r.bigOut ? Math.round(r.bigOut.kcal || 0) : null,
+    rankLv: cr.lv, rankName: cr.rank.name, rankColor: cr.rank.color,
+    persona: persona,
+    badge: ln.title, roast: ln.roast,
+    streakBest: r.streakBest, slump: r.slump, dowWorst: r.dowWorst,
+    empty: r.cnt === 0
+  };
 }
 function reviewText() {
   const r = reviewData();
   const kg = r.total / KCAL_PER_KG_FAT;
+  const ln = reviewLines(r);
   const L = [];
   L.push('【' + r.p.title + ' · ' + r.p.label + '】');
+  L.push('封号：' + ln.title + '（达标率 ' + ln.rate + '%）');
   L.push('净缺口 ' + fmtNum(Math.abs(r.total)) + ' kcal（约合减脂 ' + Math.abs(kg).toFixed(2) + ' kg）');
   L.push('缺口达标 ' + r.hit + '/' + r.cnt + ' 天');
   if (r.bigIn) L.push('做多最狠：' + r.bigIn.name + ' +' + fmtNum(Math.round(r.bigIn.kcal || 0)) + ' kcal');
   if (r.bigOut) L.push('做空之王：' + r.bigOut.name + ' ' + fmtNum(Math.round(r.bigOut.kcal || 0)) + ' kcal');
+  if (r.streakBest >= 2) L.push('最长连击：' + r.streakBest + ' 天');
+  L.push(ln.roast);
   L.push(reviewTip(r));
   L.push('—— 健身交易员');
   return L.join('\n');
