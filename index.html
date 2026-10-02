@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.10.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.10.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5398,7 +5398,9 @@ function _posterCanvas() {
 }
 function _posterFont(c, size, weight, mono) { c.font = (weight ? weight + ' ' : '') + size + 'px ' + (mono ? 'ui-monospace,Menlo,Consolas,monospace' : 'system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif'); }
 function drawReviewPoster(cv, d, W) {
-  const H = 720, S = 2;                                  // S = 超采样倍率（导出 2x 更清晰）
+  const H = 600, S = 2;                                  // S = 超采样倍率（导出 2x 更清晰）
+                                          // ⚠️ H 别拍脑袋：第一版定 720，实际内容只到 ~560 ⇒ 底部空一大块。
+                                          //    高度按内容实测取 600（各区块 y 累加到 ~575 + 页脚留白）。
   cv.width = W * S; cv.height = H * S; cv.style.width = W + 'px';
   const c = cv.getContext('2d'); c.scale(S, S);
   const ink = '#e8eef7', mut = '#8b97ab', dim = '#5a6478', line = '#1e2634', panel = '#141b28';
@@ -5436,8 +5438,8 @@ function drawReviewPoster(cv, d, W) {
   c.fillText('≈ ' + d.kgTxt + (d.kgUp ? ' 减脂' : ' 增脂'), cx + tw + 10, y + 52);
   y += 76;
 
-  /* 迷你走势图（累计曲线 + 达标基线） */
-  const gx = cx, gy = y, gw = W - pad * 2, gh = 64;
+  /* 迷你走势图（累计曲线）。⚠️ 第一版 gh=64 偏扁 ⇒ 整张显空，加到 88 让中段有分量 */
+  const gx = cx, gy = y, gw = W - pad * 2, gh = 88;
   c.fillStyle = panel; c.fillRect(gx, gy, gw, gh);
   c.strokeStyle = line; c.lineWidth = 1; c.strokeRect(gx + .5, gy + .5, gw - 1, gh - 1);
   if (d.cum && d.cum.length >= 2) {
@@ -5491,9 +5493,15 @@ function drawReviewPoster(cv, d, W) {
   })();
   y += 74 + 20;
 
-  /* 页脚 */
-  _posterFont(c, 10, 400); c.fillStyle = dim; c.fillText('健身交易员 · 亏损自负，盈亏自负', cx, H - 22);
-  c.textAlign = 'right'; c.fillText('长按或点「保存海报」存图分享', W - pad, H - 22); c.textAlign = 'left';
+  /* 页脚。⚠️ 第一版左右两段都写在 H-22 这条基线上，340px 宽放不下 ⇒ 两段糊成一句。
+     改成上下两行：左「健身交易员」品牌、右上不放，提示语单独一行小字。 */
+  _posterFont(c, 10, 400); c.fillStyle = dim;
+  c.fillText('健身交易员 · 盈亏自负', cx, H - 30);
+  c.fillText('长按图片存图分享', cx, H - 14);
+  /* 右下角放期号小标（信息密度低原则：不与左段抢行） */
+  c.textAlign = 'right';
+  c.fillText(d.label, W - pad, H - 14);
+  c.textAlign = 'left';
   return cv;
 }
 function saveReviewPoster() {
