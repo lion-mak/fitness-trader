@@ -9,6 +9,8 @@ poster_shot.py —— 复盘海报视觉验收（人眼看的，闸测不了）
 v2.12.0 起出**四张**图（同时验「页面上看到的」与「导出的」是否同构）：
   rv_page_week.png  / rv_page_month.png    页面里 #lb-review 那块（= 用户平时看到的）
   rv_poster_week.png / rv_poster_month.png 走 drawReviewPoster 导出的成品海报
+v2.13.0 起追加第五张：rv_poster_week_dd.png（哪天摆一桌火锅 ⇒ 造出回撤，
+  肉眼验「峰 / 谷 / 最大回撤」三处标注 —— 全达标的存档里回撤恒为 0，标注根本不出现）。
 
 做法：真浏览器打开本地 index.html → 注入一份存档 → 切到龙虎榜页 → 区块截图 + canvas 出图。
 ⛔ 只读不写：不改 index.html、不发版，纯本地渲染。
@@ -39,6 +41,31 @@ PLAN = [  # (运动kcal, 饮食kcal, 食物名, 运动名, 时长min)
     (950, 1200, '三文鱼沙拉', '游泳', 50), (600, 1400, '麻婆豆腐', '快走', 70),
     (900, 1150, '虾仁炒蛋', '跑步', 40), (850, 1300, '照烧鸡腿饭', '骑行', 55),
 ]
+# 第二份存档：第 3 天（i=2）摆一桌火锅 ⇒ 累计缺口出现**回撤**，
+# 用来肉眼验「最大回撤」虚线 + 数值标注（Mak 2026-10-03 要求的标注里唯一需要造数据的那个）。
+PLAN_DD = PLAN[:2] + [(200, 2400, '火锅局', '散步', 20)] + PLAN[3:]
+
+# 🔴 注入存档的 JS。⚠️ 运动记录**必须写 `duration`**（真源字段，addExercise 写的就是它）——
+#    本脚本曾写成 `min:[4]`，那是老档兜底字段 ⇒ 出图永远走兼容分支，
+#    「内核把时长读成 0 分钟」这类字段 bug 在视觉验收里**根本看不见**（2026-10-03 修正）。
+INJECT_JS = """(args) => {
+  const [seed, plan] = args;
+  const pad2 = n => String(n).padStart(2,'0');
+  const ymd = d => d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+  const D = n => { const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return ymd(d); };
+  const s = JSON.parse(JSON.stringify(seed));
+  plan.forEach((p,i)=>{ s.diet.push({id:'f'+i,name:p[2],kcal:p[1],date:D(-i),meal:'lunch'});
+                         s.exercise.push({id:'e'+i,name:p[3],kcal:p[0],date:D(-i),duration:p[4]}); });
+  localStorage.setItem('jianpan_v2', JSON.stringify(s));
+}"""
+
+# 切到龙虎榜页（页面用 .page.active 控制显隐）；每次 reload 后都要重做一次
+PAGE_JS = """() => {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  const el = document.getElementById('page-leaderboard');
+  if (el) el.classList.add('active');
+  window.scrollTo(0, 0);
+}"""
 
 
 def launch_browser(pw):
@@ -78,16 +105,7 @@ def main():
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto(url)
         pg.wait_for_timeout(600)
-        pg.evaluate("""(args) => {
-          const [seed, plan] = args;
-          const pad2 = n => String(n).padStart(2,'0');
-          const ymd = d => d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
-          const D = n => { const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return ymd(d); };
-          const s = JSON.parse(JSON.stringify(seed));
-          plan.forEach((p,i)=>{ s.diet.push({id:'f'+i,name:p[2],kcal:p[1],date:D(-i),meal:'lunch'});
-                                 s.exercise.push({id:'e'+i,name:p[3],kcal:p[0],date:D(-i),min:p[4]}); });
-          localStorage.setItem('jianpan_v2', JSON.stringify(s));
-        }""", [SEED, PLAN])
+        pg.evaluate(INJECT_JS, [SEED, PLAN])
         pg.reload(); pg.wait_for_timeout(700)
         # 切到龙虎榜页（页面用 .page.active 控制显隐）
         pg.evaluate("""() => {
@@ -96,7 +114,9 @@ def main():
           if (el) el.classList.add('active');
           window.scrollTo(0, 0);
         }""")
-        for rng, tag in (('week', 'week'), ('month', 'month')):
+        # 切到龙虎榜页（页面用 .page.active 控制显隐）
+        pg.evaluate(PAGE_JS)
+        def shoot(rng, tag):
             pg.evaluate("(r) => setLbRange(r)", rng)
             pg.wait_for_timeout(500)
             blk = pg.locator('#lb-review .rvp')
@@ -112,7 +132,8 @@ def main():
                 total: d.totalTxt, kg: d.kgTxt, hit: d.hitTxt,
                 stats: d.stats.map(s => s.n + s.u + '/' + s.l),
                 boards: d.boards.map(b => b.k + ':' + b.n + ' ' + b.v),
-                tip: d.tip, W: cv.width / 2, H: cv.height / 2,
+                tip: d.tip, dd: d.marks ? d.marks.ddTxt : '--',
+                W: cv.width / 2, H: cv.height / 2,
                 card: !!im, png: cv.toDataURL('image/png')
               });
             }""", rng)
@@ -121,6 +142,15 @@ def main():
             with io.open(os.path.join(OUT, 'rv_poster_%s.png' % tag), 'wb') as f:
                 f.write(base64.b64decode(png))
             print(u'[%s] %s' % (tag, json.dumps(info, ensure_ascii=False)))
+
+        for rng, tag in (('week', 'week'), ('month', 'month')):
+            shoot(rng, tag)
+        # 第三份样张（week_dd）：把第 3 天换成火锅局 ⇒ 累计缺口出现回撤，
+        # 肉眼验「峰 / 谷 / 最大回撤」三处标注与虚线（峰谷一直在，回撤要造数据才有）。
+        pg.evaluate(INJECT_JS, [SEED, PLAN_DD])
+        pg.reload(); pg.wait_for_timeout(700)
+        pg.evaluate(PAGE_JS)
+        shoot('week', 'week_dd')
         b.close()
     httpd.shutdown()
     if errs:

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.12.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.13.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -825,35 +825,53 @@ body {
     linear-gradient(90deg,#131923 1px,transparent 1px);
   background-size:100% 100%,26px 26px,26px 26px;}
 .rvp-hd{display:flex;justify-content:space-between;align-items:flex-start;}
+/* 左栏文字在卡面高度里**垂直居中**（118 = .rvp-card 的高，改一处必须改两处；
+   画笔那边对应的是 hdY = y + round((CARD_H − 70) / 2)）。 */
+.rvp-hd-l{min-width:0;display:flex;flex-direction:column;justify-content:center;height:118px;}
 .rvp-k{font-size:10px;letter-spacing:.16em;font-weight:700;color:#ff3b47;}
 .rvp-t{font-size:23px;font-weight:800;letter-spacing:-.5px;margin-top:7px;line-height:1.05;}
 .rvp-s{font-size:12px;color:#7b8798;margin-top:7px;}
-.rvp-card{display:block;width:auto;height:100px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.55);}
-.rvp-rule{height:1px;background:linear-gradient(90deg,#28323f,rgba(40,50,63,0));margin-top:14px;}
-.rvp-hero{display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px;}
-.rvp-big{font-size:50px;font-weight:800;letter-spacing:-2.2px;line-height:.95;margin-top:8px;font-variant-numeric:tabular-nums;}
+/* 段位卡面：Mak 2026-10-03「可以再大一点」⇒ 100 → 118（宽按原图 500×775 的 0.645 比例自动推，
+   与画笔的 cwid = round(CARD_H * 0.645) 同一算法）。 */
+.rvp-card{display:block;width:auto;height:118px;border-radius:9px;box-shadow:0 8px 22px rgba(0,0,0,.6);}
+/* ⛔ .rvp-rule（卡片与下方区块之间那条灰色横线）已按 Mak 要求删除，
+   画笔里的 lg 渐变横线也一起删了 —— 别只加回一边。 */
+.rvp-hero{display:flex;align-items:flex-end;justify-content:space-between;margin-top:20px;}
+.rvp-hero-l{flex:1 1 auto;min-width:0;}
+.rvp-big{font-size:50px;font-weight:800;letter-spacing:-2.2px;line-height:.95;margin-top:8px;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .rvp-big .u{font-size:14px;font-weight:600;letter-spacing:0;margin-left:5px;}
 .rvp-kg{font-size:12px;margin-top:9px;font-weight:600;}
-.rvp-honor{text-align:right;padding-bottom:3px;max-width:132px;}
+/* 右栏固定 150px = 画笔的 HONOR_W（左栏大数字的可用宽也照同一个数算），
+   ⛔ 别再改成 max-width —— 「一条轴打平」时人格名是两个名并列，撑不住就会折成两行。 */
+.rvp-honor{text-align:right;padding-bottom:3px;flex:0 0 150px;width:150px;min-width:0;}
 .rvp-hl{font-size:10px;color:#7b8798;letter-spacing:.1em;}
-.rvp-hv{font-size:19px;font-weight:800;color:#ffd166;margin-top:6px;letter-spacing:-.3px;}
-.rvp-hv2{font-size:13px;font-weight:700;color:#b9b3f5;margin-top:5px;}
+.rvp-hv{font-size:19px;font-weight:800;color:#ffd166;margin-top:6px;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 11.5px（不是 13）：人格名在「有一条轴打平」时是**两个名并列**（如「时间的朋友 / 趋势跟随者」），
+   13px 会被挤成两行（Mak 2026-10-03 报的「单行要能显示更多字」）。
+   nowrap + 省略号 ⇒ 永远单行，宁可截尾也不堆两行。 */
+.rvp-hv2{font-size:11.5px;font-weight:700;color:#b9b3f5;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-spark{margin-top:6px;}
+/* 数字格 2×3：Mak 2026-10-03 ⇒ **六格一律右对齐**，色条从左边挪到右边缘。
+   上排绿 / 下排琥珀的配色在内核 stats 的 c 字段里，⛔ 不在这里判行号。 */
 .rvp-stats{display:grid;grid-template-columns:repeat(3,1fr);row-gap:15px;margin-top:16px;}
-.rvp-st{border-left:2px solid #1e2734;padding-left:9px;min-width:0;}
-.rvp-st .n{font-size:26px;font-weight:800;letter-spacing:-1.1px;font-variant-numeric:tabular-nums;}
+.rvp-st{border-right:2px solid #1e2734;padding-right:8px;min-width:0;text-align:right;}
+.rvp-st .n{font-size:26px;font-weight:800;letter-spacing:-1.1px;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .rvp-st .n .u{font-size:11.5px;font-weight:600;letter-spacing:0;margin-left:3px;}
 .rvp-st .l{font-size:11px;color:#7b8798;margin-top:6px;}
 .rvp-bh{font-size:11px;color:#7b8798;letter-spacing:.12em;margin-top:20px;}
 .rvp-boards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px;}
-.rvp-bd{background:#111721;border:1px solid #1c2431;border-radius:11px;padding:11px 10px 12px;min-width:0;}
-.rvp-bd .k{font-size:10.5px;font-weight:800;color:#ffd166;letter-spacing:.04em;}
+/* 榜单卡：Mak 2026-10-03 ⇒ **称号左对齐且字号加大（10.5 → 12.5），其余数据全部右对齐**。
+   实现上是「卡片整体 text-align:right，只把 .k 拨回 left」—— 两个对齐轴。 */
+.rvp-bd{background:#111721;border:1px solid #1c2431;border-radius:11px;padding:11px 10px 12px;min-width:0;text-align:right;}
+.rvp-bd .k{font-size:12.5px;font-weight:800;color:#ffd166;letter-spacing:.02em;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .n{font-size:14px;font-weight:700;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.rvp-bd .d{font-size:10.5px;color:#7b8798;margin-top:5px;}
-.rvp-bd .v{font-size:11.5px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
-.rvp-quote{margin-top:18px;background:rgba(99,153,34,.09);border:1px solid rgba(99,153,34,.18);border-radius:11px;padding:11px 13px;}
-.rvp-quote .t{font-size:12.5px;color:#ccd6e4;line-height:1.55;}
-.rvp-quote .p{font-size:11px;color:#93a67c;margin-top:7px;line-height:1.5;}
+.rvp-bd .d{font-size:10.5px;color:#7b8798;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rvp-bd .v{font-size:11.5px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 评论文案卡：Mak 2026-10-03 ⇒ 底色改成**半透明浅紫**（与「交易人格」的 #b9b3f5 同族），
+   ⛔ 别再改回原来的橄榄绿 —— 画笔里那三处色值必须与这里一致。 */
+.rvp-quote{margin-top:18px;background:rgba(185,179,245,.10);border:1px solid rgba(185,179,245,.22);border-radius:11px;padding:11px 13px;}
+.rvp-quote .t{font-size:12.5px;color:#dcd8ff;line-height:1.55;}
+.rvp-quote .p{font-size:11px;color:#a79fe8;margin-top:7px;line-height:1.5;}
 .rvp-ft{display:flex;justify-content:space-between;font-size:10px;color:#5a6478;margin-top:16px;}
 /* 「保存到相册」是主操作（实心强调）—— 用户点"保存"的真实期待就是存进相册，
    视觉上就该比其他按钮重，一路引导他去点。 */
@@ -5311,6 +5329,31 @@ function reviewPeriod(isWeek_) {
     label: isWeek ? ('本周 · ' + start.slice(5).replace('-', '/') + ' 起') : (m + '月')
   };
 }
+/* ---- 走势标注点（2026-10-03 Mak：折线要标注最大回撤点、波峰和波谷）----
+   纯计算 ⇒ 自动同步小程序内核，两端画笔拿**同一份 marks** 画同一批点。
+   ⛔ 别在画笔里现算这些下标：两端各算一次就迟早分歧（一边标 max、一边标 min）。
+   · pk / tr  ：全局波峰 / 波谷下标（累计缺口最高的那一刻 / 最低的那一刻）
+   · ddI→ddJ ：**最大回撤区间**（先冲高 ddI 后回落到 ddJ 的跌幅最大），dd = 回撤幅度
+   ⚠️ 全平（mx === mn）时 pk === tr === 0，两端画笔各自跳过标注 —— 那是唯一会重标注的情况。 */
+function rvSparkMarks(cum) {
+  if (!cum || cum.length < 2) return null;
+  let pk = 0, tr = 0, i;
+  for (i = 1; i < cum.length; i++) {
+    if (cum[i] > cum[pk]) pk = i;
+    if (cum[i] < cum[tr]) tr = i;
+  }
+  let lo = 0, dd = 0, ddI = 0, ddJ = 0;
+  for (i = 1; i < cum.length; i++) {
+    const drop = cum[lo] - cum[i];
+    if (drop > dd) { dd = drop; ddI = lo; ddJ = i; }
+    if (cum[i] > cum[lo]) lo = i;
+  }
+  return { pk: pk, tr: tr, ddI: ddI, ddJ: ddJ, dd: Math.round(dd),
+           /* ddTxt 一并在这里格式化：画笔**不做格式化**（它连 fmtNum 都不该依赖 ——
+              mp_poster_test 的 M 段把 _rvpPaint 抠出来单独跑，作用域里没有 fmtNum）。 */
+           ddTxt: fmtNum(Math.round(dd)),
+           flat: Math.max.apply(null, cum) === Math.min.apply(null, cum) };
+}
 function reviewData(isWeek_) {
   const p = reviewPeriod(isWeek_);
   const bmr = calcBMR();
@@ -5340,13 +5383,24 @@ function reviewData(isWeek_) {
      Mak 的口径：复盘的**数字格**讲运动（消耗 / 时长 / 次数 / 天数 / 单次最高），
      净缺口只留在顶部那个大数字、总摄入不再单列成格。
      ⚠️ `min` 字段老记录可能没有 ⇒ 一律 `|| 0`，别让 undefined 混进累加（会变 NaN）。 */
+  /* 🔴🔴 运动时长字段读法（2026-10-03 Mak 报的 bug：有运动次数、总时长却是 0 分钟）
+     真源字段是 **`duration`**（见 addExercise：`duration: curDuration`），
+     我第一版这里写成了 `e.min` ⇒ 恒为 0，而且**没有任何地方会报错**（不是 undefined 崩，是静默 0）。
+     ⇒ 本函数是「读运动时长」的唯一入口，⛔ 别在别处再写 `e.min` / `e.duration`。
+     老档若只有 `min` 才回退读 min（迁移期的兜底，⛔ 不是主口径）。 */
+  function exMinOf(e) {
+    if (!e) return 0;
+    if (e.duration != null) return Math.round(e.duration || 0);
+    if (e.min != null) return Math.round(e.min || 0);
+    return 0;
+  }
   let exKcal = 0, exMin = 0, exCnt = 0, exMax = 0;
   const exDayMap = {};
   (state.exercise || []).forEach(function (e) {
     if ((e.date || '') < p.start) return;
     const k = Math.round(e.kcal || 0);
     exKcal += (e.kcal || 0);
-    exMin += Math.round(e.min || 0);
+    exMin += exMinOf(e);
     exCnt += 1;
     if (k > exMax) exMax = k;
     exDayMap[e.date] = 1;
@@ -5384,7 +5438,8 @@ function reviewData(isWeek_) {
   });
   (state.exercise || []).forEach(function (e) {
     if ((e.date || '') < p.start) return;
-    if (!longEx || (e.min || 0) > (longEx.min || 0)) longEx = { name: e.name, min: Math.round(e.min || 0) };
+    const dm = exMinOf(e);
+    if (!longEx || dm > longEx.dur) longEx = { name: e.name, dur: dm };
   });
 
   /* ---- 数据加料（2026-10-02 · 分享海报需要，纯计算不碰 DOM ⇒ 自动同步小程序）----
@@ -5429,10 +5484,25 @@ function reviewData(isWeek_) {
     bigDay: bigDay, burnDay: burnDay, longEx: longEx };
 }
 /* 文案占位符填充 —— 数字/日期/周期词**全部来自 r**，⛔ 池子里不许写死任何数值或「本周」。
-   {cnt} 记录天数 / {hit} 达标天数 / {tail} 下周|下月 / {worst} 最难看的那天 / {p} 本周|本月 */
+   因为池子里的梗要「结合数据」，占位符就是这句话能不能成立的全部来源。
+   {p} 本周|本月 ／ {tail} 下周|下月 ／ {worst} 最难看的那天 ／
+   {cnt} 记录天数 ／ {hit} 达标天数 ／ {rate} 达标率% ／ {kg} 折合减脂 kg ／
+   {ex} 总消耗 kcal ／ {min} 总时长分钟 ／ {max} 单次最高 kcal ／ {excnt} 运动次数 ／
+   {top} 多头霸主（吃最多）／ {work} 做空劳模（最常练）／ {burn} 空军司令（烧最多）
+   ⚠️ 写池子时**只用上面这些**；typo 不会报错，只会原样印在用户的海报上
+      —— 闸 L 段会全池扫一遍未登记占位符。
+   ⚠️ {top}/{work}/{burn} 在没有对应记录时回退成一句人话（⛔ 不是 '--'，那读起来像 bug）。 */
 function rvFill(tpl, r, tail) {
   const w = r.worst ? fmtDay(r.worst.date) : (r.p.isWeek ? '本周' : '本月');
+  const nm = function (o, d) { return (o && o.name) ? o.name : d; };
   return tpl.replace(/\{cnt\}/g, r.cnt).replace(/\{hit\}/g, r.hit)
+            .replace(/\{rate\}/g, r.cnt ? Math.round(r.hit / r.cnt * 100) : 0)
+            .replace(/\{ex\}/g, fmtNum(r.exKcal)).replace(/\{min\}/g, r.exMin)
+            .replace(/\{max\}/g, fmtNum(r.exMax)).replace(/\{excnt\}/g, r.exCnt)
+            .replace(/\{kg\}/g, Math.abs(r.total / KCAL_PER_KG_FAT).toFixed(2))
+            .replace(/\{top\}/g, nm(r.lordIn, '菜单'))
+            .replace(/\{work\}/g, nm(r.hardWork, '训练计划'))
+            .replace(/\{burn\}/g, nm(r.lordOut, '那次训练'))
             .replace(/\{tail\}/g, tail).replace(/\{worst\}/g, w)
             .replace(/\{p\}/g, r.p.isWeek ? '本周' : '本月');
 }
@@ -5446,10 +5516,23 @@ function reviewTip(r) {
   else pool = RV_TIP.down;
   return rvFill(_rvPick(pool, seed, 7), r, tail);
 }
-function reviewSpark(cum, col) {
-  const W = 320, H = 56, padL = 6, padR = 8, padT = 9, padB = 10;
+/* ---- 复盘卡里的走势图（DOM 版，内联 SVG）----
+   ⚠️ 与画布版 _rvpPaint 的折线段**不是逐像素同坐标**（SVG 与 canvas 的内边距约定本来就不同），
+      但两者必须满足同一套口径：图题 + 右上的最大回撤说明 + 面积填充 + 峰/谷/回撤三个标注，
+      标注下标一律来自内核 marks（⛔ 不在这边自己找最大值/最小值）。
+   Mak 2026-10-03：加高（56 → 78），并标注波峰 / 波谷 / 最大回撤点。 */
+function reviewSpark(cum, col, mk) {
+  const W = 320, H = 78, padL = 6, padR = 8, padT = 16, padB = 10;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" style="display:block;margin-top:14px;">';
+  /* 说明行（顶部 16px）：左图题 / 右最大回撤。
+     ⛔ 标注文字别往数据点旁边挤 —— 峰必贴上边界、谷必贴下边界，两个标签必打架。 */
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H
+    + '" style="display:block;margin:0;">';
+  svg += '<text x="' + (padL + 2) + '" y="12" fill="#5a6478" font-size="9">累计缺口走势</text>';
+  if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
+    svg += '<text x="' + (W - padR - 2) + '" y="12" text-anchor="end" fill="#ff8b96" font-size="9"'
+      + ' font-weight="700">最大回撤 ' + mk.ddTxt + '</text>';
+  }
   if (cum.length >= 2) {
     const mn = Math.min.apply(null, cum), mx = Math.max.apply(null, cum);
     const span = (mx - mn) || 1;
@@ -5458,19 +5541,38 @@ function reviewSpark(cum, col) {
       const y = padT + (1 - (v - mn) / span) * plotH;
       return [x, y];
     });
+    const f1 = function(n) { return (+n).toFixed(1); };
     /* 面积填充：线到基线之间铺一层淡色渐变。
        ⚠️ 纯粹为了「别让一条直线悬在大片空白里」——数据规律时折线几乎是一条直线，只描线会显得很空。 */
     const base = padT + plotH + 4;
     svg += '<defs><linearGradient id="rv-grad" x1="0" y1="0" x2="0" y2="1">'
       + '<stop offset="0" stop-color="' + col + '" stop-opacity=".26"/>'
       + '<stop offset="1" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>';
-    svg += '<polygon points="' + xy[0][0].toFixed(1) + ',' + base
-      + ' ' + xy.map(function(a) { return a[0].toFixed(1) + ',' + a[1].toFixed(1); }).join(' ')
-      + ' ' + xy[xy.length - 1][0].toFixed(1) + ',' + base + '" fill="url(#rv-grad)"/>';
-    svg += '<polyline points="' + xy.map(function(a) { return a[0].toFixed(1) + ',' + a[1].toFixed(1); }).join(' ')
+    svg += '<polygon points="' + f1(xy[0][0]) + ',' + base
+      + ' ' + xy.map(function(a) { return f1(a[0]) + ',' + f1(a[1]); }).join(' ')
+      + ' ' + f1(xy[xy.length - 1][0]) + ',' + base + '" fill="url(#rv-grad)"/>';
+    /* 最大回撤区间：与画布版同一个**拐角**（峰位水平线 → 谷位竖线），在折线**下面**画，⛔ 别压住线 */
+    if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
+      const a = xy[mk.ddI], b = xy[mk.ddJ];
+      svg += '<polyline points="' + f1(a[0]) + ',' + f1(a[1]) + ' ' + f1(b[0]) + ',' + f1(a[1])
+        + ' ' + f1(b[0]) + ',' + f1(b[1]) + '" fill="none" stroke="rgba(255,139,150,.6)"'
+        + ' stroke-width="1" stroke-dasharray="3 3"/>';
+    }
+    svg += '<polyline points="' + xy.map(function(a) { return f1(a[0]) + ',' + f1(a[1]); }).join(' ')
       + '" fill="none" stroke="' + col + '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
     const last = xy[xy.length - 1];
-    svg += '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="2.6" fill="' + col + '"/>';
+    svg += '<circle cx="' + f1(last[0]) + '" cy="' + f1(last[1]) + '" r="2.6" fill="' + col + '"/>';
+    /* 峰 / 谷：下标来自内核 marks；峰标签放点下方、谷标签放点上方；x 靠边时夹回绘图区 */
+    if (mk && !mk.flat) {
+      const cl = function(x) { return Math.max(padL + 8, Math.min(W - padR - 8, x)); };
+      const pk = xy[mk.pk], tr = xy[mk.tr];
+      svg += '<circle cx="' + f1(pk[0]) + '" cy="' + f1(pk[1]) + '" r="2.6" fill="#ffd166"/>'
+        + '<text x="' + f1(cl(pk[0])) + '" y="' + f1(pk[1] + 12)
+        + '" text-anchor="middle" fill="#ffd166" font-size="9" font-weight="700">峰</text>'
+        + '<circle cx="' + f1(tr[0]) + '" cy="' + f1(tr[1]) + '" r="2.6" fill="#7ab0ff"/>'
+        + '<text x="' + f1(cl(tr[0])) + '" y="' + f1(tr[1] - 5)
+        + '" text-anchor="middle" fill="#7ab0ff" font-size="9" font-weight="700">谷</text>';
+    }
   } else {
     svg += '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle" fill="#5a6478" font-size="11">数据点不足，多记几天就有曲线了</text>';
   }
@@ -5486,14 +5588,15 @@ function renderReview() {
   const d = reviewPosterData(lbRange === 'week');
   const file = RANK_CARDS[(d.rankLv || 1) - 1] || RANK_CARDS[0];
   let h = '<div class="rvp"><div class="rvp-bg"></div>';
-  h += '<div class="rvp-hd"><div>'
+  h += '<div class="rvp-hd"><div class="rvp-hd-l">'
     + '<div class="rvp-k">REVIEW · ' + (d.isWeek ? '周报' : '月报') + '</div>'
     + '<div class="rvp-t">' + escHtml(d.title) + '</div>'
     + '<div class="rvp-s">' + escHtml(d.label) + '</div></div>'
     + '<div class="rvp-hd-r"><img class="rvp-card" src="assets/ranks/' + file + '" alt="'
     + escHtml(d.rankName) + '" decoding="async"></div></div>';
-  h += '<div class="rvp-rule"></div>';
-  h += '<div class="rvp-hero"><div>'
+  /* ⛔ 这里原先有一条 .rvp-rule 灰色横线，Mak 2026-10-03 要求去掉（版面更自由）。
+     画笔那边对应的 lg 渐变横线也一起删了 —— 只删一头就会「页面有、导出图没有」。 */
+  h += '<div class="rvp-hero"><div class="rvp-hero-l">'
     + '<div class="rvp-k">净缺口 KCAL</div>'
     + '<div class="rvp-big" style="color:' + d.col + '">' + escHtml(d.totalTxt)
     + '<span class="u">kcal</span></div>'
@@ -5504,7 +5607,7 @@ function renderReview() {
   if (d.persona) h += '<div class="rvp-hl" style="margin-top:8px">交易人格</div>'
     + '<div class="rvp-hv2">' + escHtml(d.persona) + '</div>';
   h += '</div></div>';
-  h += '<div class="rvp-spark">' + reviewSpark(d.cum, d.col) + '</div>';
+  h += '<div class="rvp-spark">' + reviewSpark(d.cum, d.col, d.marks) + '</div>';
   h += '<div class="rvp-stats">';
   d.stats.forEach(function (s) {
     h += '<div class="rvp-st"><div class="n" style="color:' + s.c + '">' + escHtml(s.n)
@@ -5591,8 +5694,11 @@ function saveReviewPoster() {
 function _rvpPaint(c, d, W, rankImg, measure) {
   const pad = 20, cw = W - pad * 2;
   const ink = '#e8eef7', mut = '#7b8798', dim = '#5a6478';
-  const CARD_H = 100;        // 段位卡面高（宽按原图 0.645 的比例推得 ≈64）
+  const CARD_H = 118;        // 段位卡面高（Mak 2026-10-03：再大一点 ⇒ 宽 = 118×0.645 ≈ 76，原图 500×775）
+  const HD_GAP = 20;         // 顶栏 → hero 的间距（原先是「14 + 灰色横线 1 + 16」，横线已按 Mak 要求删掉）
   const STAT_H = 45;         // 数字格单行高
+  const SPARK_H = 78;        // 折线块高（Mak：稍微加高一点，要放得下 峰/谷/最大回撤 三个标注）
+  const HONOR_W = 150;       // 右栏「封号 / 交易人格」的固定宽 ⇒ 左栏大数字可用宽 = cw − HONOR_W − 44
   const ROWH = 94;           // 榜单卡高
   const ROWGAP = 9;
   const rows = Math.max(1, Math.ceil(d.boards.length / 3));
@@ -5644,37 +5750,44 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
   let y = 22;
 
-  /* ---- 顶栏：期号（左）+ 段位卡面（右 = 原来写段位文字的位置）---- */
+  /* ---- 顶栏：期号 + 标题（左，在卡面高度里垂直居中）+ 段位卡面（右 = 原来写段位文字的位置）----
+     ⚠️ 左栏三行的基线走 hdY 这个偏移（不是写死的 10/40/64）：卡面从 100 长到 118 之后，
+        写死的偏移会让文字全挤在顶部。hdY 的算式是「文字块高 ≈70，在 CARD_H 里居中」。 */
+  const hdY = y + Math.round((CARD_H - 70) / 2);
   _posterFont(c, 10, 700); c.fillStyle = '#ff3b47';
-  c.fillText('REVIEW · ' + (d.isWeek ? '周报' : '月报'), pad, y + 10);
+  c.fillText('REVIEW · ' + (d.isWeek ? '周报' : '月报'), pad, hdY + 8);
   _posterFont(c, 23, 800); c.fillStyle = ink;
-  c.fillText(d.title, pad, y + 40);
+  c.fillText(d.title, pad, hdY + 44);
   _posterFont(c, 12, 400); c.fillStyle = mut;
-  c.fillText(d.label, pad, y + 64);
+  c.fillText(d.label, pad, hdY + 68);
   const cwid = Math.round(CARD_H * 0.645), cx0 = W - pad - cwid;
   if (rankImg) {
-    c.save(); rr(cx0, y, cwid, CARD_H, 8); c.clip();
+    c.save(); rr(cx0, y, cwid, CARD_H, 9); c.clip();
     c.drawImage(rankImg, cx0, y, cwid, CARD_H); c.restore();
-    c.save(); rr(cx0, y, cwid, CARD_H, 8);
+    c.save(); rr(cx0, y, cwid, CARD_H, 9);
     c.strokeStyle = 'rgba(255,255,255,.10)'; c.lineWidth = 1; c.stroke(); c.restore();
   } else {
-    rr(cx0, y, cwid, CARD_H, 8); c.fillStyle = '#131923'; c.fill();
+    rr(cx0, y, cwid, CARD_H, 9); c.fillStyle = '#131923'; c.fill();
   }
   y += CARD_H;
 
-  /* ---- 分隔线 ---- */
-  y += 14;
-  const lg = c.createLinearGradient(pad, 0, W - pad, 0);
-  lg.addColorStop(0, '#28323f'); lg.addColorStop(1, 'rgba(40,50,63,0)');
-  c.fillStyle = lg; c.fillRect(pad, y, cw, 1);
-  y += 1;
+  /* ---- 分隔线已删（Mak 2026-10-03：「去除掉卡片和下方区块的那个灰色横线」）----
+     ⇒ 顶栏与 hero 之间只留 HD_GAP 的呼吸，版面因此更松（卡面也就能长得更大）。
+     ⛔ 别把 .rvp-rule / 这条 lg 横线加回来 —— 页面元素与画笔两边都删了，加回来只加一边就会不同源。 */
 
   /* ---- hero：净缺口大数字 + 右侧「本期封号 / 交易人格」---- */
-  y += 16;
+  y += HD_GAP;
   const hy = y;
   _posterFont(c, 10, 700); c.fillStyle = '#ff3b47';
   c.fillText('净缺口 KCAL', pad, hy + 12);
-  _posterFont(c, 50, 800); c.fillStyle = d.col;
+  /* 大数字超宽就自动降字号 —— 右栏是固定宽（HONOR_W）的，大数字顶过去会糊在一起。 */
+  let bfs = 50;
+  for (;;) {
+    _posterFont(c, bfs, 800);
+    if (c.measureText(d.totalTxt).width <= cw - HONOR_W - 44 || bfs <= 30) break;
+    bfs -= 2;
+  }
+  c.fillStyle = d.col;
   c.fillText(d.totalTxt, pad, hy + 71);
   const tw = c.measureText(d.totalTxt).width;
   _posterFont(c, 14, 600); c.fillStyle = d.col;
@@ -5685,28 +5798,43 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   _posterFont(c, 10, 400); c.fillStyle = mut;
   c.fillText('本期封号', W - pad, hy + 12);
   _posterFont(c, 19, 800); c.fillStyle = '#ffd166';
-  c.fillText(d.badge, W - pad, hy + 34);
+  c.fillText(fit(d.badge, HONOR_W), W - pad, hy + 34);
   if (d.persona) {
     _posterFont(c, 10, 400); c.fillStyle = mut;
     c.fillText('交易人格', W - pad, hy + 56);
-    _posterFont(c, 13, 700); c.fillStyle = '#b9b3f5';
-    c.fillText(d.persona, W - pad, hy + 76);
+    /* ⚠️ 11.5px（不是 13）：人格名在「有一条轴打平」时是**两个名并列**（如「时间的朋友 / 趋势跟随者」），
+       13px 在页面 DOM 里会被挤成两行（Mak 2026-10-03 报的：「单行要能显示更多字」）。
+       画布本来就不折行，靠 fit 兜底；⛔ 两端必须同字号，否则 M 段逐条对拍会红。 */
+    _posterFont(c, 11.5, 700); c.fillStyle = '#b9b3f5';
+    c.fillText(fit(d.persona, HONOR_W), W - pad, hy + 76);
   }
   c.textAlign = 'left';
   y = hy + 108;
 
-  /* ---- 折线：累计缺口走势（Mak 2026-10-03：不要柱状，回到折线）---- */
-  const sx = pad, sy = y + 6, sw = cw, sh = 56;
+  /* ---- 折线：累计缺口走势（Mak 2026-10-03：不要柱状，回到折线；加高 + 标注波峰/波谷/最大回撤）----
+     块内自上而下分三层（内边距 16 / 26 是**两端共用契约**，MP 的 _paintPoster 必须同口径）：
+       ① 顶部 16px 是**说明行**：左图题、右「最大回撤 N」。
+          ⛔ 别把标注文字往数据点旁边挤 —— 峰必贴绘图区上边界、谷必贴下边界，两个标签必打架；
+       ② 中间 sh−26 = 52px 是绘图区（点集映射到这里）；
+       ③ 底部 10px 到基线。
+     ⚠️ SPARK_H 改了要同步 reviewPosterH 里的 SPARK_H（两边同一个名字，别只改一处）。 */
+  const sx = pad, sy = y + 6, sw = cw, sh = SPARK_H, base = sy + sh - 6;
+  const mk = d.marks;
+  _posterFont(c, 9, 400); c.fillStyle = dim;
+  c.fillText('累计缺口走势', sx + 2, sy + 12);
+  if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
+    c.textAlign = 'right';
+    _posterFont(c, 9, 700); c.fillStyle = '#ff8b96';
+    c.fillText('最大回撤 ' + mk.ddTxt, sx + sw - 2, sy + 12);
+    c.textAlign = 'left';
+  }
   if (d.cum && d.cum.length >= 2) {
     const mn = Math.min.apply(null, d.cum), mx = Math.max.apply(null, d.cum);
     const span = (mx - mn) || 1;
     const px = d.cum.map(function (v, i) {
-      return [sx + 2 + i / (d.cum.length - 1) * (sw - 4), sy + 8 + (1 - (v - mn) / span) * (sh - 20)];
+      return [sx + 2 + i / (d.cum.length - 1) * (sw - 4), sy + 16 + (1 - (v - mn) / span) * (sh - 26)];
     });
-    c.beginPath(); c.moveTo(px[0][0], px[0][1]);
-    for (let i = 1; i < px.length; i++) c.lineTo(px[i][0], px[i][1]);
     /* 面积填充：避免「一条直线悬在大片空白里」（数据规律时折线几乎就是直线） */
-    const base = sy + sh - 6;
     const area = px.map(function (a) { return a.slice(); });
     area.push([px[px.length - 1][0], base], [px[0][0], base]);
     c.save();
@@ -5721,36 +5849,75 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     c.beginPath(); c.moveTo(px[0][0], px[0][1]);
     for (let i = 1; i < px.length; i++) c.lineTo(px[i][0], px[i][1]);
     c.strokeStyle = d.col; c.lineWidth = 2; c.lineJoin = c.lineCap = 'round'; c.stroke();
+    /* 最大回撤区间：画成**拐角**（峰位水平线 → 谷位竖线），画在标注点**下面**（⛔ 别压住点）。
+       ⚠️ 原本是一根「峰 → 谷」的斜弦，但峰谷**相邻**时那根弦正好压在折线实线上 ——
+          等于没画（2026-10-03 出图才看出来：最大回撤 523 只出现在右上角文字里）。
+       ⇒ 拐角在任何相邻关系下都露在空白处，回撤的**高度**也一眼能量出来。 */
+    if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
+      const a = px[mk.ddI], b = px[mk.ddJ];
+      c.save();
+      c.setLineDash([3, 3]);
+      c.strokeStyle = 'rgba(255,139,150,.6)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      c.restore();
+    }
     c.fillStyle = d.col; c.beginPath();
     c.arc(px[px.length - 1][0], px[px.length - 1][1], 3, 0, Math.PI * 2); c.fill();
+    /* ---- 峰 / 谷标注（下标来自内核 marks，⛔ 两端都别再自己算一遍）----
+       峰标签放点**下方**、谷标签放点**上方** —— 峰必贴上边界、谷必贴下边界，只有往里放才不出画。
+       x 靠边时夹回绘图区内，否则首/末点上的标签会被裁掉半边。
+       mk.flat（整期缺口全相等）时峰谷是同一点，直接跳过标注。 */
+    if (mk && !mk.flat) {
+      const pkP = px[mk.pk], trP = px[mk.tr];
+      const cl = function (x) { return Math.max(sx + 8, Math.min(sx + sw - 8, x)); };
+      c.fillStyle = '#ffd166'; c.beginPath();
+      c.arc(pkP[0], pkP[1], 2.6, 0, Math.PI * 2); c.fill();
+      c.textAlign = 'center';
+      _posterFont(c, 9, 700); c.fillStyle = '#ffd166';
+      c.fillText('峰', cl(pkP[0]), pkP[1] + 12);
+      c.fillStyle = '#7ab0ff'; c.beginPath();
+      c.arc(trP[0], trP[1], 2.6, 0, Math.PI * 2); c.fill();
+      _posterFont(c, 9, 700); c.fillStyle = '#7ab0ff';
+      c.fillText('谷', cl(trP[0]), trP[1] - 5);
+      c.textAlign = 'left';
+    }
   } else {
     _posterFont(c, 11, 400); c.fillStyle = dim; c.textAlign = 'center';
     c.fillText('数据点不足，多记几天就有曲线了', sx + sw / 2, sy + sh / 2 + 4);
     c.textAlign = 'left';
   }
-  c.fillStyle = '#1e2634'; c.fillRect(sx, sy + sh - 6, sw, 1);
-  y += 62;
+  c.fillStyle = '#1e2634'; c.fillRect(sx, base, sw, 1);
+  y += 6 + SPARK_H;
 
-  /* ---- 数字格 2×3（口径全在运动侧，见 reviewPosterData 里的注释）---- */
+  /* ---- 数字格 2×3（口径全在运动侧，见 reviewPosterData 里的注释）----
+     🔴 Mak 2026-10-03：**六格一律右对齐**，色条从左边挪到右边缘。
+        上排绿 / 下排琥珀的配色在**内核 stats 的 c 字段**里（⛔ 不在这里判断行号）。
+     右对齐的落笔基准 rEdge = 本格右边界 − 8：数字与单位作为一个整体贴右，
+     ⛔ 别再把数字左对齐、单位跟在后面 —— 那样每格数字的右端参差不齐，右对齐就白做了。 */
   y += 16;
   const colW = cw / 3;
   d.stats.forEach(function (s, i) {
     const tx = pad + (i % 3) * colW, ty = y + Math.floor(i / 3) * (STAT_H + 15);
-    c.fillStyle = '#1e2734'; c.fillRect(tx, ty, 2, STAT_H - 6);
+    c.fillStyle = '#1e2734'; c.fillRect(tx + colW - 2, ty, 2, STAT_H - 6);
     let fs = 26, nw = 0, uw = 0;                     // 数字+单位超列宽就自动降字号
     for (;;) {
       _posterFont(c, fs, 800); nw = c.measureText(s.n).width;
       _posterFont(c, 11.5, 600); uw = c.measureText(s.u).width;
-      if (nw + uw + 7 <= colW - 14 || fs <= 18) break;
+      if (nw + uw + 3 <= colW - 9 || fs <= 18) break;
       fs -= 2;
     }
-    _posterFont(c, fs, 800); c.fillStyle = s.c; c.fillText(s.n, tx + 9, ty + 26);
-    _posterFont(c, 11.5, 600); c.fillStyle = mut; c.fillText(s.u, tx + 9 + nw + 3, ty + 26);
-    _posterFont(c, 11, 400); c.fillStyle = mut; c.fillText(s.l, tx + 9, ty + 43);
+    const rEdge = tx + colW - 8;
+    c.textAlign = 'right';
+    _posterFont(c, 11.5, 600); c.fillStyle = mut; c.fillText(s.u, rEdge, ty + 26);
+    _posterFont(c, fs, 800); c.fillStyle = s.c; c.fillText(s.n, rEdge - uw - 3, ty + 26);
+    _posterFont(c, 11, 400); c.fillStyle = mut; c.fillText(s.l, rEdge, ty + 43);
+    c.textAlign = 'left';
   });
   y += STAT_H * 2 + 15;
 
-  /* ---- 特色榜单（周报 3 张 / 月报 6 张）---- */
+  /* ---- 特色榜单（周报 3 张 / 月报 6 张）----
+     🔴 Mak 2026-10-03：**称号保持左对齐、字号加大；其余数据（名字/口径/数值）全部右对齐**。
+        ⇒ 一张卡里两个对齐轴：k 走左基线 ix，n/d/v 走右基线 rx。 */
   y += 20;
   _posterFont(c, 11, 700); c.fillStyle = mut;
   c.fillText('本期特色榜单', pad, y + 11);
@@ -5761,30 +5928,34 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     rr(bx, by, bw, ROWH, 11);
     c.fillStyle = '#111721'; c.fill();
     c.strokeStyle = '#1c2431'; c.lineWidth = 1; c.stroke();
-    const ix = bx + 10, iw = bw - 20;
-    _posterFont(c, 10.5, 800); c.fillStyle = '#ffd166';
-    c.fillText(fit(b.k, iw), ix, by + 22);
+    const ix = bx + 10, rx = bx + bw - 10, iw = bw - 20;
+    _posterFont(c, 12.5, 800); c.fillStyle = '#ffd166';       // 称号：左对齐 + 加大（10.5 → 12.5）
+    c.fillText(fit(b.k, iw), ix, by + 23);
+    c.textAlign = 'right';
     _posterFont(c, 14, 700); c.fillStyle = ink;
-    c.fillText(fit(b.n, iw), ix, by + 45);
+    c.fillText(fit(b.n, iw), rx, by + 46);
     _posterFont(c, 10.5, 400); c.fillStyle = mut;
-    c.fillText(fit(b.d, iw), ix, by + 61);
+    c.fillText(fit(b.d, iw), rx, by + 62);
     _posterFont(c, 11.5, 700); c.fillStyle = b.c;
-    c.fillText(fit(b.v, iw), ix, by + 79);
+    c.fillText(fit(b.v, iw), rx, by + 80);
+    c.textAlign = 'left';
   });
   y += rows * ROWH + (rows - 1) * ROWGAP;
 
-  /* ---- 吐槽 + 建议（吐槽固定两行位，超出截断）---- */
+  /* ---- 吐槽 + 建议（吐槽固定两行位，超出截断）----
+     🔴 Mak 2026-10-03：底色从橄榄绿改成**半透明浅紫**（与「交易人格」的 #b9b3f5 同族），
+        ⛔ 别再改回绿 —— 页面 .rvp-quote 与这里必须同一组色值。 */
   y += 18;
   const qh = 84;
   rr(pad, y, cw, qh, 11);
-  c.fillStyle = 'rgba(99,153,34,.09)'; c.fill();
-  c.strokeStyle = 'rgba(99,153,34,.18)'; c.lineWidth = 1; c.stroke();
+  c.fillStyle = 'rgba(185,179,245,.10)'; c.fill();
+  c.strokeStyle = 'rgba(185,179,245,.22)'; c.lineWidth = 1; c.stroke();
   const qx = pad + 13, qw2 = cw - 26;
-  _posterFont(c, 12.5, 400); c.fillStyle = '#ccd6e4';
+  _posterFont(c, 12.5, 400); c.fillStyle = '#dcd8ff';
   const rl = wrap(d.roast, qw2, 2);
   if (rl[0]) c.fillText(rl[0], qx, y + 24);
   if (rl[1]) c.fillText(rl[1], qx, y + 43);
-  _posterFont(c, 11, 400); c.fillStyle = '#93a67c';
+  _posterFont(c, 11, 400); c.fillStyle = '#a79fe8';
   c.fillText(fit('建议 · ' + d.tip, qw2), qx, y + 61);
   y += qh;
 
@@ -5823,28 +5994,46 @@ const RV_TITLE = {
 /* 吐槽池按「达标率分档 × 盈亏方向」两维切开，命中哪一格全看数据，不猜 */
 const RV_ROAST = {
   hi: {
-    up:   ['这操作稳得离谱，仿佛提前看过剧本。', '连板不靠运气，靠你这双手。',
-           '{p}你比自己的目标还准，纪律就该长这样。', 'K线一路上行，盘面都不用你救。',
-           '别人在追涨杀跌，你在按计划吃饭睡觉。', '空头被打得没脾气，这就是主力的样子。'],
-    down: ['每天都达标，但方向反了——达标的是失控，不是进度。', '你把超支做成了纪律，这很特别。',
-           '账面红转绿，问题不在运动，在嘴。', '每一笔都记了，每一笔都超了——记账勤快救不了菜单。',
-           '缺口全负：说明你练得挺认真，吃得也挺认真。', '{p}的记录很完整，唯一的问题是吃进的那边更完整。']
+    up:   ['{cnt} 天记满、{hit} 天达标，{ex} kcal 练出去了——这不叫自律，这叫肌肉记忆。',
+           '练了 {min} 分钟、烧了 {ex} kcal，{cnt} 天没塌过一次，主力都开始给你让路。',
+           '达标率 {rate}%：空头在你面前是纸糊的。',
+           '一头 {ex} kcal 的运动，一头没崩过的菜单——你就是「{top}」本人。',
+           '{ex} kcal 的成绩单上只有一条走法，{tail}照抄就行。',
+           '别人在追涨杀跌，你在按 {min} 分钟的节奏慢慢建仓。'],
+    down: ['{hit}/{cnt} 天达标，方向却反了——{ex} kcal 练出去，嘴又给补回来了。',
+           '{rate}% 的记录完成度，配上一份 {ex} kcal 的努力和一份更努力的菜单。',
+           '账面亏损，问题不在运动：{min} 分钟的汗还没干，{top} 就上桌了。',
+           '你练得很认真，吃得也很认真——{ex} kcal 白烧了。',
+           '缺口全负：{excnt} 笔运动，被 {top} 一笔做平。',
+           '记录满分，纪律零分——{cnt} 天全勤，却没赢过一次账单。']
   },
   mid: {
-    up:   ['不温不火，稳中有升——这种走势最养人。', '{p}小幅盈利，持仓还在，故事没讲完。',
-           '慢慢建仓，气象不对但没破位。', '有赚有亏，账户在慢慢往上爬。',
-           '节奏不算漂亮，但方向是对的。', '这种曲线不刺激，但能拿很久。'],
-    down: ['小亏能忍，但别惯性拖延到变大亏。', '{p}净盈余，K线翻绿；离场信号还没来，先别加仓。',
-           '震荡偏弱，观望为上。', '缺口是负的，但没崩——先别急着找理由。',
-           '账面小亏，剪刀差还没拉开。', '上下都在动，就是差额没跟上。']
+    up:   ['不温不火，稳中有升——{ex} kcal 的底仓，这种走势最养人。',
+           '{p}小幅盈利：{hit} 天达标、{cnt} 天持仓，故事还没讲完。',
+           '慢慢建仓，{ex} kcal 说不上漂亮，但方向是对的。',
+           '有赚有亏，{min} 分钟换来的曲线还没破位。',
+           '节奏不算漂亮，但 {work} 做得很稳。',
+           '这种曲线不刺激，但能拿很久。'],
+    down: ['小亏能忍，但别惯性拖延到变大亏——{worst} 那天就该止损。',
+           '{p}还在亏，{ex} kcal 的运动没盖住菜单。',
+           '震荡偏弱，{worst} 是那个缺口，{tail}先盯它。',
+           '缺口是负的，但没崩——{hit}/{cnt} 的达标率，先别急着找理由。',
+           '账面小亏，{top} 的仓位明显太重了。',
+           '上下都在动，{excnt} 笔运动的差额还没跟上。']
   },
   low: {
-    up:   ['赚了点点，但基本靠运气——这种浮盈最不经风。', '缺口是正的，只是日子过得随性。',
-           '小有红盘，别误以为自己是股神。', '交易全凭感觉，胜率全靠天意。',
-           '赚了，但说不清是怎么赚的。', '记录断断续续，曲线倒还是正的。'],
-    down: ['这样下去，K线要在低位横盘很久。', '{p}净盈余，先别急着找理由。',
-           '回撤可控，但你该看看纪律了。', '账记了一半，亏欠倒是完整的。',
-           '出场次数太少，曲线是平的。', '不是没救，是还没开始。']
+    up:   ['赚了点点，但基本靠运气——{ex} kcal 的浮盈最不经风。',
+           '缺口是正的，靠的是 {ex} kcal 这一笔，不是你每天的纪律。',
+           '小有红盘，别误以为自己是股神。',
+           '交易全凭感觉，{hit}/{cnt} 的胜率全靠天意。',
+           '赚了，但说不清是怎么赚的——曲线上唯一的高点就是你那次 {burn}。',
+           '记录断断续续，单次最高 {max} kcal 那一笔倒是把曲线拉正了。'],
+    down: ['这样下去，K线要在低位横盘很久——{ex} kcal 撑不起这条曲线。',
+           '{p}净盈余，先别急着找理由。',
+           '回撤可控，但你该看看纪律了：{hit}/{cnt}。',
+           '账记了一半，亏欠倒是完整的。',
+           '{excnt} 笔 {work} 太少，撑不起一条曲线。',
+           '不是没救，是还没开始。']
   },
   none: ['本期没有记录——龙虎榜还没有你的名字。', '{p}还在观望，席位空着。',
          '没有记录就没有曲线，先下第一单。', '空仓也是一种策略，但榜单不认。',
@@ -5853,19 +6042,24 @@ const RV_ROAST = {
 /* 建议句：同样是池子 + 占位符填充，命中哪一池全看数据分档（与 rvFill 配合） */
 const RV_TIP = {
   none: ['本期还没有成交记录，先下第一单。', '本期空仓——榜单上还没有你的名字。',
-         '曲线要从第一笔记起，{tail}先补上第一天。', '没有成交就没有复盘，先动一笔。'],
-  hi:   ['{cnt} 天里 {hit} 天达标，节奏很稳，{tail}保持仓位别乱动。',
-         '达标 {hit}/{cnt}，一次没漏——这种执行力，{tail}照抄就行。',
+         '曲线要从第一笔记起，{tail}先补上第一天。', '没有成交就没有复盘，先动一笔。',
+         '你的席位是空的：{tail}先记上一顿，哪怕只是一杯水。',
+         '零成交也零风险，但零成交换不来任何变化。'],
+  hi:   ['{cnt} 天里 {hit} 天达标，{ex} kcal 练出去了，{tail}保持仓位别乱动。',
+         '达标 {hit}/{cnt}，几乎没有塌过——这种执行力，{tail}照抄就行。',
          '{cnt} 天全勤、{hit} 天达标，{tail}的对手只有你自己。',
-         '{hit}/{cnt} 的达成率，{tail}别乱加仓位，稳住就是赢。'],
+         '{rate}% 的达成率，{tail}别乱加仓位，稳住就是赢。',
+         '{min} 分钟、{ex} kcal，这套流水线已经跑通了，{tail}别改参数。'],
   up:   ['整体是盈利的。{worst}那笔空单没接住，{tail}补回来就漂亮了。',
-         '收盘在红盘区，只有 {worst} 是个小回撤，不影响 {tail} 的趋势。',
-         '本期净盈利。{worst}吃掉了点利润，{tail}盯着那一天就行。',
-         '账是红的。{worst}是唯一的坑，{tail}绕开它。'],
+         '收盘在红盘区，{worst} 是唯一的小回撤，不影响 {tail} 的趋势。',
+         '本期净盈利，约合减脂 {kg} kg。{worst}吃掉了点利润，{tail}盯着那天。',
+         '账是红的。{worst}是唯一的坑，{tail}绕开它。',
+         '{kg} kg 的成色，只差 {worst} 那一天就满分了。'],
   down: ['本期净盈余，K线翻绿。问题出在{worst}，那天把利润吃掉了。',
          '赤字收官——{worst}这天的账最难看，{tail}先从这天改。',
-         '累计为负。{worst}是最大的那个洞，{tail}把它补上就回正了。',
-         '账面还没回正，{worst}是要盯的第一天，{tail}少一笔加餐就够。']
+         '累计为负，缺口是 {worst} 拉出来的，{tail}补上它就能回正。',
+         '账面还没回正，{worst}是要盯的第一天，{tail}少一笔加餐就够。',
+         '{ex} kcal 的运动没盖住菜单：{worst}那天尤其明显，{tail}先从这里下手。']
 };
 /* 返回 { title, roast, rate }：海报上「称号」与「吐槽」两行文案。
    优先级：长连击 > 连续掉队 > 达标率分档（称号讲的是"你是什么选手"，比数字更有晒点）。 */
@@ -5907,12 +6101,17 @@ function reviewPosterData(isWeek_) {
   } catch (e) { persona = ''; }
   /* ---- 数字格（2×3）----
      口径**全部走运动侧**：净缺口已经在顶部那个大数字上了、总摄入不单列。
-     ⛔ 别顺手把「总摄入」加回来 —— Mak 2026-10-03 明确：复盘的数字类目重在运动消耗。 */
+     ⛔ 别顺手把「总摄入」加回来 —— Mak 2026-10-03 明确：复盘的数字类目重在运动消耗。
+     🔴 排列与配色（Mak 2026-10-03 二次拍板，⛔ 别再「顺手换个顺序」）：
+        · 上排 3 格 = 总量类（总消耗 / 总时长 / 运动天数）→ **绿色 #00c896**
+        · 下排 3 格 = 单点类（运动次数 / 单次最高 / 连续达标）→ **琥珀 #ffd166**
+        · 「运动天数」在「运动次数」**之前**（原顺序是反的，Mak 要求互换）
+        · 六格一律**右对齐**（见 _rvpPaint 的 textAlign 与 .rvp-st 的 CSS） */
   const stats = [
     { n: fmtNum(r.exKcal), u: 'kcal', l: '总消耗', c: '#00c896' },
-    { n: String(r.exMin), u: '分钟', l: '总时长', c: '#e8eef7' },
-    { n: String(r.exCnt), u: '次', l: '运动次数', c: '#e8eef7' },
-    { n: String(r.exDays), u: '天', l: '运动天数', c: '#e8eef7' },
+    { n: String(r.exMin), u: '分钟', l: '总时长', c: '#00c896' },
+    { n: String(r.exDays), u: '天', l: '运动天数', c: '#00c896' },
+    { n: String(r.exCnt), u: '次', l: '运动次数', c: '#ffd166' },
     { n: fmtNum(r.exMax), u: 'kcal', l: '单次最高', c: '#ffd166' },
     { n: String(r.streakBest), u: '天', l: '连续达标', c: '#ffd166' }
   ];
@@ -5933,7 +6132,7 @@ function reviewPosterData(isWeek_) {
     boards.push({ k: '燃脂日', d: '练得最狠的一天', n: r.burnDay ? fmtDay(r.burnDay.date) : '--',
       v: r.burnDay ? fmtNum(r.burnDay.out) + ' kcal' : '暂无', c: '#6ee7b7' });
     boards.push({ k: '最长一单', d: '时长最久的运动', n: r.longEx ? r.longEx.name : '--',
-      v: r.longEx ? r.longEx.min + ' 分钟' : '暂无', c: '#ffd166' });
+      v: r.longEx ? r.longEx.dur + ' 分钟' : '暂无', c: '#ffd166' });
   }
 
   return {
@@ -5945,6 +6144,8 @@ function reviewPosterData(isWeek_) {
     hit: r.hit, cnt: r.cnt, rate: ln.rate,
     hitTxt: '缺口达标 ' + r.hit + '/' + r.cnt + ' 天',
     cum: r.cum, hitLine: r.pts.map(function (x) { return x.def >= REVIEW_HIT_KCAL; }),
+    /* 走势标注（波峰/波谷/最大回撤区间）—— 见 rvSparkMarks，两端画笔共用这一份 */
+    marks: rvSparkMarks(r.cum),
     bigIn: r.bigIn ? r.bigIn.name : '--', bigInK: r.bigIn ? Math.round(r.bigIn.kcal || 0) : null,
     bigOut: r.bigOut ? r.bigOut.name : '--', bigOutK: r.bigOut ? Math.round(r.bigOut.kcal || 0) : null,
     rankLv: cr.lv, rankName: cr.rank.name, rankColor: cr.rank.color,
@@ -5958,14 +6159,29 @@ function reviewPosterData(isWeek_) {
 /* ---- 海报整图高度（唯一真源）----
    ⛔ 两端都调它，**别各自拍一个高度** —— 同一个人的同一期数据，在 PWA 与小程序里
    必须印出**同样高**的一张图（不然用户两处一对比就看出来是两套东西）。
-   各段与 _rvpPaint 里的顺序累加一一对应（改那边任何一个间距，都要同步这里）：
-     22 上留白 + 100 卡面 + 15 分隔线 + 108 hero + 62 折线
-     + (16 + 45×2 + 15) 数字格 + 45 榜单标题 + 榜单行 + 102 吐槽（固定两行）+ 30 页脚 + 16 下留白
-   ⚠️ 周报 3 张榜单 ⇒ 715；月报 6 张 ⇒ 818（多一行 94 + 9 间距）。 */
+   🔴 这里是「画笔顺序累加」的**逐项镜像**：每一项都对应 _rvpPaint 里的一次 `y +=`，
+      顺序也完全一致（改那边任何一段的间距/字号，回来改这里对应那一行）。
+      2026-10-03 把它从「一串裸数字」改成**有名常量**，就是为了改版时不再数错。
+   ⚠️ 周报 3 张榜单 ⇒ 744；月报 6 张 ⇒ 847（多一行 94 + 9 间距）。 */
 function reviewPosterH(d) {
   const rows = Math.max(1, Math.ceil((d && d.boards ? d.boards.length : 0) / 3));
-  return 22 + 100 + 15 + 108 + 62 + (16 + 45 * 2 + 15) + 45
-       + rows * 94 + (rows - 1) * 9 + 102 + 30 + 16;
+  const PAD_TOP = 22;                     // 上留白
+  const CARD_H = 118;                     // 段位卡面（0.645 比例 ⇒ 宽 76）
+  const HD_GAP = 20;                      // 顶栏 → hero（原先是「14 + 分隔线 1 + 16」，横线已按 Mak 要求删掉）
+  const HERO_H = 108;                     // 净缺口大数字 + 右栏封号/人格
+  const SPARK_TOP = 6, SPARK_H = 78;      // 折线块（Mak：稍微加高一点，好放下峰/谷/回撤标注）
+  const STAT_TOP = 16, STAT_H = 45, STAT_GAP = 15;   // 数字格 2×3
+  const BH_H = 45;                        // 榜单标题块（20 上间距 + 25 行高）
+  const ROWH = 94, ROWGAP = 9;            // 榜单卡
+  const QUOTE_TOP = 18, QUOTE_H = 84;     // 吐槽（固定两行位）
+  const FOOT_TOP = 16, FOOT_H = 14;       // 页脚
+  return PAD_TOP + CARD_H + HD_GAP + HERO_H
+       + SPARK_TOP + SPARK_H
+       + STAT_TOP + STAT_H * 2 + STAT_GAP
+       + BH_H
+       + rows * ROWH + (rows - 1) * ROWGAP
+       + QUOTE_TOP + QUOTE_H
+       + FOOT_TOP + FOOT_H;
 }
 function reviewText(isWeek_) {
   const r = reviewData(isWeek_);
@@ -5992,7 +6208,7 @@ function reviewText(isWeek_) {
   if (!r.p.isWeek) {
     if (r.bigDay) L.push('大胃王日：' + fmtDay(r.bigDay.date) + ' 摄入 ' + fmtNum(r.bigDay.in) + ' kcal');
     if (r.burnDay) L.push('燃脂日：' + fmtDay(r.burnDay.date) + ' 消耗 ' + fmtNum(r.burnDay.out) + ' kcal');
-    if (r.longEx) L.push('最长一单：' + r.longEx.name + ' ' + r.longEx.min + ' 分钟');
+    if (r.longEx) L.push('最长一单：' + r.longEx.name + ' ' + r.longEx.dur + ' 分钟');
   }
   L.push(ln.roast);
   L.push(reviewTip(r));
