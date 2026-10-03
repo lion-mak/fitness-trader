@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -828,12 +828,24 @@ body {
    ⚠️ 小程序 WXSS 对「伪元素 + 通配子选择器」那一套支持不稳 —— 第一版写的 `.rvp>*{z-index:1}`
       直接把 WXSS 编译干挂（error at token `*`）。
    两端用同一个 .rvp-bg 元素，页面与导出图的底纹才是同一套画法。
-   z-index:-1 会画在 .rvp 自身背景之上、内容之下 —— 靠 .rvp 的 z-index:0 建层叠上下文成立。 */
+   z-index:-1 会画在 .rvp 自身背景之上、内容之下 —— 靠 .rvp 的 z-index:0 建层叠上下文成立。
+
+   🔴 Mak 2026-10-03：「网格颜色再浅一点，并且做一个往下的渐变，越往下越浅」
+   ⇒ 网格**沿 y 渐变**：顶部 ≈ 原来的暗（几乎看不见）→ 底部明显浅一档。
+   ⚠️ 这里是 CSS，写不出「一条 repeating 渐变里颜色随 y 变」⇒ 改用**同效果的等价写法**：
+        ① 线色直接取**底部色** #2a3646（GRID_BOT）
+        ② 上面压一层与底色同色的遮罩 rgba(10,13,18,.62)，**从 0% 到 100% 线性淡到 0**
+      ⇒ 顶部线条被遮罩混成 #161d26（= 画笔里的 GRID_TOP），底部露出全色 #2a3646。
+      🔴 **遮罩必须是「两个停靠点、线性到 0」**：设 a(t)=.62(1−t)，CSS 线色 = (1−a)·BOT + a·底色，
+         而画笔那条线性渐变两边一展开正好是**同一个式子** ⇒ 全高度逐点相等（不是只在端点像）。
+         ⛔ 别给它加 `78%` 之类的末尾停靠点 —— 那样中下段会提前变平、与画笔不同步（闸里有结构断言）。
+      ⛔ 改一边必须改两边：整高竖线 / 整宽横线只要有一条不同色，页面与导出图立刻不同源。 */
 .rvp-bg{position:absolute;left:0;top:0;right:0;bottom:0;z-index:-1;pointer-events:none;border-radius:16px;
   background-image:radial-gradient(70% 55% at 26% 0%,rgba(255,59,71,.20),transparent 72%),
-    linear-gradient(#131923 1px,transparent 1px),
-    linear-gradient(90deg,#131923 1px,transparent 1px);
-  background-size:100% 100%,26px 26px,26px 26px;}
+    linear-gradient(rgba(10,13,18,.62),rgba(10,13,18,0)),
+    linear-gradient(#2a3646 1px,transparent 1px),
+    linear-gradient(90deg,#2a3646 1px,transparent 1px);
+  background-size:100% 100%,100% 100%,26px 26px,26px 26px;}
 .rvp-hd{display:flex;justify-content:space-between;align-items:flex-start;}
 /* 左栏文字在卡面高度里**垂直居中**（118 = .rvp-card 的高，改一处必须改两处；
    画笔那边对应的是 hdY = y + round((CARD_H − 70) / 2)）。 */
@@ -5839,12 +5851,21 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     return out;
   }
 
-  /* ---- 底：深色盘口 + 淡网格 + 顶部红光 ---- */
+  /* ---- 底：深色盘口 + 淡网格 + 顶部红光 ----
+     🔴 Mak 2026-10-03：网格颜色「再浅一点 + 做一个往下的渐变，越往下越浅」
+     ⇒ 线条颜色**沿 y 渐变**：顶部 GRID_TOP（≈ 原 #131923 的分量，几乎看不见）→
+        底部 GRID_BOT（明显浅一档）。步长 26 不变。
+     ⚠️ 页面上的 .rvp-bg 是 CSS 实现，写不出「随 y 变的线色」⇒ 用等价写法：
+        线色取 GRID_BOT + 顶部压一层 rgba(10,13,18,.62) 遮罩从上淡出 ⇒ 顶部混成 GRID_TOP。
+        ⛔ 改这里必须同步改那条 CSS（闸会把两端的端点色算出来逐值比）。 */
+  const GRID_STEP = 26, GRID_TOP = '#161d26', GRID_BOT = '#2a3646';
   c.save();
   c.fillStyle = '#0a0d12'; c.fillRect(0, 0, W, H);
-  c.strokeStyle = '#131923'; c.lineWidth = 1;
-  for (let gx = 0.5; gx < W; gx += 26) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, H); c.stroke(); }
-  for (let gy = 0.5; gy < H; gy += 26) { c.beginPath(); c.moveTo(0, gy); c.lineTo(W, gy); c.stroke(); }
+  const gg = c.createLinearGradient(0, 0, 0, H);
+  gg.addColorStop(0, GRID_TOP); gg.addColorStop(1, GRID_BOT);
+  c.strokeStyle = gg; c.lineWidth = 1;
+  for (let gx = 0.5; gx < W; gx += GRID_STEP) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, H); c.stroke(); }
+  for (let gy = 0.5; gy < H; gy += GRID_STEP) { c.beginPath(); c.moveTo(0, gy); c.lineTo(W, gy); c.stroke(); }
   const rg = c.createRadialGradient(W * 0.28, -20, 0, W * 0.28, -20, W * 0.9);
   rg.addColorStop(0, 'rgba(255,59,71,.20)'); rg.addColorStop(1, 'rgba(255,59,71,0)');
   c.fillStyle = rg; c.fillRect(0, 0, W, 280);
@@ -6222,14 +6243,16 @@ function reviewPosterData(isWeek_) {
   /* ---- 特色榜单（周报 3 项；月报追加 3 项）----
      数值一律过 fmtNum ⇒ 海报上不会冒 15 位小数（那是本工程踩过的老坑）。
      ⚠️ c 是**数值那行的颜色**（不是称号的颜色，称号两端都固定 #ffd166）。
-        🔴 Mak 2026-10-03 报：「空军司令」的 950kcal 与「做空劳模」的 1 次**颜色对调了**
-        ⇒ 现在 做空劳模=琥珀 / 空军司令=绿（绿=消耗侧，和「燃脂地板」同族）。
-        ⛔ 别凭「谁看着更像绿」再调回来 —— 这两个值是 Mak 对着成品图点名要的。 */
+        🔴 Mak 2026-10-03 第二次点名：**中间那张卡（做空劳模）的数值改浅紫 `#b9b3f5`**
+        —— 只改数据那行，榜单标题不动（标题永远是 #ffd166）。
+        ⭐ `#b9b3f5` 是本工程既有的「浅紫」（交易人格名 / 评论卡同族），⛔ 别另造一个紫。
+        当前三张：多头霸主 #ff8b96（粉红）· 做空劳模 #b9b3f5（浅紫）· 空军司令 #6ee7b7（绿）。
+        ⛔ 别凭「谁看着更像绿」把上一条对调调回来 —— 这些值是 Mak 对着成品图点名的。 */
   const boards = [
     { k: '多头霸主', d: '摄入最多', n: r.lordIn ? r.lordIn.name : '--',
       v: r.lordIn ? '+' + fmtNum(Math.round(r.lordIn.v)) + ' kcal' : '暂无', c: '#ff8b96' },
     { k: '做空劳模', d: '最常做的运动', n: r.hardWork ? r.hardWork.name : '--',
-      v: r.hardWork ? r.hardWork.v + ' 次' : '暂无', c: '#ffd166' },
+      v: r.hardWork ? r.hardWork.v + ' 次' : '暂无', c: '#b9b3f5' },
     { k: '空军司令', d: '消耗最多', n: r.lordOut ? r.lordOut.name : '--',
       v: r.lordOut ? fmtNum(Math.round(r.lordOut.v)) + ' kcal' : '暂无', c: '#6ee7b7' }
   ];
