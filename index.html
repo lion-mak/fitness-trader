@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.13.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.14.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -813,7 +813,7 @@ body {
    页面上按容器宽自适应（高度自然撑开），导出图严格 375×700。
    ⚠️ 段位卡地址**两端不同**（PWA = assets/ranks/*.webp，小程序 = 云存储 fileID）
       ⇒ 内核只出 rankLv，两端各自映射，⛔ 别把资源地址写进内核。 */
-.rvp{background:#0a0d12;border:1px solid #1a2230;border-radius:16px;padding:22px 20px 16px;position:relative;overflow:hidden;color:#e8eef7;z-index:0;}
+.rvp{background:#0a0d12;border:1px solid #1a2230;border-radius:16px;padding:22px 20px 16px;margin:12px 14px 0;position:relative;overflow:hidden;color:#e8eef7;z-index:0;}
 /* 底纹 = 网格 + 顶部红光晕。用**真实元素 .rvp-bg** 而不是 ::before/::after：
    ⚠️ 小程序 WXSS 对「伪元素 + 通配子选择器」那一套支持不稳 —— 第一版写的 `.rvp>*{z-index:1}`
       直接把 WXSS 编译干挂（error at token `*`）。
@@ -864,7 +864,7 @@ body {
    实现上是「卡片整体 text-align:right，只把 .k 拨回 left」—— 两个对齐轴。 */
 .rvp-bd{background:#111721;border:1px solid #1c2431;border-radius:11px;padding:11px 10px 12px;min-width:0;text-align:right;}
 .rvp-bd .k{font-size:12.5px;font-weight:800;color:#ffd166;letter-spacing:.02em;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.rvp-bd .n{font-size:14px;font-weight:700;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rvp-bd .n{font-size:12.5px;font-weight:700;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .d{font-size:10.5px;color:#7b8798;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .v{font-size:11.5px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* 评论文案卡：Mak 2026-10-03 ⇒ 底色改成**半透明浅紫**（与「交易人格」的 #b9b3f5 同族），
@@ -5408,7 +5408,9 @@ function reviewData(isWeek_) {
 
   /* ---- 特色榜单（2026-10-03）----
      多头霸主 = 累计摄入热量最高的食物；做空劳模 = 最常做的运动；
-     空军司令 = 累计消耗热量最高的运动；月报再追加 大胃王日 / 燃脂日 / 最长一单。
+     空军司令 = 累计消耗热量最高的运动；月报再追加 胃王顶板 / 长线之王 / 燃脂地板。
+     ⚠️ 名字 2026-10-03 改版（原 大胃王日 / 最长一单 / 燃脂日）；⭐ 月报三张的顺序是
+        「胃王顶板 → 长线之王 → 燃脂地板」（与燃脂**换了位**），⛔ 别再按旧序排。
      🔴 口径与页面上方那几张榜单卡**必须一致**（都是**按名字聚合**）——
         ⛔ 别拿「单笔最高」（bigIn / bigOut）来顶这两个奖：单笔最高是另外两个奖
         （做多最狠 / 做空之王），混用会让同一期在两个地方报出不同的名字。 */
@@ -5932,7 +5934,7 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     _posterFont(c, 12.5, 800); c.fillStyle = '#ffd166';       // 称号：左对齐 + 加大（10.5 → 12.5）
     c.fillText(fit(b.k, iw), ix, by + 23);
     c.textAlign = 'right';
-    _posterFont(c, 14, 700); c.fillStyle = ink;
+    _posterFont(c, 12.5, 700); c.fillStyle = ink;              // 内容数据：14 → 12.5（Mak 2026-10-03「小一号」）
     c.fillText(fit(b.n, iw), rx, by + 46);
     _posterFont(c, 10.5, 400); c.fillStyle = mut;
     c.fillText(fit(b.d, iw), rx, by + 62);
@@ -6127,12 +6129,12 @@ function reviewPosterData(isWeek_) {
       v: r.lordOut ? fmtNum(Math.round(r.lordOut.v)) + ' kcal' : '暂无', c: '#ffd166' }
   ];
   if (!isWeek) {
-    boards.push({ k: '大胃王日', d: '吃得最狠的一天', n: r.bigDay ? fmtDay(r.bigDay.date) : '--',
+    boards.push({ k: '胃王顶板', d: '吃得最狠的一天', n: r.bigDay ? fmtDay(r.bigDay.date) : '--',
       v: r.bigDay ? fmtNum(r.bigDay.in) + ' kcal' : '暂无', c: '#ff8b96' });
-    boards.push({ k: '燃脂日', d: '练得最狠的一天', n: r.burnDay ? fmtDay(r.burnDay.date) : '--',
-      v: r.burnDay ? fmtNum(r.burnDay.out) + ' kcal' : '暂无', c: '#6ee7b7' });
-    boards.push({ k: '最长一单', d: '时长最久的运动', n: r.longEx ? r.longEx.name : '--',
+    boards.push({ k: '长线之王', d: '时长最久的运动', n: r.longEx ? r.longEx.name : '--',
       v: r.longEx ? r.longEx.dur + ' 分钟' : '暂无', c: '#ffd166' });
+    boards.push({ k: '燃脂地板', d: '练得最狠的一天', n: r.burnDay ? fmtDay(r.burnDay.date) : '--',
+      v: r.burnDay ? fmtNum(r.burnDay.out) + ' kcal' : '暂无', c: '#6ee7b7' });
   }
 
   return {
@@ -6206,9 +6208,9 @@ function reviewText(isWeek_) {
   if (r.lordOut) L.push('空军司令：' + r.lordOut.name + ' ' + fmtNum(Math.round(r.lordOut.v)) + ' kcal');
   if (r.bigOut) L.push('做空之王：' + r.bigOut.name + ' ' + fmtNum(Math.round(r.bigOut.kcal || 0)) + ' kcal');
   if (!r.p.isWeek) {
-    if (r.bigDay) L.push('大胃王日：' + fmtDay(r.bigDay.date) + ' 摄入 ' + fmtNum(r.bigDay.in) + ' kcal');
-    if (r.burnDay) L.push('燃脂日：' + fmtDay(r.burnDay.date) + ' 消耗 ' + fmtNum(r.burnDay.out) + ' kcal');
-    if (r.longEx) L.push('最长一单：' + r.longEx.name + ' ' + r.longEx.dur + ' 分钟');
+    if (r.bigDay) L.push('胃王顶板：' + fmtDay(r.bigDay.date) + ' 摄入 ' + fmtNum(r.bigDay.in) + ' kcal');
+    if (r.longEx) L.push('长线之王：' + r.longEx.name + ' ' + r.longEx.dur + ' 分钟');
+    if (r.burnDay) L.push('燃脂地板：' + fmtDay(r.burnDay.date) + ' 消耗 ' + fmtNum(r.burnDay.out) + ' kcal');
   }
   L.push(ln.roast);
   L.push(reviewTip(r));
@@ -6399,8 +6401,8 @@ function renderLeaderboard() {
   const exK = topExKcal(start);
   html += lbCard('暴汗榜 · 消耗热量最高运动', rLabel, exK.map(function(e, i) { return { rank: i + 1, name: e.name, sub: rLabel + '累计燃脂', val: e.k + ' kcal', cls: '#ffd166' }; }), 'ex');
   if (!isWeek) {  // 后两张仅月榜：周视图下不出现
-    html += lbCard('大胃王日 · 吃热量最高 5 天', curMonth, topIn.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.in + ' kcal', cls: '#ff8b96' }; }), 'food');
-    html += lbCard('燃脂日 · 消耗最高 5 天', curMonth, topOut.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.out + ' kcal', cls: '#6ee7b7' }; }), 'ex');
+    html += lbCard('胃王顶板 · 吃热量最高 5 天', curMonth, topIn.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.in + ' kcal', cls: '#ff8b96' }; }), 'food');
+    html += lbCard('燃脂地板 · 消耗最高 5 天', curMonth, topOut.map(function(d, i) { return { rank: i + 1, name: fmtDay(d.date), val: d.out + ' kcal', cls: '#6ee7b7' }; }), 'ex');
   }
   const el = document.getElementById('lb-content');
   if (el) el.innerHTML = html;
