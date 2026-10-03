@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.14.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -805,7 +805,17 @@ body {
 .rv-tip{background:#161d2b;border-radius:8px;padding:10px 12px;margin-top:12px;}
 .rv-tip .l{font-size:11px;color:var(--muted);}
 .rv-tip .t{font-size:12px;color:#c3ccdb;margin-top:5px;line-height:1.6;}
-.rv-acts{display:flex;gap:8px;margin-top:12px;}
+/* 🔴 左右 14px 与 .card / .rvp 同口径（Mak 2026-10-03：「本周和本月也左右宽度需要对齐」）——
+   顶部的周/月切换原先只有上下 margin，左右贴死屏幕边，和下面的卡片不在一条竖线上。 */
+.rv-acts{display:flex;gap:8px;margin:12px 14px 0;}
+/* 长按保存浮层（iOS 专用通路，见 saveReviewPoster 那段注释）。
+   ⚠️ 图片**不许**加 pointer-events:none / touch-callout:none —— 那会把 iOS 的长按菜单关掉，
+      整个浮层就白做了（这是本浮层唯一的死法）。 */
+.rv-view{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:130;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;}
+.rv-view.show{display:flex;}
+.rv-view img{max-width:100%;max-height:72vh;border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.65);}
+.rv-view-hint{font-size:14px;font-weight:600;color:#e8eef7;}
+.rv-view-tip{font-size:11px;color:#7b8798;text-align:center;line-height:1.7;max-width:300px;}
 .rv-acts .ghost-btn{flex:1;}
 /* ================= 复盘海报版式（v2.12.0）=================
    页面上这一块 = **导出海报的同构版式** —— 同一份 reviewPosterData()，同一套设计口径（375×700）
@@ -1094,7 +1104,9 @@ body {
     <!-- ============ 榜单 ============ -->
     <section class="page" id="page-leaderboard" data-page-node-id="7wDQSdkjQwckSbAeEuC0Zg">
       <div class="pagetitle"><div class="k">龙虎榜 · 交易数据榜</div><div class="t">每笔交易都可能会上龙虎榜</div></div>
-      <div style="display:flex;gap:8px;margin:6px 0 2px;">
+      <!-- 左右 14px 必须与 .card / .rvp 同值（Mak 2026-10-03：「本周和本月也左右宽度需要对齐」）：
+           原先左右为 0 ⇒ 两个 tab 贴死屏幕两边，与下面的榜单卡不在一条竖线上。 -->
+      <div style="display:flex;gap:8px;margin:12px 14px 0;">
         <span onclick="setLbRange('week')" id="lbt-week" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#1d2b4d;color:#fff;border:1px solid #3a4d7a;">本周</span>
         <span onclick="setLbRange('month')" id="lbt-month" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#16203a;color:#8b97ad;border:1px solid #23304d;">本月</span>
       </div>
@@ -5524,7 +5536,7 @@ function reviewTip(r) {
       标注下标一律来自内核 marks（⛔ 不在这边自己找最大值/最小值）。
    Mak 2026-10-03：加高（56 → 78），并标注波峰 / 波谷 / 最大回撤点。 */
 function reviewSpark(cum, col, mk) {
-  const W = 320, H = 78, padL = 6, padR = 8, padT = 16, padB = 10;
+  const W = 320, H = 96, padL = 6, padR = 8, padT = 16, padB = 10;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   /* 说明行（顶部 16px）：左图题 / 右最大回撤。
      ⛔ 标注文字别往数据点旁边挤 —— 峰必贴上边界、谷必贴下边界，两个标签必打架。 */
@@ -5632,6 +5644,9 @@ function renderReview() {
   h += '<div class="rv-acts"><button class="ghost-btn primary" onclick="saveReviewPoster()">保存到相册</button>'
     + '<button class="ghost-btn" onclick="copyReview()">复制战绩文字</button></div>';
   el.innerHTML = h;
+  /* 🔴 「保存到相册」点下去必须**同步**拿到图（iOS 的 navigator.share 只在用户手势里生效）
+     ⇒ 这里就把海报预渲染好，⛔ 别等点击时再画。失败不打扰用户，见 warmReviewPoster。 */
+  warmReviewPoster();
 }
 /* ---- 分享海报 · PWA 画笔（2026-10-02）----
    渲染层：碰 canvas ⇒ mp_build 的 DOM 判据会自动把它排除、不会进小程序内核
@@ -5665,15 +5680,100 @@ function loadRankImg(lv) {
     im.src = 'assets/ranks/' + (RANK_CARDS[(lv || 1) - 1] || RANK_CARDS[0]);
   });
 }
+/* ================= 保存到相册（PWA · iOS 专用通路）=================
+   🔴 平台事实（2026-10-03 查证）：**iOS Safari 不允许网页写相册**。原先那句
+      `<a href=toDataURL download>` 在 iPhone 上只会把图丢进「文件」App 的下载夹 ——
+      用户翻遍相册找不到（Mak 报的「在 iOS 是保存文件一样的路径」就是它）。
+   ⇒ 手机端改走两条**系统级**正路（主流 web app 在 iOS 上的做法）：
+      ① 有 Web Share API（iOS 15+）就 `navigator.share({ files:[file] })`：
+         系统分享面板里就有「存储图像」，点一下直接进相册。
+         ⚠️ 只传 files，⛔ 别带 text/url —— 带链接时 iOS 会把链接当主体、
+            「存储图像」会从面板里消失（这是社区实测踩过的坑）。
+      ② 分享不可用 / 抛错 ⇒ 把图摆进浮层，让用户**长按** → 「存储到照片」。
+   ⚠️ `navigator.share` 必须落在**用户手势的同步栈**里 ⇒ 海报在 renderReview 时就预渲染好
+      （warmReviewPoster），点按钮时**同步**取缓存；⛔ 别在点击回调里 await 画布 ——
+      await 一次就把手势额度用掉，这是 iOS 上最经典的坑。
+   ⚠️ 桌面端保持原样（直接下载文件）：桌面用户要的就是文件，弹分享面板反而骚扰。 */
+const _RV_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+let _rvPoster = { key: '', file: null, url: '', busy: '', bad: false };
+
+function rvPosterKey(d) {
+  return (d.isWeek ? 'w' : 'm') + '|' + d.label + '|' + d.totalTxt
+    + '|' + d.hit + '/' + d.cnt + '|' + d.boards.length;
+}
+function rvPosterName(d) {
+  return '健身交易员-' + d.title + '-' + d.label.replace(/[^\w]/g, '') + '.png';
+}
+/* 预热：renderReview 每次跑完就调一次（切周期、记一笔改了数据都会重跑）。
+   失败只标记 bad，⛔ 不弹窗 —— 用户这时还没点按钮，没理由被打扰。 */
+function warmReviewPoster() {
+  const d = reviewPosterData(lbRange === 'week');
+  const key = rvPosterKey(d);
+  if (_rvPoster.key === key || _rvPoster.busy === key) return;
+  if (_rvPoster.url) URL.revokeObjectURL(_rvPoster.url);
+  _rvPoster = { key: '', file: null, url: '', busy: key, bad: false };
+  loadRankImg(d.rankLv).then(function (im) {
+    let cv;
+    try { cv = drawReviewPoster(_posterCanvas(), d, 375, im); }
+    catch (e) { _rvPoster.busy = ''; _rvPoster.bad = true; return; }
+    cv.toBlob(function (blob) {
+      if (!blob) { _rvPoster.busy = ''; _rvPoster.bad = true; return; }
+      _rvPoster = { key: key, url: URL.createObjectURL(blob), busy: '', bad: false,
+        file: new File([blob], rvPosterName(d), { type: 'image/png' }) };
+    }, 'image/png');
+  });
+}
+function rvCanShareFile(f) {
+  try {
+    return _RV_MOBILE && !!navigator.share && !!navigator.canShare && navigator.canShare({ files: [f] });
+  } catch (e) { return false; }
+}
+function rvDownloadPoster(url, name) {
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+/* 长按浮层：分享不可用时的兜底（也是 iOS 用户最熟的那套动作）。 */
+function showReviewPosterView() {
+  const el = document.getElementById('rv-view');
+  const im = document.getElementById('rv-view-img');
+  if (!el || !im || !_rvPoster.url) return;
+  im.src = _rvPoster.url;
+  el.classList.add('show');
+}
+function closeReviewView() {
+  const el = document.getElementById('rv-view');
+  if (el) el.classList.remove('show');
+}
 function saveReviewPoster() {
   const d = reviewPosterData(lbRange === 'week');
+  if (_rvPoster.key === rvPosterKey(d) && _rvPoster.file) {
+    const f = _rvPoster.file;
+    if (rvCanShareFile(f)) {
+      /* 系统分享面板：「存储图像」就在第一行 */
+      navigator.share({ files: [f] }).catch(function (e) {
+        const n = String((e && e.name) || '');
+        if (n === 'AbortError' || n === 'InvalidStateError') return;   // 用户自己关掉 / 手快点了两次
+        showReviewPosterView();
+      });
+      return;
+    }
+    if (_RV_MOBILE) { showReviewPosterView(); return; }   // 手机但没分享能力 ⇒ 长按保存
+    rvDownloadPoster(_rvPoster.url, f.name);
+    return;
+  }
+  /* 预热没赶上（刚进页面就点）—— 手机端**不能**在这里 await（见上面那段），
+     只能补一次预热请用户再点一下；桌面端没有手势限制，走老路径现场画一次再下载。 */
+  if (_RV_MOBILE) {
+    const bad = _rvPoster.bad;
+    warmReviewPoster();
+    if (bad) alert('本地文件预览无法导出图片，请从线上地址打开后再保存。');
+    else toast('正在生成海报，请稍后再点一次');
+    return;
+  }
   loadRankImg(d.rankLv).then(function (im) {
-    const cv = drawReviewPoster(_posterCanvas(), d, 375, im);
     try {
-      const a = document.createElement('a');
-      a.href = cv.toDataURL('image/png');
-      a.download = '健身交易员-' + d.title + '-' + d.label.replace(/[^\w]/g, '') + '.png';
-      document.body.appendChild(a); a.click(); a.remove();
+      rvDownloadPoster(drawReviewPoster(_posterCanvas(), d, 375, im).toDataURL('image/png'), rvPosterName(d));
     } catch (e) {
       /* canvas 一旦画过跨源图片就会被「污染」，toDataURL 直接抛异常。
          线上（https 同源 assets/ranks）不会遇到；只有本地双击 index.html（file://）预览会。
@@ -5699,7 +5799,8 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   const CARD_H = 118;        // 段位卡面高（Mak 2026-10-03：再大一点 ⇒ 宽 = 118×0.645 ≈ 76，原图 500×775）
   const HD_GAP = 20;         // 顶栏 → hero 的间距（原先是「14 + 灰色横线 1 + 16」，横线已按 Mak 要求删掉）
   const STAT_H = 45;         // 数字格单行高
-  const SPARK_H = 78;        // 折线块高（Mak：稍微加高一点，要放得下 峰/谷/最大回撤 三个标注）
+  const SPARK_H = 96;        // 折线块高（Mak 2026-10-03：78 → 96，上下间距不动 ⇒ 呼吸感保持不变，
+                             //   多出来的 18px 全给绘图区：plotH = 96 − 26 = 70，原先是 52）
   const HONOR_W = 150;       // 右栏「封号 / 交易人格」的固定宽 ⇒ 左栏大数字可用宽 = cw − HONOR_W − 44
   const ROWH = 94;           // 榜单卡高
   const ROWGAP = 9;
@@ -6119,14 +6220,18 @@ function reviewPosterData(isWeek_) {
   ];
 
   /* ---- 特色榜单（周报 3 项；月报追加 3 项）----
-     数值一律过 fmtNum ⇒ 海报上不会冒 15 位小数（那是本工程踩过的老坑）。 */
+     数值一律过 fmtNum ⇒ 海报上不会冒 15 位小数（那是本工程踩过的老坑）。
+     ⚠️ c 是**数值那行的颜色**（不是称号的颜色，称号两端都固定 #ffd166）。
+        🔴 Mak 2026-10-03 报：「空军司令」的 950kcal 与「做空劳模」的 1 次**颜色对调了**
+        ⇒ 现在 做空劳模=琥珀 / 空军司令=绿（绿=消耗侧，和「燃脂地板」同族）。
+        ⛔ 别凭「谁看着更像绿」再调回来 —— 这两个值是 Mak 对着成品图点名要的。 */
   const boards = [
     { k: '多头霸主', d: '摄入最多', n: r.lordIn ? r.lordIn.name : '--',
       v: r.lordIn ? '+' + fmtNum(Math.round(r.lordIn.v)) + ' kcal' : '暂无', c: '#ff8b96' },
     { k: '做空劳模', d: '最常做的运动', n: r.hardWork ? r.hardWork.name : '--',
-      v: r.hardWork ? r.hardWork.v + ' 次' : '暂无', c: '#6ee7b7' },
+      v: r.hardWork ? r.hardWork.v + ' 次' : '暂无', c: '#ffd166' },
     { k: '空军司令', d: '消耗最多', n: r.lordOut ? r.lordOut.name : '--',
-      v: r.lordOut ? fmtNum(Math.round(r.lordOut.v)) + ' kcal' : '暂无', c: '#ffd166' }
+      v: r.lordOut ? fmtNum(Math.round(r.lordOut.v)) + ' kcal' : '暂无', c: '#6ee7b7' }
   ];
   if (!isWeek) {
     boards.push({ k: '胃王顶板', d: '吃得最狠的一天', n: r.bigDay ? fmtDay(r.bigDay.date) : '--',
@@ -6171,7 +6276,7 @@ function reviewPosterH(d) {
   const CARD_H = 118;                     // 段位卡面（0.645 比例 ⇒ 宽 76）
   const HD_GAP = 20;                      // 顶栏 → hero（原先是「14 + 分隔线 1 + 16」，横线已按 Mak 要求删掉）
   const HERO_H = 108;                     // 净缺口大数字 + 右栏封号/人格
-  const SPARK_TOP = 6, SPARK_H = 78;      // 折线块（Mak：稍微加高一点，好放下峰/谷/回撤标注）
+  const SPARK_TOP = 6, SPARK_H = 96;      // 折线块（Mak 2026-10-03：再加高，78 → 96）
   const STAT_TOP = 16, STAT_H = 45, STAT_GAP = 15;   // 数字格 2×3
   const BH_H = 45;                        // 榜单标题块（20 上间距 + 25 行高）
   const ROWH = 94, ROWGAP = 9;            // 榜单卡
@@ -8199,6 +8304,12 @@ scheduleMidnightSettle();
     <div class="gacha-result-grid" id="gacha-result-grid"></div>
     <button class="confirm buy" onclick="closeGachaResult()">收下，存入图鉴</button>
   </div>
+</div>
+<!-- 复盘海报 · 长按保存浮层（iOS：网页写不进相册，只能靠系统长按菜单「存储到照片」） -->
+<div class="rv-view" id="rv-view" onclick="closeReviewView()">
+  <img id="rv-view-img" alt="复盘海报">
+  <div class="rv-view-hint">长按图片 → 存储到照片</div>
+  <div class="rv-view-tip">iOS 不允许网页直接写入相册；用系统长按菜单即可存进手机相册。点任意处关闭。</div>
 </div>
 </body>
 </html>
