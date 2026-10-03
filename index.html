@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -830,21 +830,26 @@ body {
    两端用同一个 .rvp-bg 元素，页面与导出图的底纹才是同一套画法。
    z-index:-1 会画在 .rvp 自身背景之上、内容之下 —— 靠 .rvp 的 z-index:0 建层叠上下文成立。
 
-   🔴 Mak 2026-10-03：「网格颜色再浅一点，并且做一个往下的渐变，越往下越浅」
-   ⇒ 网格**沿 y 渐变**：顶部 ≈ 原来的暗（几乎看不见）→ 底部明显浅一档。
+   🔴 Mak 2026-10-03 第一次：「网格颜色再浅一点，并且做一个往下的渐变，越往下越浅」
+   ⇒ 网格**沿 y 渐变**：顶部 → 底部（底部更浅）。
+   🔴 Mak 2026-10-03 第二次（本轮）：「网格反而变深了，线条再细一点、颜色再淡一点、透明度高一点」
+   ⇒ 线宽 1px → **0.5px**、线色统一带 **alpha .30**（色相不动）。
    ⚠️ 这里是 CSS，写不出「一条 repeating 渐变里颜色随 y 变」⇒ 改用**同效果的等价写法**：
-        ① 线色直接取**底部色** #2a3646（GRID_BOT）
+        ① 线色直接取**底部色** rgba(42,54,70,.30)（= 画笔里的 GRID_BOT，逐字相同）
         ② 上面压一层与底色同色的遮罩 rgba(10,13,18,.62)，**从 0% 到 100% 线性淡到 0**
-      ⇒ 顶部线条被遮罩混成 #161d26（= 画笔里的 GRID_TOP），底部露出全色 #2a3646。
+      ⇒ 顶部线条被遮罩混成画笔里的 GRID_TOP，底部露出全色 GRID_BOT。
+      ⭐ 遮罩的 .62 **与线色的 alpha 无关**：a₀ = (BOT−TOP)/(BOT−底色)，两端同时乘一个 alpha
+         会被约掉 ⇒ 改 GRID_A 时**只改线色**，遮罩不动。
       🔴 **遮罩必须是「两个停靠点、线性到 0」**：设 a(t)=.62(1−t)，CSS 线色 = (1−a)·BOT + a·底色，
          而画笔那条线性渐变两边一展开正好是**同一个式子** ⇒ 全高度逐点相等（不是只在端点像）。
          ⛔ 别给它加 `78%` 之类的末尾停靠点 —— 那样中下段会提前变平、与画笔不同步（闸里有结构断言）。
-      ⛔ 改一边必须改两边：整高竖线 / 整宽横线只要有一条不同色，页面与导出图立刻不同源。 */
+      ⚠️ 线厚 `0.5px` 与画笔的 `GRID_W = 0.5` 同值、同相位（都从每格 0 起、厚 0.5）。
+        ⛔ 改一边必须改两边：整高竖线 / 整宽横线只要有一条不同色，页面与导出图立刻不同源。 */
 .rvp-bg{position:absolute;left:0;top:0;right:0;bottom:0;z-index:-1;pointer-events:none;border-radius:16px;
   background-image:radial-gradient(70% 55% at 26% 0%,rgba(255,59,71,.20),transparent 72%),
     linear-gradient(rgba(10,13,18,.62),rgba(10,13,18,0)),
-    linear-gradient(#2a3646 1px,transparent 1px),
-    linear-gradient(90deg,#2a3646 1px,transparent 1px);
+    linear-gradient(rgba(42,54,70,.30) 0.5px,transparent 0.5px),
+    linear-gradient(90deg,rgba(42,54,70,.30) 0.5px,transparent 0.5px);
   background-size:100% 100%,100% 100%,26px 26px,26px 26px;}
 .rvp-hd{display:flex;justify-content:space-between;align-items:flex-start;}
 /* 左栏文字在卡面高度里**垂直居中**（118 = .rvp-card 的高，改一处必须改两处；
@@ -5852,20 +5857,33 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   }
 
   /* ---- 底：深色盘口 + 淡网格 + 顶部红光 ----
-     🔴 Mak 2026-10-03：网格颜色「再浅一点 + 做一个往下的渐变，越往下越浅」
-     ⇒ 线条颜色**沿 y 渐变**：顶部 GRID_TOP（≈ 原 #131923 的分量，几乎看不见）→
-        底部 GRID_BOT（明显浅一档）。步长 26 不变。
+     🔴 Mak 2026-10-03 第一次：网格颜色「再浅一点 + 做一个往下的渐变，越往下越浅」
+        ⇒ 线条颜色**沿 y 渐变**：顶部 GRID_TOP → 底部 GRID_BOT（步长 26 不变）。
+     🔴🔴 Mak 2026-10-03 第二次（本轮）：「这次的灰色网格底纹**反而变深了**，让网格线条
+        **再细一点，颜色再淡一点，透明度高一点**，不然底纹完全影响了卡片表达」。
+        ⭐ 他说的"变深"不是指色号暗，而是**存在感更重**：上一版把线色整体提亮
+          （#161d26 → #2a3646）却仍是 1px 不透明 ⇒ 与底色的 Δsum 从 38 涨到 **125**（3.3 倍）。
+        ⇒ 本轮两个动作，**色相一分不动**（还是那两个端色），只动"墨量"：
+           ① `GRID_A` 给两端**统一加 alpha**（透明度高一点 ⇒ 颜色自然淡）
+           ② `GRID_W` 线宽 **1 → 0.5**（细一点）
+        ⚠️ 相位：线宽 0.5 时起点必须是 `GRID_W / 2`（= 0.25），线才正好压在每格的 [0, 0.5) ——
+           与 CSS 的 `linear-gradient(rgba(...) 0.5px, transparent 0.5px)` **同相位**。
+           ⛔ 别再留 0.5：那个相位是配 1px 线宽的，配 0.5 会糊成两像素各半格。
      ⚠️ 页面上的 .rvp-bg 是 CSS 实现，写不出「随 y 变的线色」⇒ 用等价写法：
         线色取 GRID_BOT + 顶部压一层 rgba(10,13,18,.62) 遮罩从上淡出 ⇒ 顶部混成 GRID_TOP。
+        ⭐ 那个 .62 **与 GRID_A 无关**：代数上 a₀ = (BOT−TOP)/(BOT−底色)，alpha 被约掉
+           （两端色一起乘同一个 alpha 时，混到遮罩色上的比例不变）。
+           ⇒ 改 GRID_A **不用动遮罩**，但 CSS 的线色必须跟着改（它写的是 GRID_BOT 的字面值）。
         ⛔ 改这里必须同步改那条 CSS（闸会把两端的端点色算出来逐值比）。 */
-  const GRID_STEP = 26, GRID_TOP = '#161d26', GRID_BOT = '#2a3646';
+  const GRID_STEP = 26, GRID_W = 0.5;
+  const GRID_TOP = 'rgba(22,29,38,.30)', GRID_BOT = 'rgba(42,54,70,.30)';
   c.save();
   c.fillStyle = '#0a0d12'; c.fillRect(0, 0, W, H);
   const gg = c.createLinearGradient(0, 0, 0, H);
   gg.addColorStop(0, GRID_TOP); gg.addColorStop(1, GRID_BOT);
-  c.strokeStyle = gg; c.lineWidth = 1;
-  for (let gx = 0.5; gx < W; gx += GRID_STEP) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, H); c.stroke(); }
-  for (let gy = 0.5; gy < H; gy += GRID_STEP) { c.beginPath(); c.moveTo(0, gy); c.lineTo(W, gy); c.stroke(); }
+  c.strokeStyle = gg; c.lineWidth = GRID_W;
+  for (let gx = GRID_W / 2; gx < W; gx += GRID_STEP) { c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, H); c.stroke(); }
+  for (let gy = GRID_W / 2; gy < H; gy += GRID_STEP) { c.beginPath(); c.moveTo(0, gy); c.lineTo(W, gy); c.stroke(); }
   const rg = c.createRadialGradient(W * 0.28, -20, 0, W * 0.28, -20, W * 0.9);
   rg.addColorStop(0, 'rgba(255,59,71,.20)'); rg.addColorStop(1, 'rgba(255,59,71,0)');
   c.fillStyle = rg; c.fillRect(0, 0, W, 280);
@@ -6243,11 +6261,14 @@ function reviewPosterData(isWeek_) {
   /* ---- 特色榜单（周报 3 项；月报追加 3 项）----
      数值一律过 fmtNum ⇒ 海报上不会冒 15 位小数（那是本工程踩过的老坑）。
      ⚠️ c 是**数值那行的颜色**（不是称号的颜色，称号两端都固定 #ffd166）。
-        🔴 Mak 2026-10-03 第二次点名：**中间那张卡（做空劳模）的数值改浅紫 `#b9b3f5`**
-        —— 只改数据那行，榜单标题不动（标题永远是 #ffd166）。
+        🔴 Mak 2026-10-03：**中间那张卡（做空劳模）的数值改浅紫 `#b9b3f5`**
+        🔴 Mak 2026-10-03（本轮）：**月报的「长线之王」数值也改浅紫**（原琥珀 #ffd166）
+        —— 两次都只改数据那行，榜单标题一律不动（标题永远是 #ffd166）。
         ⭐ `#b9b3f5` 是本工程既有的「浅紫」（交易人格名 / 评论卡同族），⛔ 别另造一个紫。
-        当前三张：多头霸主 #ff8b96（粉红）· 做空劳模 #b9b3f5（浅紫）· 空军司令 #6ee7b7（绿）。
-        ⛔ 别凭「谁看着更像绿」把上一条对调调回来 —— 这些值是 Mak 对着成品图点名的。 */
+        当前配色（**纵向同色**，月报第二行 = 第一行的同一列）：
+          多头霸主 #ff8b96（粉红）· 做空劳模 #b9b3f5（浅紫）· 空军司令 #6ee7b7（绿）
+          胃王顶板 #ff8b96（粉红）· 长线之王 #b9b3f5（浅紫）· 燃脂地板 #6ee7b7（绿）
+        ⛔ 别凭「谁看着更像绿」把配色对调调回来 —— 这些值是 Mak 对着成品图点名的。 */
   const boards = [
     { k: '多头霸主', d: '摄入最多', n: r.lordIn ? r.lordIn.name : '--',
       v: r.lordIn ? '+' + fmtNum(Math.round(r.lordIn.v)) + ' kcal' : '暂无', c: '#ff8b96' },
@@ -6260,7 +6281,7 @@ function reviewPosterData(isWeek_) {
     boards.push({ k: '胃王顶板', d: '吃得最狠的一天', n: r.bigDay ? fmtDay(r.bigDay.date) : '--',
       v: r.bigDay ? fmtNum(r.bigDay.in) + ' kcal' : '暂无', c: '#ff8b96' });
     boards.push({ k: '长线之王', d: '时长最久的运动', n: r.longEx ? r.longEx.name : '--',
-      v: r.longEx ? r.longEx.dur + ' 分钟' : '暂无', c: '#ffd166' });
+      v: r.longEx ? r.longEx.dur + ' 分钟' : '暂无', c: '#b9b3f5' });
     boards.push({ k: '燃脂地板', d: '练得最狠的一天', n: r.burnDay ? fmtDay(r.burnDay.date) : '--',
       v: r.burnDay ? fmtNum(r.burnDay.out) + ' kcal' : '暂无', c: '#6ee7b7' });
   }
