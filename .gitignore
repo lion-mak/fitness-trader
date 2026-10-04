@@ -24,6 +24,12 @@ promo/_*.txt
 # 端到端验收测试的临时页与浏览器 profile（e2e_test.py 生成）
 _e2e.html
 promo/_e2eprofile*/
+# ⚠️ 根目录的一次性日志/临时文件（2026-10-04 补：deploy_push.py 的日志曾用
+#    `> _dp.txt` 重定向写到仓库根，而上面只挡了 `promo/_*.txt` ⇒ 被 `git add -A`
+#    当成新文件提交进去了（0 字节的 e69de29 空 blob）。
+#    ⛔ 以后把这类日志写到**仓库外**；这条规则是兜底，不是许可。
+/_*.txt
+/_*.log
 # 小程序调试用的本机中间产物（开发者工具 asar 抽取物 / 其缓存快照 / 探针回滚快照）
 # 都是一次性、可再生、且体积大（_cache_backup 约 1 MB），不入仓
 promo/_asar/
