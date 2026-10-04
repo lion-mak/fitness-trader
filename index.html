@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -851,6 +851,22 @@ body {
     linear-gradient(rgba(42,54,70,.30) 0.5px,transparent 0.5px),
     linear-gradient(90deg,rgba(42,54,70,.30) 0.5px,transparent 0.5px);
   background-size:100% 100%,100% 100%,26px 26px,26px 26px;}
+/* 品牌行（Mak 2026-10-04）：复盘卡**左上角**的圆形 logo + 配文。
+   目的是 IP 裂变分享 —— 海报被转出去之后，看到图的人得知道这是谁家做的。
+   ⚠️ `28px` 与 `14px` 是内核常量 `BRAND_LOGO_D` / `BRAND_ROW_GAP` 的字面值
+      （reviewPosterH 与**两端**画笔都按同一组数落笔）⇒ ⛔ 改这里就必须同步改内核，
+      否则页面看到的与存进相册的立刻不同高（有闸钉着）。
+   ⚠️ 必须用 `assets/logo-brand.png`（已把圆与细环烤进 alpha），
+      ⛔ 别换回方形的 wechat-mp-avatar-144.png —— 那样得靠 border-radius 裁，
+         而画笔那边没有等价的裁剪，两端会长得不一样。
+   ⚠️ 配文「健身交易员·交易你的健身」是**一个整体**（.tg 嵌在 .nm 里面），
+      ⛔ 别把 .tg 做成 .rvp-brand 的独立子项：那样 flex 的 9px 间距会同时插在
+         「logo→文字」和「交易你的健身」前面，而配文自带一个 `·` ⇒ 一行里两个间隔，很散。
+      画笔那边是「先量 BRAND_NAME 的宽、紧跟着画 BRAND_TAG」，与这里的零间距一一对应。 */
+.rvp-brand{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.rvp-brand .lg{display:block;width:28px;height:28px;flex:0 0 28px;}
+.rvp-brand .nm{font-size:12.5px;font-weight:800;letter-spacing:.01em;color:#fff;white-space:nowrap;}
+.rvp-brand .tg{font-size:11px;font-weight:600;color:#7b8798;white-space:nowrap;}
 .rvp-hd{display:flex;justify-content:space-between;align-items:flex-start;}
 /* 左栏文字在卡面高度里**垂直居中**（118 = .rvp-card 的高，改一处必须改两处；
    画笔那边对应的是 hdY = y + round((CARD_H − 70) / 2)）。 */
@@ -907,6 +923,31 @@ body {
 /* 「保存到相册」是主操作（实心强调）—— 用户点"保存"的真实期待就是存进相册，
    视觉上就该比其他按钮重，一路引导他去点。 */
 .ghost-btn.primary{background:rgba(31,111,235,.14);border:1px solid rgba(31,111,235,.55);color:#7ab0ff;}
+/* ============ 详细榜单入口（Mak 2026-10-04）============
+   为什么要有它：龙虎榜这一栏从此「打开就是本期报告」，有排名的明细榜单搬进了子页面
+   ⇒ 报告下面必须有一扇**看得见**的门，否则用户找不到那些榜（拆了页面反而丢功能）。
+   设计取舍：做成一张**实心卡**而不是一个 ghost 按钮 —— 它是这一屏唯一的"往下走"，
+   要有自己的重量：左侧 accan 色块 + 三根增长条（一眼看出是榜单）、
+   中间主副两行、右侧箭头。整块可点（⛔ 不是只有文字可点）。
+   ⚠️ 与页面上其他卡同一条竖线：`margin:12px 14px 0`（与 .card / .rvp 同值）。 */
+.lb-entry{display:flex;align-items:center;gap:12px;margin:12px 14px 0;padding:13px 14px;border-radius:14px;
+  box-sizing:border-box;cursor:pointer;
+  background:linear-gradient(135deg,rgba(255,59,71,.14),rgba(31,111,235,.10));
+  border:1px solid rgba(255,92,104,.42);}
+.lb-entry:active{transform:scale(.985);}
+.lb-entry .ic{flex:0 0 38px;width:38px;height:38px;border-radius:12px;box-sizing:border-box;
+  background:rgba(255,59,71,.16);border:1px solid rgba(255,92,104,.42);
+  display:flex;align-items:flex-end;justify-content:center;gap:3px;padding-bottom:9px;}
+/* 三根增长条 —— ⚠️ 用**类选择器**（.bar）而不是标签选择器（i）：
+   小程序侧那三根是 <view>，`i` 匹配不到，两端会长得不一样。 */
+.lb-entry .ic .bar{display:block;width:4px;border-radius:2px;background:#ff8b96;}
+.lb-entry .ic .bar:nth-child(1){height:9px;opacity:.5;}
+.lb-entry .ic .bar:nth-child(2){height:17px;}
+.lb-entry .ic .bar:nth-child(3){height:12px;opacity:.8;}
+.lb-entry .tx{flex:1 1 auto;min-width:0;}
+.lb-entry .t{font-size:14px;font-weight:800;color:#fff;letter-spacing:.01em;}
+.lb-entry .s{font-size:11px;color:#8b97ad;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-entry .go{flex:0 0 auto;font-size:20px;font-weight:700;color:#ff8b96;line-height:1;}
 /* ================= 粘贴导入（v2.7.47）================= */
 #paste-json{width:100%;height:150px;box-sizing:border-box;background:#101728;border:1px solid #23304d;border-radius:8px;color:#c3ccdb;font-size:11px;line-height:1.5;padding:9px;resize:none;}
 </style>
@@ -1123,6 +1164,11 @@ body {
     </section>
 
     <!-- ============ 榜单 ============ -->
+    <!-- v2.15.4（Mak 2026-10-04）重构：这一栏**打开就是本周/本月的报告**。
+         原先排在报告前面的那份「有排名的明细榜单」整块搬进了下面的 #page-lb-detail 子页面，
+         报告卡底下留一张入口卡点进去（见 lbEntryHtml）。
+         ⛔ 别把 #lb-content 又搬回来 —— 那样报告又要被榜单挤到第一屏之外，
+            而这次改版要的就是「先看报告，想深挖再进去」。 -->
     <section class="page" id="page-leaderboard" data-page-node-id="7wDQSdkjQwckSbAeEuC0Zg">
       <div class="pagetitle"><div class="k">龙虎榜 · 交易数据榜</div><div class="t">每笔交易都可能会上龙虎榜</div></div>
       <!-- 左右 14px 必须与 .card / .rvp 同值（Mak 2026-10-03：「本周和本月也左右宽度需要对齐」）：
@@ -1132,10 +1178,25 @@ body {
         <span onclick="setLbRange('month')" id="lbt-month" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#16203a;color:#8b97ad;border:1px solid #23304d;">本月</span>
       </div>
 
-      <div id="lb-content"></div>
-
       <!-- 复盘周报/月报（v2.7.47）：随顶部周/月切换，版式即分享卡 -->
       <div id="lb-review"></div>
+      <!-- 详细榜单入口：报告页底下那扇钻取门（拆页但不许丢功能；副标题条数由 renderLeaderboard 注入） -->
+      <div id="lb-entry-wrap"></div>
+    </section>
+
+    <!-- ============ 详细榜单（子页面 · v2.15.4）============
+         报告页往下钻的那一层：热菜榜 / 劳模榜 / 暴汗榜 + 王榜（月报），带 1-2-3 名次。
+         ⚠️ 周/月 tab **两套并存**（lbt-* 在报告页、lbd-* 在这里）：
+            切一次要同时把两套刷成同一个状态 —— 见 setLbRange 里的 styBoth，
+            ⛔ 别只刷一套：那样在子页面切了周期，退回报告页 tab 还是旧的高亮。 -->
+    <section class="page" id="page-lb-detail">
+      <div class="backrow" onclick="backToLeaderboard()"><div class="arrow">‹</div><div class="tt">详细榜单</div></div>
+      <div class="pagetitle"><div class="k">LEADERBOARD · 完整榜单</div><div class="t">本期详细榜单</div></div>
+      <div style="display:flex;gap:8px;margin:12px 14px 0;">
+        <span onclick="setLbRange('week')" id="lbd-week" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#1d2b4d;color:#fff;border:1px solid #3a4d7a;">本周</span>
+        <span onclick="setLbRange('month')" id="lbd-month" style="flex:1;text-align:center;padding:8px 0;border-radius:9px;font-size:13px;background:#16203a;color:#8b97ad;border:1px solid #23304d;">本月</span>
+      </div>
+      <div id="lb-content"></div>
     </section>
 
     <!-- ============ 我的 ============ -->
@@ -5623,6 +5684,12 @@ function renderReview() {
   const d = reviewPosterData(lbRange === 'week');
   const file = RANK_CARDS[(d.rankLv || 1) - 1] || RANK_CARDS[0];
   let h = '<div class="rvp"><div class="rvp-bg"></div>';
+  /* 品牌行（Mak 2026-10-04）—— 复盘卡**左上角**：圆形 logo + 配文，为 IP 裂变分享。
+     ⚠️ 文案取内核常量 BRAND_NAME / BRAND_TAG（四个面同一份，⛔ 别在这里写死字符串）；
+        logo 走 assets/logo-brand.png（圆与细环已烤进 alpha ⇒ 四个面零裁剪差异）。 */
+  h += '<div class="rvp-brand"><img class="lg" src="assets/logo-brand.png" alt="" decoding="async">'
+    + '<span class="nm">' + escHtml(BRAND_NAME) + '<span class="tg">' + escHtml(BRAND_TAG) + '</span></span>'
+    + '</div>';
   h += '<div class="rvp-hd"><div class="rvp-hd-l">'
     + '<div class="rvp-k">REVIEW · ' + (d.isWeek ? '周报' : '月报') + '</div>'
     + '<div class="rvp-t">' + escHtml(d.title) + '</div>'
@@ -5664,12 +5731,33 @@ function renderReview() {
   h += '<div class="rvp-ft"><span>健身交易员 · 盈亏自负</span><span>'
     + escHtml(d.label) + '</span></div>';
   h += '</div>';
-  h += '<div class="rv-acts"><button class="ghost-btn primary" onclick="saveReviewPoster()">保存到相册</button>'
-    + '<button class="ghost-btn" onclick="copyReview()">复制战绩文字</button></div>';
+  /* 顺序刻意是「报告卡 → 详细榜单入口 → 保存到相册」（Mak 2026-10-04）：
+     入口紧贴报告 = 醒目；保存/分享留在整页最后当收尾 CTA。
+     ⛔「复制战绩文字」按钮已按 Mak 要求删除（v2.15.4）——
+        内核的 reviewText() **刻意留着**：小程序侧的「出图失败兜底」还在用它
+        （见 pages/board/board.js 的 _posterFallback），删了那条兜底就变成死路。 */
+  h += lbEntryHtml();
+  h += '<div class="rv-acts"><button class="ghost-btn primary" onclick="saveReviewPoster()">保存到相册</button></div>';
   el.innerHTML = h;
   /* 🔴 「保存到相册」点下去必须**同步**拿到图（iOS 的 navigator.share 只在用户手势里生效）
      ⇒ 这里就把海报预渲染好，⛔ 别等点击时再画。失败不打扰用户，见 warmReviewPoster。 */
   warmReviewPoster();
+}
+/* ---- 详细榜单入口卡（Mak 2026-10-04）----
+   龙虎榜从此「打开就是本期报告」，有排名的明细榜单搬进了 #page-lb-detail
+   ⇒ 报告下面必须有一扇看得见的门（拆页面但不许丢功能）。
+   ⭐ 副标题里的条数是**从已经渲染好的 #lb-content 里数出来的**，⛔ 别在这里维护第二份榜单清单：
+      那样加一个榜就会有地方忘记改，而漏掉的表现是「入口说 3 个榜、点进去 4 个」。
+      调用顺序也依赖这一点 —— renderReview() 必须在 #lb-content 写完之后才跑
+      （renderLeaderboard 的收尾那行，别提前）。 */
+function lbEntryHtml() {
+  const n = document.querySelectorAll('#lb-content .lb-item').length;
+  const rl = lbRange === 'week' ? '本周' : '本月';
+  return '<div class="lb-entry" onclick="openLbDetail()">'
+    + '<div class="ic"><i class="bar"></i><i class="bar"></i><i class="bar"></i></div>'
+    + '<div class="tx"><div class="t">详细榜单</div><div class="s">'
+    + escHtml(rl + '完整排名' + (n > 0 ? ' · 共 ' + n + ' 条记录' : '')) + '</div></div>'
+    + '<div class="go">›</div></div>';
 }
 /* ---- 分享海报 · PWA 画笔（2026-10-02）----
    渲染层：碰 canvas ⇒ mp_build 的 DOM 判据会自动把它排除、不会进小程序内核
@@ -5702,6 +5790,28 @@ function loadRankImg(lv) {
     im.onerror = function () { resolve(null); };
     im.src = 'assets/ranks/' + (RANK_CARDS[(lv || 1) - 1] || RANK_CARDS[0]);
   });
+}
+/* ---- 品牌 logo（Mak 2026-10-04）----
+   与段位卡面不同：这张图**永远不变** ⇒ 加载一次常驻，不必每次出图都等它回来。
+   ⚠️ 缓存挂在 `window.__rvBrand` 上，而不是模块级 `let`：模块级声明会被 mp_build 当作
+      「顶层常量」抽进内核（`new Image()` 不在 DARK 判据里，抓不到），内核里就多一份
+      「能 grep 到、一调就 ReferenceError」的死代码 —— 与 psMem 用 window.__ps 是同一套路。
+      `loadBrandLogo` 本身必须登记进 tools/mp_build.py 的 RENDER_ONLY（同上）。
+   ⚠️ 加载完要**作废海报缓存并重画一次**：warmReviewPoster 的 key 只看数据，
+      图片晚到不会自己触发重画 ⇒ 第一次进页面保存的海报会少掉左上角那个 logo。
+   ⚠️ 失败就置 false 打住：⛔ 别让它停在「未加载」—— 那样每次渲染都会重发一次请求。 */
+function _rvBrandSlot() {
+  if (!window.__rvBrand) window.__rvBrand = { img: null, done: false };
+  return window.__rvBrand;
+}
+function loadBrandLogo(cb) {
+  const S = _rvBrandSlot();
+  if (S.done) { if (S.img && cb) cb(); return; }
+  S.done = true;
+  const im = new Image();
+  im.onload = function () { S.img = im; if (cb) cb(); };
+  im.onerror = function () { S.img = false; };
+  im.src = 'assets/logo-brand.png';
 }
 /* ================= 保存到相册（PWA · iOS 专用通路）=================
    🔴 平台事实（2026-10-03 查证）：**iOS Safari 不允许网页写相册**。原先那句
@@ -5897,6 +6007,28 @@ function _rvpPaint(c, d, W, rankImg, measure) {
 
   c.textAlign = 'left'; c.textBaseline = 'alphabetic';
   let y = 22;
+
+  /* ---- 品牌行（Mak 2026-10-04）：左上角圆形 logo + 「健身交易员·交易你的健身」----
+     坐标与 .rvp-brand 的 DOM 一一对应：logo 28×28 贴 pad，文字块左缘 = pad + 28 + 9，
+     两段文字**零间距**（DOM 那边 .tg 嵌在 .nm 里，不带 flex gap）。
+     ⚠️ logo 图已把「圆 + 细环」烤进 alpha ⇒ 这里只 drawImage，⛔ 不需要 clip
+        （DOM 的 border-radius 与这里的裁剪若各写一套，两端必然不同源）。
+     ⚠️ 图没加载好（首帧 / 加载失败）时**只不画那个圆**，文字照画、42px 高度照占 ——
+        ⛔ 别让整行消失：那是「导出图比页面矮 42px、底部缺一块」的经典成因。
+     ⚠️ 高度是内核常量 BRAND_LOGO_D + BRAND_ROW_GAP，与 reviewPosterH 里那两行同源。 */
+  const brandImg = _rvBrandSlot().img || null;   // false / null 一律当「没图」，只省掉那个圆
+  if (brandImg) c.drawImage(brandImg, pad, y, BRAND_LOGO_D, BRAND_LOGO_D);
+  const BRAND_TX = pad + BRAND_LOGO_D + 9, BRAND_MID = y + BRAND_LOGO_D / 2;
+  c.textBaseline = 'middle';
+  _posterFont(c, 12.5, 800); c.fillStyle = ink;
+  c.fillText(BRAND_NAME, BRAND_TX, BRAND_MID);
+  /* ⚠️ 宽度必须**在 12.5px 还生效时**量出来 —— 下面 _posterFont 一换成 11px，
+     measureText 量的就是另一个字号了（这是 canvas 上最容易写错的一处）。 */
+  const bnw = c.measureText(BRAND_NAME).width;
+  _posterFont(c, 11, 600); c.fillStyle = mut;
+  c.fillText(BRAND_TAG, BRAND_TX + bnw, BRAND_MID);
+  c.textBaseline = 'alphabetic';
+  y += BRAND_LOGO_D + BRAND_ROW_GAP;
 
   /* ---- 顶栏：期号 + 标题（左，在卡面高度里垂直居中）+ 段位卡面（右 = 原来写段位文字的位置）----
      ⚠️ 左栏三行的基线走 hdY 这个偏移（不是写死的 10/40/64）：卡面从 100 长到 118 之后，
@@ -6317,16 +6449,31 @@ function reviewPosterData(isWeek_) {
     empty: r.cnt === 0
   };
 }
+/* ---- 品牌行（Mak 2026-10-04）----
+   「健身交易员」圆形 logo + 配文，摆在复盘卡的**左上角** —— 目的是**IP 裂变分享**：
+   海报被转出去之后，看到图的人得知道这是谁家做的。
+   🔴 文案与尺寸都放在内核，因为它在**四个面**上出现：
+        PWA DOM（renderReview）· PWA 画笔（_rvpPaint）· MP WXML（board.wxml）· MP 画笔（_paintPoster）
+      ⛔ 别在渲染层各写一份字符串 —— 改一次要改四处，漏掉的那处**只有把图出出来才看得见**。
+   ⚠️ 图片路径**不进内核**（两端不同：PWA 是 assets/logo-brand.png，小程序是 images/logo-brand.png），
+      路径由各自的渲染层持有 —— 与段位卡面走的同一套分工（见 lib/rank_assets.js 的注释）。 */
+const BRAND_NAME = '健身交易员';
+const BRAND_TAG = '· 交易你的健身';
+const BRAND_LOGO_D = 28;                  // 圆形 logo 直径（品牌行高度 = 它）
+const BRAND_ROW_GAP = 14;                 // 品牌行 → 顶栏 的间距
+
 /* ---- 海报整图高度（唯一真源）----
    ⛔ 两端都调它，**别各自拍一个高度** —— 同一个人的同一期数据，在 PWA 与小程序里
    必须印出**同样高**的一张图（不然用户两处一对比就看出来是两套东西）。
    🔴 这里是「画笔顺序累加」的**逐项镜像**：每一项都对应 _rvpPaint 里的一次 `y +=`，
       顺序也完全一致（改那边任何一段的间距/字号，回来改这里对应那一行）。
       2026-10-03 把它从「一串裸数字」改成**有名常量**，就是为了改版时不再数错。
-   ⚠️ 周报 3 张榜单 ⇒ 744；月报 6 张 ⇒ 847（多一行 94 + 9 间距）。 */
+   ⚠️ 现行值：周报 3 张榜单 ⇒ **804**；月报 6 张 ⇒ **907**（多一行 94 + 9 间距）。
+      2026-10-04 加品牌行，两端各 +42（BRAND_LOGO_D 28 + BRAND_ROW_GAP 14）。 */
 function reviewPosterH(d) {
   const rows = Math.max(1, Math.ceil((d && d.boards ? d.boards.length : 0) / 3));
   const PAD_TOP = 22;                     // 上留白
+  const BRAND_H = BRAND_LOGO_D, BRAND_GAP = BRAND_ROW_GAP;   // 品牌行（logo 圆形 + 配文）
   const CARD_H = 118;                     // 段位卡面（0.645 比例 ⇒ 宽 76）
   const HD_GAP = 20;                      // 顶栏 → hero（原先是「14 + 分隔线 1 + 16」，横线已按 Mak 要求删掉）
   const HERO_H = 108;                     // 净缺口大数字 + 右栏封号/人格
@@ -6336,7 +6483,7 @@ function reviewPosterH(d) {
   const ROWH = 94, ROWGAP = 9;            // 榜单卡
   const QUOTE_TOP = 18, QUOTE_H = 84;     // 吐槽（固定两行位）
   const FOOT_TOP = 16, FOOT_H = 14;       // 页脚
-  return PAD_TOP + CARD_H + HD_GAP + HERO_H
+  return PAD_TOP + BRAND_H + BRAND_GAP + CARD_H + HD_GAP + HERO_H
        + SPARK_TOP + SPARK_H
        + STAT_TOP + STAT_H * 2 + STAT_GAP
        + BH_H
@@ -6376,9 +6523,12 @@ function reviewText(isWeek_) {
   L.push('—— 健身交易员');
   return L.join('\n');
 }
-function copyReview() {
-  copyPlain(reviewText(), '战绩已复制');
-}
+/* ⛔ PWA 侧的 copyReview() 已按 Mak 要求删除（v2.15.4「删去复制战绩文字模块」），
+   连同报告卡下面那个按钮一起 —— 两处都在才算删干净。
+   ⚠️ 但**上面那个 reviewText() 必须留着**（它进内核 calc.js）：
+      小程序 board.js 的 _posterFallback（出图失败的最后一条路）还在用它，
+      删掉 index.html 的这份 ⇒ mp_build 不再抽取 ⇒ 小程序侧 calc.reviewText 直接 undefined。
+      ⇒ 这一条是「删 UI ≠ 删能力」的典型：留着的函数有真实调用方，别顺手一起清。 */
 
 /* ============================================================
  * 数据迁移口（v2.7.47）
@@ -6482,11 +6632,31 @@ function doPasteImport() {
 let lbRange = 'week';   // 周期：week=本周(周一始) / month=本月
 function setLbRange(r) {
   lbRange = r;
-  const a = document.getElementById('lbt-week'), b = document.getElementById('lbt-month');
-  const sty = function(el, on) { if (!el) return; el.style.background = on ? '#1d2b4d' : '#16203a'; el.style.color = on ? '#fff' : '#8b97ad'; el.style.borderColor = on ? '#3a4d7a' : '#23304d'; };
-  sty(a, r === 'week'); sty(b, r === 'month');
+  lbPaintTabs(r);
   renderLeaderboard();
 }
+/* 周/月 tab 有**两套**：报告页的 `lbt-*` 与详细榜单子页的 `lbd-*`（v2.15.4 拆页时新增）。
+   ⇒ 切一次必须把两套刷成同一状态，⛔ 别只刷一套 —— 那样在子页面切了周期、退回报告页，
+      tab 高亮还停在旧周期，看着「没生效」。
+   ⚠️ 两处的行内样式字面值必须与 index.html 里那四个 span 的初始 style 一致（有闸钉着）。 */
+function lbPaintTabs(r) {
+  const wk = r === 'week';
+  const sty = function(el, on) {
+    if (!el) return;
+    el.style.background = on ? '#1d2b4d' : '#16203a';
+    el.style.color = on ? '#fff' : '#8b97ad';
+    el.style.borderColor = on ? '#3a4d7a' : '#23304d';
+  };
+  sty(document.getElementById('lbt-week'), wk);
+  sty(document.getElementById('lbt-month'), !wk);
+  sty(document.getElementById('lbd-week'), wk);
+  sty(document.getElementById('lbd-month'), !wk);
+}
+/* 龙虎榜 ⇄ 详细榜单 子页面的来回（v2.15.4 拆页）。
+   ⚠️ 走 switchTab 而不是自己 toggle class —— 只有 switchTab 会同步底部 tab 高亮与滚动位置；
+      另起一条路就会出现「子页面里底部 tab 亮错」或「进去还停在上一页的滚动位置」。 */
+function openLbDetail() { switchTab('lb-detail'); }
+function backToLeaderboard() { switchTab('leaderboard'); }
 function rangeStartFor(r) {
   const now = new Date();
   if (r === 'month') return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
@@ -6565,10 +6735,11 @@ function renderLeaderboard() {
   }
   const el = document.getElementById('lb-content');
   if (el) el.innerHTML = html;
-  const a = document.getElementById('lbt-week'), b = document.getElementById('lbt-month');
-  const sty = function(el, on) { if (!el) return; el.style.background = on ? '#1d2b4d' : '#16203a'; el.style.color = on ? '#fff' : '#8b97ad'; el.style.borderColor = on ? '#3a4d7a' : '#23304d'; };
-  sty(a, lbRange === 'week'); sty(b, lbRange === 'month');
+  lbPaintTabs(lbRange);      // 两套 tab（报告页 lbt-* / 子页 lbd-*）一次刷完，见 lbPaintTabs
   renderReview();
+  /* 报告页那扇「详细榜单」入口按钮：副标题条数从刚写好的 #lb-content 里数，⛔ 别维护第二份清单 */
+  const ew = document.getElementById('lb-entry-wrap');
+  if (ew) ew.innerHTML = lbEntryHtml();
 }
 
 function achCat(id) { for (const c of ACH_CATS) if (c.id === id) return c; return ACH_CATS[0]; }
@@ -8086,18 +8257,19 @@ function closeGachaResult() {
 
 /* ============ Tab 切换 ============ */
 let curTab = 'market';
-const SUB_BACK = { coins:'profile', level:'profile', gacha:'profile', achievements:'profile', 'body-detail':'market', 'body-archive':'profile', persona:'profile' };
+const SUB_BACK = { coins:'profile', level:'profile', gacha:'profile', achievements:'profile', 'body-detail':'market', 'body-archive':'profile', persona:'profile', 'lb-detail':'leaderboard' };
+/* 子页面该点亮哪个底部 tab。⛔ 只登记**与默认 profile 不同**的那些：
+   逐个重写既有子页面的归属会顺带改掉它们现在的外观（例如 body-detail 现在亮的是「我的」），
+   那不是这次改版要做的事 —— 真要改单独提，别夹带。 */
+const TAB_OWNER = { 'lb-detail': 'leaderboard' };
 function switchTab(tab) {
   curTab = tab;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + tab).classList.add('active');
   const tabs = ['market','trade','holdings','leaderboard','profile'];
   document.querySelectorAll('.tabbar > div').forEach(t => t.classList.remove('on'));
-  if (tabs.includes(tab)) {
-    document.querySelector('.tabbar > div[data-tab="' + tab + '"]').classList.add('on');
-  } else {
-    document.querySelector('.tabbar > div[data-tab="profile"]').classList.add('on');
-  }
+  const owner = tabs.includes(tab) ? tab : (TAB_OWNER[tab] || 'profile');
+  document.querySelector('.tabbar > div[data-tab="' + owner + '"]').classList.add('on');
   document.getElementById('screen').scrollTop = 0;
   if (tab === 'market') {
     try { renderMarketMap(); } catch (e) {}          // 容器已可见，用真实宽度重绘云图，避免隐藏态留下的右侧黑条
@@ -8198,6 +8370,9 @@ document.getElementById('avatar-input').addEventListener('change', function(e) {
 /* 预加载食物库（失败自动降级到内置精简库，不报错） */
 if (typeof FoodStore !== 'undefined') { FoodStore.load().catch(function(){}); }
 render();
+/* 品牌 logo 预热（见 loadBrandLogo）：上面那句 render() 已经 warm 过一次海报，
+   但那时图还没到 ⇒ 加载完成后作废缓存重画一次，否则第一次保存的图上没有 logo。 */
+loadBrandLogo(function () { _rvPoster.key = ''; warmReviewPoster(); });
 /* 分时线随时间推进：每分钟重绘一次，让线像实时行情一样自己往前走 */
 setInterval(function() { renderIntraday(); }, 60000);
 
