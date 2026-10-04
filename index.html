@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.7"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5982,17 +5982,21 @@ function _rvpPaint(c, d, W, rankImg, measure) {
      根因：海报画布 W=375、页面 440 ⇒ 榜单卡内文可用宽 85.7 vs 107.3（差 21.7px），
      「体能训练🏃」这种带 emoji 的名字在海报里被砍成「体能🏃」，页面却完整 ⇒ 两端看到的不一样。
      ⚠️ 步长 0.5px、下限 minSize：⛔ 别无限降（字太小就丑了），到下限仍放不下才回落到 fit() 截断。
-     ⚠️ 只给**榜单卡那四行**用（口径/名字最长），数字格与其它区块仍走 fit()，避免全局字号漂移。 */
-  function fitFit(s, maxW, minSize) {
+     ⚠️ 只给**榜单卡那四行**用（口径/名字最长），数字格与其它区块仍走 fit()，避免全局字号漂移。
+     🔴🔴 v2.15.6 修正（Mak 真机复测仍显示不全）：**返回 {s, size} 二元组**，由调用方
+        用这个 size 落笔。第一版只在小字号下量宽、落笔却仍用原字号（等于「量了不画」），
+        PWA 侧碰巧靠 _posterFont 改了 ctx.font 没还原才生效、小程序侧则完全无效 ——
+        两端行为还不一样。⇒ 凡是 fitFit 的结果，⛔ 别再手写固定字号。
+        （因此 c.__fs / c.__fw 仍留着：降字号时要保持同一字重，否则宽度会量错。） */
+  function fitFit(s, maxW, base, weight, minSize) {
     s = String(s === null || s === undefined ? '' : s);
-    if (c.measureText(s).width <= maxW) return s;
-    const base = c.__fs;                              // 当前字号（_posterFont 写在 ctx 上）
-    for (let sz = base - 0.5; sz >= (minSize || base - 2); sz -= 0.5) {
-      _posterFont(c, sz, c.__fw);
-      if (c.measureText(s).width <= maxW) return s;  // 放得下就整句返回（不截断）
+    if (c.measureText(s).width <= maxW) return { s: s, size: base };
+    const lo = minSize || (base - 2);
+    for (let sz = base - 0.5; sz >= lo; sz -= 0.5) {
+      _posterFont(c, sz, weight);
+      if (c.measureText(s).width <= maxW) return { s: s, size: sz };   // 真降字号返回
     }
-    _posterFont(c, base, c.__fw);                     // 还原 ⇒ 下面的 fit() 在原字号下截断
-    return fit(s, maxW);
+    return { s: fit(s, maxW), size: base };                            // 到下限仍放不下 ⇒ 截断
   }
   function wrap(s, maxW, maxLines) {                 // 按宽度折行（最多 maxLines 行）
     s = String(s || ''); const out = []; let ln = '';
@@ -6251,15 +6255,21 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     const ix = bx + 10, rx = bx + bw - 10, iw = bw - 20;
     /* 称号：左对齐 + 加大（10.5 → 12.5）。🔴 Mak 2026-10-04：**颜色改成跟数值同色** ⇒ 取 b.c
        （与下面数值那行的 `c.fillStyle = b.c` 同一个字段）。⛔ 别再写死 #ffd166。 */
-    _posterFont(c, 12.5, 800); c.fillStyle = b.c;
-    c.fillText(fitFit(b.k, iw, 11), ix, by + 23);
+    /* ⚠️ 每行都从 fitFit 取**实际字号**再落笔（v2.15.6：以前是「量了不画」）。
+       落笔前先按 fitFit 给的 size 设字体，⛔ 别再手写固定字号。 */
+    const fk = fitFit(b.k, iw, 12.5, 800, 11);
+    _posterFont(c, fk.size, 800); c.fillStyle = b.c;
+    c.fillText(fk.s, ix, by + 23);
     c.textAlign = 'right';
-    _posterFont(c, 12.5, 700); c.fillStyle = ink;              // 内容数据：14 → 12.5（Mak 2026-10-03「小一号」）
-    c.fillText(fitFit(b.n, iw, 11), rx, by + 46);
-    _posterFont(c, 10.5, 400); c.fillStyle = mut;
-    c.fillText(fitFit(b.d, iw, 9.5), rx, by + 62);
-    _posterFont(c, 11.5, 700); c.fillStyle = b.c;
-    c.fillText(fitFit(b.v, iw, 10), rx, by + 80);
+    const fn = fitFit(b.n, iw, 12.5, 700, 11);         // 内容数据：14 → 12.5（Mak 2026-10-03「小一号」）
+    _posterFont(c, fn.size, 700); c.fillStyle = ink;
+    c.fillText(fn.s, rx, by + 46);
+    const fd = fitFit(b.d, iw, 10.5, 400, 9.5);
+    _posterFont(c, fd.size, 400); c.fillStyle = mut;
+    c.fillText(fd.s, rx, by + 62);
+    const fv = fitFit(b.v, iw, 11.5, 700, 10);
+    _posterFont(c, fv.size, 700); c.fillStyle = b.c;
+    c.fillText(fv.s, rx, by + 80);
     c.textAlign = 'left';
   });
   y += rows * ROWH + (rows - 1) * ROWGAP;
