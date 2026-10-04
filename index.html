@@ -7896,6 +7896,14 @@ var psRailTimer = 0, psRailBound = false;
 /** 结果里的「人格卡」清单：彩蛋命中 ⇒ 只给彩蛋卡；否则给正经型（1 或 2 张）
  *  ⛔ 只走 `r.names`（personaDisplay 已算好的 1~2 个名字），⛔ 别再按名字回查 PERSONA_TYPES ——
  *     那会因一个名字对应多个码而产出重复项（2 个中间态时曾算出 4 张卡）。 */
+/** 人格卡图片 URL。
+ *  🔴 图文件名含中文（如 `追高本高.webp`）⇒ **必须 encodeURIComponent**，否则
+ *     浏览器/小程序发请求时中文路径 => HTTP 400，图裂。⛔ 别直接把 img 拼进 src。
+ *     （小程序侧走云存储 fileID，无此问题；PWA 侧必须编码。） */
+function personaCardSrc(c) {
+  return 'assets/personas/' + encodeURIComponent(c.img);
+}
+
 function personaCardKeysOf(r, egg) {
   if (egg) {
     var k = 'EGG_' + egg;
@@ -7923,7 +7931,7 @@ function renderPersonaRail(r, egg) {
   track.innerHTML = uniq.map(function (k) {
     var c = PERSONA_CARDS[k];
     return '<div class="rail-card unlocked" data-k="' + k + '">' +
-      '<img class="ps-rail-img" src="assets/personas/' + escHtml(c.img) + '" alt="' + escHtml(c.name) +
+      '<img class="ps-rail-img" src="' + personaCardSrc(c) + '" alt="' + escHtml(c.name) +
       '" loading="lazy" decoding="async"></div>';
   }).join('');
 
@@ -7984,7 +7992,7 @@ function renderPersonaCollection(r, egg) {
   grid.innerHTML = order.map(function (k) {
     var c = PERSONA_CARDS[k], on = !!lit[k];
     return '<div class="ps-cell' + (on ? '' : ' locked') + '">' +
-      '<img src="assets/personas/' + escHtml(c.img) + '" alt="' + escHtml(c.name) +
+      '<img src="' + personaCardSrc(c) + '" alt="' + escHtml(c.name) +
       '" loading="lazy" decoding="async">' +
       (on ? '' : '<svg class="lock" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#fff" stroke-width="2"/><path d="M8 10V7a4 4 0 018 0v3" stroke="#fff" stroke-width="2"/></svg>') +
       '<div class="nm">' + escHtml(c.name) + '</div></div>';
