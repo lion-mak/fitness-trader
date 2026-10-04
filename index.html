@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -862,21 +862,28 @@ body {
    ⚠️ 配文「健身交易员·交易你的健身」是**一个整体**（.tg 嵌在 .nm 里面），
       ⛔ 别把 .tg 做成 .rvp-brand 的独立子项：那样 flex 的 9px 间距会同时插在
          「logo→文字」和「交易你的健身」前面，而配文自带一个 `·` ⇒ 一行里两个间隔，很散。
-      画笔那边是「先量 BRAND_NAME 的宽、紧跟着画 BRAND_TAG」，与这里的零间距一一对应。 */
-.rvp-brand{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+      画笔那边是「先量 BRAND_NAME 的宽、紧跟着画 BRAND_TAG」，与这里的零间距一一对应。
+   🔴 Mak 2026-10-04 第二刀（顶栏重排）：品牌行**搬进 .rvp-hd-l**（与标题文字同栏），
+      段位卡面上缘 = 品牌行上缘（都在顶栏带的最顶上），卡面 118 → **160**
+      （= 原品牌行带 28 + 14 + 原 118，顶栏带总高不变 ⇒ 整图高度 804/907 不变）。
+      标题文字块（.rvp-hd-txt）在「品牌行下缘 → 卡面下缘」这段里垂直居中，
+      画笔那边对应 hdY = y + BRAND_LOGO_D + round((CARD_H − BRAND_LOGO_D − 70) / 2)。 */
+.rvp-brand{display:flex;align-items:center;gap:9px;}
 .rvp-brand .lg{display:block;width:28px;height:28px;flex:0 0 28px;}
 .rvp-brand .nm{font-size:12.5px;font-weight:800;letter-spacing:.01em;color:#fff;white-space:nowrap;}
 .rvp-brand .tg{font-size:11px;font-weight:600;color:#7b8798;white-space:nowrap;}
 .rvp-hd{display:flex;justify-content:space-between;align-items:flex-start;}
-/* 左栏文字在卡面高度里**垂直居中**（118 = .rvp-card 的高，改一处必须改两处；
-   画笔那边对应的是 hdY = y + round((CARD_H − 70) / 2)）。 */
-.rvp-hd-l{min-width:0;display:flex;flex-direction:column;justify-content:center;height:118px;}
+/* 左栏 = 品牌行 + 标题文字，总高 = .rvp-card 的高（160，改一处必须改两处）；
+   标题文字块 .rvp-hd-txt 占剩余高度并垂直居中。 */
+.rvp-hd-l{min-width:0;display:flex;flex-direction:column;height:160px;}
+.rvp-hd-txt{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center;}
 .rvp-k{font-size:10px;letter-spacing:.16em;font-weight:700;color:#ff3b47;}
 .rvp-t{font-size:23px;font-weight:800;letter-spacing:-.5px;margin-top:7px;line-height:1.05;}
 .rvp-s{font-size:12px;color:#7b8798;margin-top:7px;}
-/* 段位卡面：Mak 2026-10-03「可以再大一点」⇒ 100 → 118（宽按原图 500×775 的 0.645 比例自动推，
-   与画笔的 cwid = round(CARD_H * 0.645) 同一算法）。 */
-.rvp-card{display:block;width:auto;height:118px;border-radius:9px;box-shadow:0 8px 22px rgba(0,0,0,.6);}
+/* 段位卡面：Mak 2026-10-03「可以再大一点」⇒ 100 → 118；2026-10-04 上缘提到与品牌行
+   同顶 ⇒ 118 → 160（宽按原图 500×775 的 0.645 比例自动推，与画笔的
+   cwid = round(CARD_H * 0.645) 同一算法）。 */
+.rvp-card{display:block;width:auto;height:160px;border-radius:9px;box-shadow:0 8px 22px rgba(0,0,0,.6);}
 /* ⛔ .rvp-rule（卡片与下方区块之间那条灰色横线）已按 Mak 要求删除，
    画笔里的 lg 渐变横线也一起删了 —— 别只加回一边。 */
 .rvp-hero{display:flex;align-items:flex-end;justify-content:space-between;margin-top:20px;}
@@ -5686,14 +5693,18 @@ function renderReview() {
   let h = '<div class="rvp"><div class="rvp-bg"></div>';
   /* 品牌行（Mak 2026-10-04）—— 复盘卡**左上角**：圆形 logo + 配文，为 IP 裂变分享。
      ⚠️ 文案取内核常量 BRAND_NAME / BRAND_TAG（四个面同一份，⛔ 别在这里写死字符串）；
-        logo 走 assets/logo-brand.png（圆与细环已烤进 alpha ⇒ 四个面零裁剪差异）。 */
+        logo 走 assets/logo-brand.png（圆与细环已烤进 alpha ⇒ 四个面零裁剪差异）。
+     🔴 2026-10-04 第二刀：品牌行搬进 .rvp-hd-l（与标题同栏）—— 段位卡面的上缘
+        要提到与品牌行上缘对齐（Mak：「卡片上方多余的部分，把卡片放大」），
+        四个面（DOM / 两端画笔 / WXML）都按这个结构落。 */
+  h += '<div class="rvp-hd"><div class="rvp-hd-l">';
   h += '<div class="rvp-brand"><img class="lg" src="assets/logo-brand.png" alt="" decoding="async">'
     + '<span class="nm">' + escHtml(BRAND_NAME) + '<span class="tg">' + escHtml(BRAND_TAG) + '</span></span>'
     + '</div>';
-  h += '<div class="rvp-hd"><div class="rvp-hd-l">'
+  h += '<div class="rvp-hd-txt">'
     + '<div class="rvp-k">REVIEW · ' + (d.isWeek ? '周报' : '月报') + '</div>'
     + '<div class="rvp-t">' + escHtml(d.title) + '</div>'
-    + '<div class="rvp-s">' + escHtml(d.label) + '</div></div>'
+    + '<div class="rvp-s">' + escHtml(d.label) + '</div></div></div>'
     + '<div class="rvp-hd-r"><img class="rvp-card" src="assets/ranks/' + file + '" alt="'
     + escHtml(d.rankName) + '" decoding="async"></div></div>';
   /* ⛔ 这里原先有一条 .rvp-rule 灰色横线，Mak 2026-10-03 要求去掉（版面更自由）。
@@ -5731,12 +5742,12 @@ function renderReview() {
   h += '<div class="rvp-ft"><span>健身交易员 · 盈亏自负</span><span>'
     + escHtml(d.label) + '</span></div>';
   h += '</div>';
-  /* 顺序刻意是「报告卡 → 详细榜单入口 → 保存到相册」（Mak 2026-10-04）：
-     入口紧贴报告 = 醒目；保存/分享留在整页最后当收尾 CTA。
+  /* 顺序（2026-10-04 晚修正）：「报告卡 → 保存到相册 → 龙虎榜席位榜单入口」。
+     🔴 入口**只渲染一份** —— 在 #lb-entry-wrap（renderLeaderboard 收尾填充，整页最底）。
+        之前这里又拼过一次 lbEntryHtml()，页面上出现两个一模一样的入口（Mak 截图抓到）⇒ 已删。
      ⛔「复制战绩文字」按钮已按 Mak 要求删除（v2.15.4）——
         内核的 reviewText() **刻意留着**：小程序侧的「出图失败兜底」还在用它
         （见 pages/board/board.js 的 _posterFallback），删了那条兜底就变成死路。 */
-  h += lbEntryHtml();
   h += '<div class="rv-acts"><button class="ghost-btn primary" onclick="saveReviewPoster()">保存到相册</button></div>';
   el.innerHTML = h;
   /* 🔴 「保存到相册」点下去必须**同步**拿到图（iOS 的 navigator.share 只在用户手势里生效）
@@ -5755,7 +5766,7 @@ function lbEntryHtml() {
   const rl = lbRange === 'week' ? '本周' : '本月';
   return '<div class="lb-entry" onclick="openLbDetail()">'
     + '<div class="ic"><i class="bar"></i><i class="bar"></i><i class="bar"></i></div>'
-    + '<div class="tx"><div class="t">详细榜单</div><div class="s">'
+    + '<div class="tx"><div class="t">龙虎榜席位榜单</div><div class="s">'
     + escHtml(rl + '完整排名' + (n > 0 ? ' · 共 ' + n + ' 条记录' : '')) + '</div></div>'
     + '<div class="go">›</div></div>';
 }
@@ -5929,7 +5940,8 @@ function saveReviewPoster() {
 function _rvpPaint(c, d, W, rankImg, measure) {
   const pad = 20, cw = W - pad * 2;
   const ink = '#e8eef7', mut = '#7b8798', dim = '#5a6478';
-  const CARD_H = 118;        // 段位卡面高（Mak 2026-10-03：再大一点 ⇒ 宽 = 118×0.645 ≈ 76，原图 500×775）
+  const CARD_H = 160;        // 段位卡面高（2026-10-04 上缘提到与品牌行同顶 ⇒ 118 → 160；
+                             //   宽 = 160×0.645 ≈ 103，原图 500×775。顶栏带总高不变 ⇒ 整图高度不变）
   const HD_GAP = 20;         // 顶栏 → hero 的间距（原先是「14 + 灰色横线 1 + 16」，横线已按 Mak 要求删掉）
   const STAT_H = 45;         // 数字格单行高
   const SPARK_H = 96;        // 折线块高（Mak 2026-10-03：78 → 96，上下间距不动 ⇒ 呼吸感保持不变，
@@ -6028,12 +6040,17 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   _posterFont(c, 11, 600); c.fillStyle = mut;
   c.fillText(BRAND_TAG, BRAND_TX + bnw, BRAND_MID);
   c.textBaseline = 'alphabetic';
-  y += BRAND_LOGO_D + BRAND_ROW_GAP;
+  /* 🔴 2026-10-04 第二刀：这里**不再** y += BRAND_LOGO_D + BRAND_ROW_GAP ——
+     品牌行与段位卡面同带（卡面上缘 = 品牌行上缘 = y），整带由下方 y += CARD_H 一次结清。
+     ⛔ 别把那行加回来：加了整图高度就多 42，底部多出一条空带（高度真源 reviewPosterH 已同步）。 */
 
-  /* ---- 顶栏：期号 + 标题（左，在卡面高度里垂直居中）+ 段位卡面（右 = 原来写段位文字的位置）----
-     ⚠️ 左栏三行的基线走 hdY 这个偏移（不是写死的 10/40/64）：卡面从 100 长到 118 之后，
-        写死的偏移会让文字全挤在顶部。hdY 的算式是「文字块高 ≈70，在 CARD_H 里居中」。 */
-  const hdY = y + Math.round((CARD_H - 70) / 2);
+  /* ---- 顶栏带（Mak 2026-10-04 第二刀重排）：品牌行（左上）+ 标题文字（左）+ 段位卡面（右）----
+     🔴 卡面上缘 = 品牌行上缘 = y（都贴顶栏带最顶），卡面把原品牌行带整个吃进来
+        （CARD_H 118 → 160），整带高度不变 ⇒ hero 起点与整图高度都不变。
+     ⚠️ 左栏三行的基线走 hdY：文字块（≈70 高）在「品牌行下缘 → 卡面下缘」这段里垂直居中。
+        与 DOM 的 .rvp-hd-l（height:160）+ .rvp-hd-txt（flex:1 居中）同一算式，
+        ⛔ 改一边必须改两边（M 段闸逐条比两端画笔落笔）。 */
+  const hdY = y + BRAND_LOGO_D + Math.round((CARD_H - BRAND_LOGO_D - 70) / 2);
   _posterFont(c, 10, 700); c.fillStyle = '#ff3b47';
   c.fillText('REVIEW · ' + (d.isWeek ? '周报' : '月报'), pad, hdY + 8);
   _posterFont(c, 23, 800); c.fillStyle = ink;
@@ -6469,12 +6486,19 @@ const BRAND_ROW_GAP = 14;                 // 品牌行 → 顶栏 的间距
       顺序也完全一致（改那边任何一段的间距/字号，回来改这里对应那一行）。
       2026-10-03 把它从「一串裸数字」改成**有名常量**，就是为了改版时不再数错。
    ⚠️ 现行值：周报 3 张榜单 ⇒ **804**；月报 6 张 ⇒ **907**（多一行 94 + 9 间距）。
-      2026-10-04 加品牌行，两端各 +42（BRAND_LOGO_D 28 + BRAND_ROW_GAP 14）。 */
+      2026-10-04 加品牌行 +42；当晚第二刀顶栏重排（卡面上缘提到与品牌行同顶、
+      CARD_H 118→160 吸收品牌行带）——一加一减相抵，总高仍是 804/907。 */
 function reviewPosterH(d) {
   const rows = Math.max(1, Math.ceil((d && d.boards ? d.boards.length : 0) / 3));
   const PAD_TOP = 22;                     // 上留白
-  const BRAND_H = BRAND_LOGO_D, BRAND_GAP = BRAND_ROW_GAP;   // 品牌行（logo 圆形 + 配文）
-  const CARD_H = 118;                     // 段位卡面（0.645 比例 ⇒ 宽 76）
+  /* 🔴 Mak 2026-10-04 第二刀（顶栏重排）：段位卡面上缘提到与品牌行上缘**同顶**，
+     卡面把原「品牌行带」整个吃进来（logo 28、行距 14，再加原卡面 118）⇒ **160**
+     （0.645 比例 ⇒ 宽 103）。
+     ⇒ 公式里 BRAND_H、BRAND_GAP 两项随之消失（卡面与品牌行同带，不叠加），
+        顶栏带总高不变 ⇒ 整图高度仍 804/907（N2b 基线不动）。
+     ⛔ 本函数注释里**别写任何「数字 + 数字」的算式** —— poster 闸拿旧版灰线段的
+        算式字面量当「灰线复活」的特征串（Mak 已删灰线），注释里出现就会误报红。 */
+  const CARD_H = 160;                     // 段位卡面（与品牌行同顶，见上）
   const HD_GAP = 20;                      // 顶栏 → hero（原先是「14 + 分隔线 1 + 16」，横线已按 Mak 要求删掉）
   const HERO_H = 108;                     // 净缺口大数字 + 右栏封号/人格
   const SPARK_TOP = 6, SPARK_H = 96;      // 折线块（Mak 2026-10-03：再加高，78 → 96）
@@ -6483,7 +6507,7 @@ function reviewPosterH(d) {
   const ROWH = 94, ROWGAP = 9;            // 榜单卡
   const QUOTE_TOP = 18, QUOTE_H = 84;     // 吐槽（固定两行位）
   const FOOT_TOP = 16, FOOT_H = 14;       // 页脚
-  return PAD_TOP + BRAND_H + BRAND_GAP + CARD_H + HD_GAP + HERO_H
+  return PAD_TOP + CARD_H + HD_GAP + HERO_H
        + SPARK_TOP + SPARK_H
        + STAT_TOP + STAT_H * 2 + STAT_GAP
        + BH_H
