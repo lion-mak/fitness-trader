@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.7"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -260,6 +260,35 @@ body {
 .ps-gb .g { color:var(--green); }
 .ps-gb .b { color:#ff8a3d; }
 .ps-meta { margin-top:12px; font-size:11px; color:var(--muted); line-height:1.7; }
+
+/* ============ 人格卡（Mak 2026-10-04：测出的人格置顶 + 22 型全收集）============
+   ⭐ 视觉与交互**照抄段位卡廊**（.rail-track/.rail-card 那套）：
+   居中放大 + 两侧缩小、左右渐隐、居中吸附、**未点亮整张灰**（grayscale）。
+   ⛔ 别再写第二套滑动逻辑 —— 两处机制不同源，改一边必漏另一边。 */
+.ps-rail { position:relative; margin:0 -14px; }
+.ps-rail .rail-track { padding:5px calc(50% - 84px) 8px; }
+.ps-rail .rail-card { flex:0 0 168px; width:168px; height:240px; border-radius:12px;
+  overflow:hidden; background:#0f1524; transform:scale(.86); opacity:.5;
+  filter:grayscale(1) brightness(.55);
+  transition:transform .2s ease, opacity .2s ease, filter .2s ease; }
+.ps-rail .rail-card.unlocked { filter:none; opacity:.72; }
+.ps-rail .rail-card.focus { transform:scale(1); opacity:1; box-shadow:0 8px 20px rgba(0,0,0,.55); }
+.ps-rail .rail-card.focus.locked { filter:grayscale(1) brightness(.72); }
+.ps-rail-img { width:100%; height:100%; object-fit:cover; display:block; }
+.ps-rail-empty { padding:26px 14px; text-align:center; color:var(--muted); font-size:12px; line-height:1.8; }
+.ps-collection { margin-top:14px; }
+.ps-collection .ps-sec-t { display:flex; align-items:baseline; justify-content:space-between; }
+.ps-collection .ps-sec-t .m { font-size:10px; color:var(--muted); }
+.ps-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.ps-cell { position:relative; border-radius:10px; overflow:hidden; background:#0f1524;
+  border:1px solid var(--border); aspect-ratio:1216/1824; }
+.ps-cell img { width:100%; height:100%; object-fit:cover; display:block; }
+.ps-cell.locked img { filter:grayscale(1) brightness(.5) contrast(.9); opacity:.55; }
+.ps-cell .nm { position:absolute; left:0; right:0; bottom:0; padding:12px 6px 5px;
+  font-size:11px; color:#fff; text-align:center; line-height:1.3;
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.82)); font-weight:500; }
+.ps-cell.locked .nm { color:var(--muted); }
+.ps-cell .lock { position:absolute; top:5px; right:5px; width:15px; height:15px; opacity:.6; }
 /* 答题态 */
 .ps-bar { height:4px; border-radius:2px; background:var(--panel-hi); overflow:hidden; }
 .ps-bar i { display:block; height:100%; background:var(--amber); transition:width .25s; }
@@ -1467,6 +1496,12 @@ body {
 
       <!-- 态 3 · 结果：色块 + 4 字母 + 雷达图（插画由 Mak 后续供给，规划文档 §4.4）-->
       <div class="card" id="ps-result" style="display:none;">
+        <!-- ⭐ 人格卡廊（Mak 2026-10-04）：测出的人格**置顶**，1 个或 2 个并列（2 个 = 可滑动）
+             —— 视觉与交互照抄段位卡廊（居中放大 + 两侧缩小 + 左右渐隐 + 吸附） -->
+        <div class="ps-rail" id="ps-rail-wrap" style="display:none;">
+          <div class="rail-track" id="ps-rail"></div>
+          <div class="ps-rail-empty" id="ps-rail-empty">完成测试后，这里会显示你的人格卡</div>
+        </div>
         <div class="ps-hero" id="ps-hero">
           <div class="ps-code" id="ps-code"></div>
           <div class="ps-name" id="ps-name"></div>
@@ -1477,6 +1512,11 @@ body {
         <div class="ps-sec"><div class="ps-sec-t">人格雷达</div><div id="ps-radar"></div></div>
         <div id="ps-portrait"></div>
         <div class="ps-meta" id="ps-meta"></div>
+        <!-- ⭐ 收集册（Mak 2026-10-04）：22 型全罗列在**最下方**，未点亮整张灰 -->
+        <div class="ps-collection">
+          <div class="ps-sec-t"><span>人格收集册</span><span class="m" id="ps-collect-m">0 / 22</span></div>
+          <div class="ps-grid" id="ps-grid"></div>
+        </div>
         <button class="confirm sell" style="margin-top:12px;" onclick="personaRestart()">重新测试</button>
       </div>
     </section>
@@ -2606,6 +2646,37 @@ const PERSONA_EGG_TIERS = [
   { minFun:10, name:'广场舞操盘手' },
   { minFun:11, name:'追高本高' }
 ];
+
+/* ==== 人格卡字典（22 型）====
+ * 键 = 人格码（16 型 = 四轴码；彩蛋 = EGG_ + 名字），值 = { name 中文称号, img 卡片图文件名 }
+ * ⚠️ img 指向 PWA 的 assets/personas/（公网按需加载）；小程序走云存储 fileID。 */
+const PERSONA_CARDS = {
+  'KLEA': { name:'情绪捕手', img:'情绪捕手_KLEA.webp' },
+  'KLEP': { name:'长线画饼师', img:'长线画饼师_KLEP.webp' },
+  'KLRA': { name:'大波段猎手', img:'大波段猎手_KLRA.webp' },
+  'KLRP': { name:'趋势跟随者', img:'趋势跟随者_KLRP.webp' },
+  'KSEA': { name:'打板敢死队', img:'打板敢死队_KSEA.webp' },
+  'KSEP': { name:'模拟盘之王', img:'模拟盘之王_KSEP.webp' },
+  'KSRA': { name:'K线大师', img:'K线大师_KSRA.webp' },
+  'KSRP': { name:'空仓战术家', img:'空仓战术家_KSRP.webp' },
+  'VLEA': { name:'价投跟单员', img:'价投跟单员_VLEA.webp' },
+  'VLEP': { name:'佛系盘外人', img:'佛系盘外人_VLEP.webp' },
+  'VLRA': { name:'产业挖井人', img:'产业挖井人_VLRA.webp' },
+  'VLRP': { name:'时间的朋友', img:'时间的朋友_VLRP.webp' },
+  'VSEA': { name:'价值快闪舞王', img:'价值快闪舞王_VSEA.webp' },
+  'VSEP': { name:'打折囤货仓鼠', img:'打折囤货仓鼠_VSEP.webp' },
+  'VSRA': { name:'事件驱动猎手', img:'事件驱动猎手_VSRA.webp' },
+  'VSRP': { name:'评论区精算师', img:'评论区精算师_VSRP.webp' },
+  'EGG_追高本高': { name:'追高本高', img:'追高本高.webp' },
+  'EGG_气氛组荣誉组长': { name:'气氛组荣誉组长', img:'气氛组荣誉组长.webp' },
+  'EGG_盘口外卖员': { name:'盘口外卖员', img:'盘口外卖员.webp' },
+  'EGG_广场舞操盘手': { name:'广场舞操盘手', img:'广场舞操盘手.webp' },
+  'EGG_持仓段子手': { name:'持仓段子手', img:'持仓段子手.webp' },
+  'EGG_消息搬运工': { name:'消息搬运工', img:'消息搬运工.webp' }
+};
+
+/* 收集册进度分母（摇摆型无卡、不计入） */
+const PERSONA_CARD_TOTAL = 22;
 /* ==== PERSONA_END ==== */
 
 /* ---- 交易人格测试 · 内核纯函数（v2.8.0 起）----
@@ -7811,6 +7882,138 @@ function renderPersonaResult(p) {
   document.getElementById('ps-meta').innerHTML =
     '测得于 ' + escHtml(p.answeredAt || '—') + '（' + escHtml(r.code) + ' 型）' +
     '<br>当前段位 ' + escHtml(currentRank().rank.name) + ' —— 人格只作展示，不影响段位、健康币与经验。';
+
+  renderPersonaRail(r, egg);
+  renderPersonaCollection(r, egg);
+}
+
+/* ============ 人格卡廊 + 收集册（Mak 2026-10-04）============
+   卡廊：测出的人格置顶。1 个 ⇒ 单卡居中；2 个（一条轴中间态）⇒ 可横向滑动。
+   ⚠️ 交互**完全复用段位卡廊**那套（.rail-track/.rail-card + 居中吸附 + 未点亮 grayscale）。
+      ⛔ 别写第二套滑动逻辑 —— 同类机制两处实现必然漂移。 */
+var psRailTimer = 0, psRailBound = false;
+
+/** 结果里的「人格卡」清单：彩蛋命中 ⇒ 只给彩蛋卡；否则给正经型（1 或 2 张）
+ *  ⛔ 只走 `r.names`（personaDisplay 已算好的 1~2 个名字），⛔ 别再按名字回查 PERSONA_TYPES ——
+ *     那会因一个名字对应多个码而产出重复项（2 个中间态时曾算出 4 张卡）。 */
+function personaCardKeysOf(r, egg) {
+  if (egg) {
+    var k = 'EGG_' + egg;
+    if (PERSONA_CARDS[k]) return [k];
+  }
+  var out = [];
+  r.names.forEach(function (nm) {
+    var c = Object.keys(PERSONA_CARDS).filter(function (k) {
+      return PERSONA_CARDS[k].name === nm;
+    })[0];
+    if (c && out.indexOf(c) < 0) out.push(c);
+  });
+  return out;
+}
+
+function renderPersonaRail(r, egg) {
+  var wrap = document.getElementById('ps-rail-wrap');
+  var track = document.getElementById('ps-rail');
+  if (!wrap || !track) return;
+  var keys = personaCardKeysOf(r, egg);
+  var uniq = [];
+  keys.forEach(function (k) { if (k && uniq.indexOf(k) < 0) uniq.push(k); });
+  if (!uniq.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  track.innerHTML = uniq.map(function (k) {
+    var c = PERSONA_CARDS[k];
+    return '<div class="rail-card unlocked" data-k="' + k + '">' +
+      '<img class="ps-rail-img" src="assets/personas/' + escHtml(c.img) + '" alt="' + escHtml(c.name) +
+      '" loading="lazy" decoding="async"></div>';
+  }).join('');
+
+  /* 绑定滚动：实时算焦点 + 停手后吸附（与段位卡廊同参数） */
+  if (!psRailBound) {
+    psRailBound = true;
+    track.addEventListener('scroll', function () {
+      paintPsRailFocus(false);
+      clearTimeout(psRailTimer);
+      psRailTimer = setTimeout(snapPsRail, 130);
+    }, { passive: true });
+  }
+  /* 进场即把第一张（正名/彩蛋）停到正中 */
+  requestAnimationFrame(function () {
+    paintPsRailFocus(true);
+    var first = track.children[0];
+    if (first) track.scrollLeft = first.offsetLeft - (track.clientWidth - RAIL_CARD_W) / 2;
+  });
+}
+
+function paintPsRailFocus(force) {
+  var track = document.getElementById('ps-rail');
+  if (!track || !track.children.length) return;
+  var mid = track.scrollLeft + track.clientWidth / 2;
+  var best = 0, bd = Infinity;
+  for (var i = 0; i < track.children.length; i++) {
+    var d = Math.abs(track.children[i].offsetLeft + RAIL_CARD_W / 2 - mid);
+    if (d < bd) { bd = d; best = i; }
+  }
+  for (var j = 0; j < track.children.length; j++) {
+    track.children[j].classList.toggle('focus', j === best);
+  }
+}
+
+function snapPsRail() {
+  var track = document.getElementById('ps-rail');
+  if (!track || !track.children.length) return;
+  var mid = track.scrollLeft + track.clientWidth / 2, best = 0, bd = Infinity;
+  for (var i = 0; i < track.children.length; i++) {
+    var d = Math.abs(track.children[i].offsetLeft + RAIL_CARD_W / 2 - mid);
+    if (d < bd) { bd = d; best = i; }
+  }
+  var t = track.children[best].offsetLeft - (track.clientWidth - RAIL_CARD_W) / 2;
+  if (Math.abs(t - track.scrollLeft) > 2) track.scrollTo({ left: t, behavior: 'smooth' });
+}
+
+/** 收集册：22 型全罗列，**已点亮的正常、未点亮整张灰**。进度 = 点亮数 / 22。 */
+function renderPersonaCollection(r, egg) {
+  var grid = document.getElementById('ps-grid');
+  var mEl = document.getElementById('ps-collect-m');
+  if (!grid) return;
+  /* 点亮态 = 这次测出的 + 历史上测过的（存档里留了历史 ⇒ 重测不会把旧卡灭掉） */
+  var lit = personaLitCodes();
+  var cur = personaCardKeysOf(r, egg);
+  cur.forEach(function (k) { if (k) lit[k] = 1; });
+  personaRememberLit(cur);
+  var order = Object.keys(PERSONA_CARDS);
+  grid.innerHTML = order.map(function (k) {
+    var c = PERSONA_CARDS[k], on = !!lit[k];
+    return '<div class="ps-cell' + (on ? '' : ' locked') + '">' +
+      '<img src="assets/personas/' + escHtml(c.img) + '" alt="' + escHtml(c.name) +
+      '" loading="lazy" decoding="async">' +
+      (on ? '' : '<svg class="lock" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#fff" stroke-width="2"/><path d="M8 10V7a4 4 0 018 0v3" stroke="#fff" stroke-width="2"/></svg>') +
+      '<div class="nm">' + escHtml(c.name) + '</div></div>';
+  }).join('');
+  var n = order.filter(function (k) { return lit[k]; }).length;
+  if (mEl) mEl.textContent = n + ' / ' + order.length;
+}
+
+/* 点亮记录：⛔ **只放 localStorage，不塞 state**
+   （saveState 整体序列化 state，塞进去等于往业务存档里加字段；还会撞「启动期缩水闸」那类
+     「记录变少就拒写」的保护逻辑 ⇒ 一个纯展示态字段不该参与存档完整性）。 */
+var PS_LIT_KEY = 'jianpan_persona_lit';
+function personaLitCodes() {
+  var o = {};
+  try {
+    if (typeof localStorage !== 'undefined') {
+      var raw = localStorage.getItem(PS_LIT_KEY);
+      if (raw) { var p = JSON.parse(raw); if (p && typeof p === 'object') o = p; }
+    }
+  } catch (e) { o = {}; }
+  return o;
+}
+function personaRememberLit(codes) {
+  if (!codes || !codes.length) return;
+  var o = personaLitCodes();
+  var changed = false;
+  codes.forEach(function (k) { if (k && !o[k]) { o[k] = 1; changed = true; } });
+  if (!changed) return;
+  try { if (typeof localStorage !== 'undefined') localStorage.setItem(PS_LIT_KEY, JSON.stringify(o)); } catch (e) {}
 }
 
 /* ============ 身体档案结果卡（v2.7.66 替代 alert）============
