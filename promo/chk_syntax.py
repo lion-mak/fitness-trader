@@ -14,7 +14,29 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-NODE = r"C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2-3\node.exe"
+
+
+def find_node():
+    """定位 node。⛔ **别写死带补丁号的目录** —— 原先写的是 `22.22.2-3`，
+    本机升到 `22.22.2-5` 之后这道「每次推送前必跑」的闸**一直在崩**：
+    报的是 FileNotFoundError 栈，而不是「语法有问题」⇒ 一道白屏级的自检静默失效了。
+    ⭐ 顺序：已知路径 → 扫 versions/*/node.exe 取最大版本 → 退回 PATH。
+      全都找不到就返回 None（由调用方**明确报错并 exit 1**，而不是甩一段栈）。"""
+    import glob
+    cand = [r"C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2-5\node.exe"]
+    cand += sorted(glob.glob(
+        r"C:\Users\Administrator\.workbuddy\binaries\node\versions\*\node.exe"), reverse=True)
+    for c in cand:
+        if c and os.path.exists(c):
+            return c
+    import shutil
+    return shutil.which("node")
+
+
+NODE = find_node()
+if not NODE:
+    print("⛔ 找不到 node —— 这道闸**没跑起来**，语法检查结果不可信（先修环境，别当通过）")
+    sys.exit(1)
 
 html = io.open(os.path.join(REPO, "index.html"), encoding="utf-8").read()
 blocks = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S)

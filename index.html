@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -888,9 +888,13 @@ body {
 .rvp-bh{font-size:11px;color:#7b8798;letter-spacing:.12em;margin-top:20px;}
 .rvp-boards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px;}
 /* 榜单卡：Mak 2026-10-03 ⇒ **称号左对齐且字号加大（10.5 → 12.5），其余数据全部右对齐**。
-   实现上是「卡片整体 text-align:right，只把 .k 拨回 left」—— 两个对齐轴。 */
+   实现上是「卡片整体 text-align:right，只把 .k 拨回 left」—— 两个对齐轴。
+   🔴 Mak 2026-10-04：**称号改成跟数值同色**（浅粉数据配浅粉标题 / 浅紫配浅紫 / 浅绿配浅绿）。
+      ⇒ .k 不再写 color —— 一行内 3 张卡可能是三种色，静态 CSS 表达不了；
+        颜色由 DOM 生成处的行内 `style="color:..."` 给，色值来自内核 b.c（与 .v 同一个字段）。
+      ⚠️ 只动颜色：字号/字重/对齐/省略号一律不动。 */
 .rvp-bd{background:#111721;border:1px solid #1c2431;border-radius:11px;padding:11px 10px 12px;min-width:0;text-align:right;}
-.rvp-bd .k{font-size:12.5px;font-weight:800;color:#ffd166;letter-spacing:.02em;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rvp-bd .k{font-size:12.5px;font-weight:800;letter-spacing:.02em;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .n{font-size:12.5px;font-weight:700;margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .d{font-size:10.5px;color:#7b8798;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .rvp-bd .v{font-size:11.5px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -5646,8 +5650,10 @@ function renderReview() {
   });
   h += '</div>';
   h += '<div class="rvp-bh">本期特色榜单</div><div class="rvp-boards">';
+  /* 榜单卡：称号与数值同色（Mak 2026-10-04）—— 两处都取 b.c，别再写死琥珀 #ffd166。
+     ⚠️ 与 _rvpPaint 里那句 `c.fillStyle = b.c` 同源，改一处必须改两处（有闸钉着）。 */
   d.boards.forEach(function (b) {
-    h += '<div class="rvp-bd"><div class="k">' + escHtml(b.k) + '</div>'
+    h += '<div class="rvp-bd"><div class="k" style="color:' + b.c + '">' + escHtml(b.k) + '</div>'
       + '<div class="n">' + escHtml(b.n) + '</div>'
       + '<div class="d">' + escHtml(b.d) + '</div>'
       + '<div class="v" style="color:' + b.c + '">' + escHtml(b.v) + '</div></div>';
@@ -6071,7 +6077,9 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     c.fillStyle = '#111721'; c.fill();
     c.strokeStyle = '#1c2431'; c.lineWidth = 1; c.stroke();
     const ix = bx + 10, rx = bx + bw - 10, iw = bw - 20;
-    _posterFont(c, 12.5, 800); c.fillStyle = '#ffd166';       // 称号：左对齐 + 加大（10.5 → 12.5）
+    /* 称号：左对齐 + 加大（10.5 → 12.5）。🔴 Mak 2026-10-04：**颜色改成跟数值同色** ⇒ 取 b.c
+       （与下面数值那行的 `c.fillStyle = b.c` 同一个字段）。⛔ 别再写死 #ffd166。 */
+    _posterFont(c, 12.5, 800); c.fillStyle = b.c;
     c.fillText(fit(b.k, iw), ix, by + 23);
     c.textAlign = 'right';
     _posterFont(c, 12.5, 700); c.fillStyle = ink;              // 内容数据：14 → 12.5（Mak 2026-10-03「小一号」）
@@ -6260,10 +6268,12 @@ function reviewPosterData(isWeek_) {
 
   /* ---- 特色榜单（周报 3 项；月报追加 3 项）----
      数值一律过 fmtNum ⇒ 海报上不会冒 15 位小数（那是本工程踩过的老坑）。
-     ⚠️ c 是**数值那行的颜色**（不是称号的颜色，称号两端都固定 #ffd166）。
+     ⚠️ c 是**这一张卡的强调色**：它同时给「数值那行（.v）」和「称号（.k）」用
+        （🔴 Mak 2026-10-04：称号改成跟数值同色 ⇒ 一行 3 张卡可以是粉/紫/绿三种标题底。
+         此前称号两端都写死 #ffd166，已作废）。⛔ 但 .n（日期/名称）与 .d（描述）仍是中性色。
         🔴 Mak 2026-10-03：**中间那张卡（做空劳模）的数值改浅紫 `#b9b3f5`**
         🔴 Mak 2026-10-03（本轮）：**月报的「长线之王」数值也改浅紫**（原琥珀 #ffd166）
-        —— 两次都只改数据那行，榜单标题一律不动（标题永远是 #ffd166）。
+        —— 两次都只改数据那行，榜单标题则到 2026-10-04 才由 Mak 拍板改成跟数据同色。
         ⭐ `#b9b3f5` 是本工程既有的「浅紫」（交易人格名 / 评论卡同族），⛔ 别另造一个紫。
         当前配色（**纵向同色**，月报第二行 = 第一行的同一列）：
           多头霸主 #ff8b96（粉红）· 做空劳模 #b9b3f5（浅紫）· 空军司令 #6ee7b7（绿）
