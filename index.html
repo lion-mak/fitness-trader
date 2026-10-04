@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.15.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.15.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -865,7 +865,7 @@ body {
       画笔那边是「先量 BRAND_NAME 的宽、紧跟着画 BRAND_TAG」，与这里的零间距一一对应。
    🔴 Mak 2026-10-04 第二刀（顶栏重排）：品牌行**搬进 .rvp-hd-l**（与标题文字同栏），
       段位卡面上缘 = 品牌行上缘（都在顶栏带的最顶上），卡面 118 → **160**
-      （= 原品牌行带 28 + 14 + 原 118，顶栏带总高不变 ⇒ 整图高度 804/907 不变）。
+      （= 原品牌行带 28 + 14 + 原 118，顶栏带总高不变）。
       标题文字块（.rvp-hd-txt）在「品牌行下缘 → 卡面下缘」这段里垂直居中，
       画笔那边对应 hdY = y + BRAND_LOGO_D + round((CARD_H − BRAND_LOGO_D − 70) / 2)。 */
 .rvp-brand{display:flex;align-items:center;gap:9px;}
@@ -5779,7 +5779,14 @@ function _posterCanvas() {
   if (!cv) { cv = document.createElement('canvas'); cv.id = 'poster-cv'; cv.style.display = 'none'; document.body.appendChild(cv); }
   return cv;
 }
-function _posterFont(c, size, weight, mono) { c.font = (weight ? weight + ' ' : '') + size + 'px ' + (mono ? 'ui-monospace,Menlo,Consolas,monospace' : 'system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif'); }
+/* ⚠️ 顺手把**当前字号/字重**记在 ctx 上（c.__fs / c.__fw）：fitFit 要「先降字号再截断」，
+   必须知道此刻是多大号。⛔ 别为这个在模块层开 `let` —— mp_build 会把顶层声明当内核常量抽走，
+   而 _posterFont 本身登记在 RENDER_ONLY 里、根本不会被抽 ⇒ 内核里就多一份调不到的死代码
+   （与 window.__rvBrand / window.__ps 同一套路，这里挂 ctx 更干净）。 */
+function _posterFont(c, size, weight, mono) {
+  c.__fs = size; c.__fw = weight;
+  c.font = (weight ? weight + ' ' : '') + size + 'px ' + (mono ? 'ui-monospace,Menlo,Consolas,monospace' : 'system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif');
+}
 function drawReviewPoster(cv, d, W, rankImg) {
   /* ⚠️ 高度**不是常量**：榜单行数（周报 1 行 / 月报 2 行）决定整图高度。
      ⇒ 先 measure 一次拿 H、再正式落笔 —— 两端必须用**同一个** _rvpPaint(measure=true)，
@@ -5970,6 +5977,22 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     let out = s;
     while (out.length > 1 && c.measureText(out + '…').width > maxW) out = out.slice(0, -1);
     return out + '…';
+  }
+  /* 🔴 2026-10-04（Mak 截图比对发现）：榜单卡用 fitFit —— **先降字号，实在放不下才截断**。
+     根因：海报画布 W=375、页面 440 ⇒ 榜单卡内文可用宽 85.7 vs 107.3（差 21.7px），
+     「体能训练🏃」这种带 emoji 的名字在海报里被砍成「体能🏃」，页面却完整 ⇒ 两端看到的不一样。
+     ⚠️ 步长 0.5px、下限 minSize：⛔ 别无限降（字太小就丑了），到下限仍放不下才回落到 fit() 截断。
+     ⚠️ 只给**榜单卡那四行**用（口径/名字最长），数字格与其它区块仍走 fit()，避免全局字号漂移。 */
+  function fitFit(s, maxW, minSize) {
+    s = String(s === null || s === undefined ? '' : s);
+    if (c.measureText(s).width <= maxW) return s;
+    const base = c.__fs;                              // 当前字号（_posterFont 写在 ctx 上）
+    for (let sz = base - 0.5; sz >= (minSize || base - 2); sz -= 0.5) {
+      _posterFont(c, sz, c.__fw);
+      if (c.measureText(s).width <= maxW) return s;  // 放得下就整句返回（不截断）
+    }
+    _posterFont(c, base, c.__fw);                     // 还原 ⇒ 下面的 fit() 在原字号下截断
+    return fit(s, maxW);
   }
   function wrap(s, maxW, maxLines) {                 // 按宽度折行（最多 maxLines 行）
     s = String(s || ''); const out = []; let ln = '';
@@ -6229,14 +6252,14 @@ function _rvpPaint(c, d, W, rankImg, measure) {
     /* 称号：左对齐 + 加大（10.5 → 12.5）。🔴 Mak 2026-10-04：**颜色改成跟数值同色** ⇒ 取 b.c
        （与下面数值那行的 `c.fillStyle = b.c` 同一个字段）。⛔ 别再写死 #ffd166。 */
     _posterFont(c, 12.5, 800); c.fillStyle = b.c;
-    c.fillText(fit(b.k, iw), ix, by + 23);
+    c.fillText(fitFit(b.k, iw, 11), ix, by + 23);
     c.textAlign = 'right';
     _posterFont(c, 12.5, 700); c.fillStyle = ink;              // 内容数据：14 → 12.5（Mak 2026-10-03「小一号」）
-    c.fillText(fit(b.n, iw), rx, by + 46);
+    c.fillText(fitFit(b.n, iw, 11), rx, by + 46);
     _posterFont(c, 10.5, 400); c.fillStyle = mut;
-    c.fillText(fit(b.d, iw), rx, by + 62);
+    c.fillText(fitFit(b.d, iw, 9.5), rx, by + 62);
     _posterFont(c, 11.5, 700); c.fillStyle = b.c;
-    c.fillText(fit(b.v, iw), rx, by + 80);
+    c.fillText(fitFit(b.v, iw, 10), rx, by + 80);
     c.textAlign = 'left';
   });
   y += rows * ROWH + (rows - 1) * ROWGAP;
@@ -6245,7 +6268,10 @@ function _rvpPaint(c, d, W, rankImg, measure) {
      🔴 Mak 2026-10-03：底色从橄榄绿改成**半透明浅紫**（与「交易人格」的 #b9b3f5 同族），
         ⛔ 别再改回绿 —— 页面 .rvp-quote 与这里必须同一组色值。 */
   y += 18;
-  const qh = 84;
+  /* 🔴 qh 84 → 99（2026-10-04）：建议行改折两行后，第二行基线 y+76 + 字号 11 会落到 87，
+     超出原来的 84 ⇒ 文字压到框外。99 正好容下「吐槽两行 + 建议两行」。
+     ⛔ 改这里必须同步改内核 reviewPosterH 的 QUOTE_H（整图高度会 +15）。 */
+  const qh = 99;
   rr(pad, y, cw, qh, 11);
   c.fillStyle = 'rgba(185,179,245,.10)'; c.fill();
   c.strokeStyle = 'rgba(185,179,245,.22)'; c.lineWidth = 1; c.stroke();
@@ -6254,8 +6280,13 @@ function _rvpPaint(c, d, W, rankImg, measure) {
   const rl = wrap(d.roast, qw2, 2);
   if (rl[0]) c.fillText(rl[0], qx, y + 24);
   if (rl[1]) c.fillText(rl[1], qx, y + 43);
+  /* 🔴 2026-10-04（Mak 截图比对发现）：「建议」行**必须也走 wrap 两行**，⛔ 别用 fit() 单行截断。
+     页面 .rvp-quote .p 是正常流（line-height 1.5，自动折行、不截断）⇒ 同一句话在页面上
+     能显示完，海报却被砍成「吃掉了…」，两处看到的内容不一样。
+     行位随行数走（y+61 起、每行 15），两行时正好落在 qh=84 的框内。 */
   _posterFont(c, 11, 400); c.fillStyle = '#a79fe8';
-  c.fillText(fit('建议 · ' + d.tip, qw2), qx, y + 61);
+  const tl = wrap('建议 · ' + d.tip, qw2, 2);
+  tl.forEach(function (ln2, i) { c.fillText(ln2, qx, y + 61 + i * 15); });
   y += qh;
 
   /* ---- 页脚 ---- */
@@ -6485,9 +6516,9 @@ const BRAND_ROW_GAP = 14;                 // 品牌行 → 顶栏 的间距
    🔴 这里是「画笔顺序累加」的**逐项镜像**：每一项都对应 _rvpPaint 里的一次 `y +=`，
       顺序也完全一致（改那边任何一段的间距/字号，回来改这里对应那一行）。
       2026-10-03 把它从「一串裸数字」改成**有名常量**，就是为了改版时不再数错。
-   ⚠️ 现行值：周报 3 张榜单 ⇒ **804**；月报 6 张 ⇒ **907**（多一行 94 + 9 间距）。
+   ⚠️ 现行值：周报 3 张榜单 ⇒ **819**；月报 6 张 ⇒ **922**（多一行 94 + 9 间距）。
       2026-10-04 加品牌行 +42；当晚第二刀顶栏重排（卡面上缘提到与品牌行同顶、
-      CARD_H 118→160 吸收品牌行带）——一加一减相抵，总高仍是 804/907。 */
+      CARD_H 118→160 吸收品牌行带）——一加一减相抵；当晚吐槽框 84→99 再 +15 ⇒ 819/922。 */
 function reviewPosterH(d) {
   const rows = Math.max(1, Math.ceil((d && d.boards ? d.boards.length : 0) / 3));
   const PAD_TOP = 22;                     // 上留白
@@ -6495,7 +6526,7 @@ function reviewPosterH(d) {
      卡面把原「品牌行带」整个吃进来（logo 28、行距 14，再加原卡面 118）⇒ **160**
      （0.645 比例 ⇒ 宽 103）。
      ⇒ 公式里 BRAND_H、BRAND_GAP 两项随之消失（卡面与品牌行同带，不叠加），
-        顶栏带总高不变 ⇒ 整图高度仍 804/907（N2b 基线不动）。
+        顶栏带总高不变；吐槽框 84→99 ⇒ 整图高度 819/922。
      ⛔ 本函数注释里**别写任何「数字 + 数字」的算式** —— poster 闸拿旧版灰线段的
         算式字面量当「灰线复活」的特征串（Mak 已删灰线），注释里出现就会误报红。 */
   const CARD_H = 160;                     // 段位卡面（与品牌行同顶，见上）
@@ -6505,7 +6536,7 @@ function reviewPosterH(d) {
   const STAT_TOP = 16, STAT_H = 45, STAT_GAP = 15;   // 数字格 2×3
   const BH_H = 45;                        // 榜单标题块（20 上间距 + 25 行高）
   const ROWH = 94, ROWGAP = 9;            // 榜单卡
-  const QUOTE_TOP = 18, QUOTE_H = 84;     // 吐槽（固定两行位）
+  const QUOTE_TOP = 18, QUOTE_H = 99;     // 吐槽（吐槽两行 + 建议两行；2026-10-04 由 84 → 99）
   const FOOT_TOP = 16, FOOT_H = 14;       // 页脚
   return PAD_TOP + CARD_H + HD_GAP + HERO_H
        + SPARK_TOP + SPARK_H
