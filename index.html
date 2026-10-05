@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -342,7 +342,6 @@ body {
 .gacha-btn .cost { font-size:11px; opacity:0.85; }
 .gacha-btn.single { background:rgba(255,184,0,.14); color:#ffd24d; border:1px solid rgba(255,184,0,.4); }
 .gacha-btn.ten { background:linear-gradient(135deg,#ff8a00,#ff3b47); color:#fff; border:1px solid transparent; box-shadow:0 4px 14px rgba(255,59,71,.25); }
-.rate-row { display:flex; justify-content:space-around; padding:10px 0; font-size:13px; font-weight:500; }
 .gacha-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
 .g-cell { border:1px solid var(--border); border-radius:12px; padding:12px 6px; text-align:center; background:var(--panel); }
 .g-cell .g-emoji { font-size:26px; line-height:1.2; }
@@ -1399,12 +1398,6 @@ body {
           <button class="gacha-btn single" onclick="drawCard(1)"><span class="big">抽 1 次</span><span class="cost">50 币</span></button>
           <button class="gacha-btn ten" onclick="drawCard(10)"><span class="big">抽 10 次</span><span class="cost">450 币 · 必得稀有</span></button>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title"><span class="t">概率公示</span><span class="m">公平透明</span></div>
-        <div class="rate-row"><span style="color:#9aa8be;">普通 70%</span><span style="color:#5ac8fa;">稀有 25%</span><span style="color:#ffb800;">传说 5%</span></div>
-        <div class="gap-note">同一张卡累计 1 / 3 / 9 张可升到 1 / 2 / 3 星；满星后再抽到重复卡，自动转化为健康币返还。十连抽必得至少 1 张稀有或以上。</div>
       </div>
 
       <div class="card">
@@ -2849,11 +2842,16 @@ const CARD_COST_10 = 450;  // 十连花费（九折，必得至少 1 稀有）
 const STAR_NEED = [0, 1, 3, 9];
 const MAX_FRAG = 9;        // 满星所需碎片（3 星）
 const REFUND = { N:10, R:25, SR:100 };  // 满星后重复抽到的卡，转化为健康币返还
+// 四档之和必须恰好 100（BAG 是「没抽到卡」的兜底档，见 rollRarity 末行）
 const RARITY = {
-  N:  { name:'普通', rate:70, color:'#9aa8be', glow:'rgba(154,168,190,.18)' },
-  R:  { name:'稀有', rate:25, color:'#5ac8fa', glow:'rgba(90,200,250,.16)' },
-  SR: { name:'传说', rate:5,  color:'#ffb800', glow:'rgba(255,184,0,.18)' },
+  N:  { name:'普通', rate:50, color:'#9aa8be', glow:'rgba(154,168,190,.18)' },
+  R:  { name:'稀有', rate:10, color:'#5ac8fa', glow:'rgba(90,200,250,.16)' },
+  SR: { name:'传说', rate:1,  color:'#ffb800', glow:'rgba(255,184,0,.18)' },
+  BAG:{ name:'福袋', rate:39, color:'#c586c0', glow:'rgba(197,134,192,.16)' },
 };
+// 福袋档：不出卡，按下列比例返还「本次抽卡花费」（三档等概率各 1/3）。
+// 期望返还 ≈ 39% × (50+60+80)/3 = 24.7% 花费 ⇒ 单抽期望净支出 ≈ 37.6 币。
+const LUCKY_BACK = [50, 60, 80];
 const CARDS = [
   // 普通 N
   { id:'sanhu',    name:'散户',     rarity:'N',  emoji:'🐟', desc:'小白起步，追涨杀跌' },
@@ -8351,10 +8349,22 @@ function rollRarity() {
   const r = Math.random() * 100;
   if (r < RARITY.SR.rate) return 'SR';
   if (r < RARITY.SR.rate + RARITY.R.rate) return 'R';
-  return 'N';
+  if (r < RARITY.SR.rate + RARITY.R.rate + RARITY.N.rate) return 'N';
+  return 'BAG';   // 兜底档：吃满剩余概率，四档和恒为 100
 }
-function rollOne() {
+/* 福袋：不出卡，按 LUCKY_BACK 里的一档返还 unitCost（本次抽卡的单次花费）。
+   unitCost 必须由调用方显式传入 —— 十连的单次成本是 450/10 = 45，不是 50。 */
+function rollBag(unitCost) {
+  const pct = LUCKY_BACK[Math.floor(Math.random() * LUCKY_BACK.length)];
+  return {
+    id: 'bag', name: RARITY.BAG.name, rarity: 'BAG', emoji: '🎁',
+    pct: pct, back: Math.round(unitCost * pct / 100),
+    desc: '返还 ' + pct + '% 抽卡花费',
+  };
+}
+function rollOne(unitCost) {
   const rarity = rollRarity();
+  if (rarity === 'BAG') return rollBag(unitCost || CARD_COST);
   const pool = CARDS.filter(function(c) { return c.rarity === rarity; });
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -8386,14 +8396,22 @@ function drawCard(n) {
   const cost = n === 10 ? CARD_COST_10 : CARD_COST;
   if (state.coins < cost) { toast('健康币不足，去记几笔赚币吧'); return; }
   state.coins -= cost;
+  const unitCost = cost / n;   // 十连 45 币/次，福袋按这个基数返还
   const results = [];
   let refundTotal = 0;
-  for (let i = 0; i < n; i++) results.push(rollOne());
-  // 十连保底：至少 1 张稀有或以上
-  if (n === 10 && !results.some(function(c) { return c.rarity !== 'N'; })) {
-    results[Math.floor(Math.random() * 10)] = rollOneUpgraded();
+  let bagTotal = 0;
+  for (let i = 0; i < n; i++) results.push(rollOne(unitCost));
+  // 十连保底：至少 1 张稀有或以上。
+  // ⚠️ 判据必须是「有没有 R/SR **卡**」——福袋不是卡，沿用旧的 `rarity !== 'N'`
+  //    会把福袋当成稀有以上，保底就此静默失效（十连可能一张稀有都不出）。
+  // 换位优先挑福袋：它本身带返还，被换掉的损失最小。
+  if (n === 10 && !results.some(function(c) { return c.rarity === 'R' || c.rarity === 'SR'; })) {
+    let idx = -1;
+    for (let i = 0; i < results.length; i++) if (results[i].rarity === 'BAG') { idx = i; break; }
+    results[idx < 0 ? Math.floor(Math.random() * n) : idx] = rollOneUpgraded();
   }
   results.forEach(function(c) {
+    if (c.rarity === 'BAG') { bagTotal += c.back; return; }   // 福袋不入图鉴、不出碎片
     const have = state.cards[c.id] || 0;
     if (have >= MAX_FRAG) {
       // 满星后重复卡 → 转化为健康币返还（避免收集枯竭）
@@ -8403,7 +8421,8 @@ function drawCard(n) {
       state.cards[c.id] = have + 1;
     }
   });
-  if (refundTotal > 0) { state.coins += refundTotal; state.coinsEarnedTotal += refundTotal; }
+  const backTotal = refundTotal + bagTotal;
+  if (backTotal > 0) { state.coins += backTotal; state.coinsEarnedTotal += backTotal; }
   state.totalDraws = (state.totalDraws || 0) + n;
   saveState();
   showGachaResult(results, refundTotal);
@@ -8411,6 +8430,15 @@ function drawCard(n) {
 }
 function cardCardHTML(c) {
   const r = RARITY[c.rarity];
+  if (c.rarity === 'BAG') {
+    // 福袋不出卡：第三行给返还比例，第四行给实返金额
+    return '<div class="g-card" style="background:' + r.glow + ';border-color:' + r.color + ';">' +
+      '<div class="g-emoji">' + c.emoji + '</div>' +
+      '<div class="g-name">' + c.name + '</div>' +
+      '<div class="g-rarity" style="color:' + r.color + ';">返还 ' + c.pct + '%</div>' +
+      '<div class="g-desc">+' + c.back + ' 健康币</div>' +
+      '</div>';
+  }
   const extra = c.refund
     ? '<div class="g-refund">已满星 · 转化 +' + c.refund + ' 币</div>'
     : '<div class="g-desc">' + c.desc + '</div>';
@@ -8520,17 +8548,25 @@ function claimCollectReward(pct) {
   render();
 }
 function showGachaResult(results, refundTotal) {
-  const order = { SR:0, R:1, N:2 };
+  const order = { SR:0, R:1, N:2, BAG:3 };
   const sorted = results.slice().sort(function(a, b) { return order[a.rarity] - order[b.rarity]; });
   const grid = document.getElementById('gacha-result-grid');
   grid.className = 'gacha-result-grid' + (sorted.length === 1 ? ' single' : '');
   grid.innerHTML = sorted.map(cardCardHTML).join('');
   const best = sorted[0];
+  // 福袋返还额从 results 现算（不新增形参 ⇒ mp_build 自动生成的接口钩子签名不用跟着动）
+  let bagTotal = 0, bagCount = 0;
+  sorted.forEach(function(c) { if (c.rarity === 'BAG') { bagTotal += c.back; bagCount++; } });
+  const cardCount = sorted.length - bagCount;
   let title = sorted.length === 1
     ? '抽到 <span style="color:' + RARITY[best.rarity].color + ';">' + best.name + '</span>'
-    : '十连抽 · 收获 ' + sorted.length + ' 张';
+    : '十连抽 · 收获 ' + cardCount + ' 张';
   if (refundTotal > 0) {
     title += '<div style="font-size:12px;color:var(--amber);margin-top:6px;">满星重复卡已转化 +' + refundTotal + ' 健康币</div>';
+  }
+  if (bagTotal > 0) {
+    title += '<div style="font-size:12px;color:' + RARITY.BAG.color + ';margin-top:6px;">' +
+      (sorted.length === 1 ? '' : bagCount + ' 个福袋 · ') + '返还 +' + bagTotal + ' 健康币</div>';
   }
   document.getElementById('gr-title').innerHTML = title;
   document.getElementById('gacha-result').classList.add('show');
