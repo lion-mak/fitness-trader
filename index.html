@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -7897,9 +7897,12 @@ var psRailTimer = 0, psRailBound = false;
  *  ⛔ 只走 `r.names`（personaDisplay 已算好的 1~2 个名字），⛔ 别再按名字回查 PERSONA_TYPES ——
  *     那会因一个名字对应多个码而产出重复项（2 个中间态时曾算出 4 张卡）。 */
 /** 人格卡图片 URL。
- *  🔴 图文件名含中文（如 `追高本高.webp`）⇒ **必须 encodeURIComponent**，否则
- *     浏览器/小程序发请求时中文路径 => HTTP 400，图裂。⛔ 别直接把 img 拼进 src。
- *     （小程序侧走云存储 fileID，无此问题；PWA 侧必须编码。） */
+ *  🔴 图文件名含中文（形如 `<名字>_<码>.webp` / 彩蛋 `<名字>.webp`）⇒ **必须 encodeURIComponent**，
+ *     否则浏览器/小程序发请求时中文路径 => HTTP 400，图裂。⛔ 别直接把 img 拼进 src。
+ *     （小程序侧走云存储 fileID，无此问题；PWA 侧必须编码。）
+ *  ⚠️ 本段注释**禁止举真实人格名当例子**（如具体某个彩蛋名）—— mp_persona_test 的 ⑨ 会扫
+ *     「人格子页 JS 段」里有没有抄写题面字串，举例写了真名就会被判红（v2.16.0 踩过）。
+ *     要举例就用占位符（`<名字>`、`XX`）。 */
 function personaCardSrc(c) {
   return 'assets/personas/' + encodeURIComponent(c.img);
 }
@@ -8021,7 +8024,13 @@ function personaRememberLit(codes) {
   var changed = false;
   codes.forEach(function (k) { if (k && !o[k]) { o[k] = 1; changed = true; } });
   if (!changed) return;
-  try { if (typeof localStorage !== 'undefined') localStorage.setItem(PS_LIT_KEY, JSON.stringify(o)); } catch (e) {}
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(PS_LIT_KEY, JSON.stringify(o));
+  } catch (e) {
+    /* ⛔ 不许空 catch（清档事故三大根因之一）。点亮记录写不进去（隐私模式 / 配额满）不致命，
+       但必须留痕 —— 否则「点亮的卡下次打开又变灰」永远查不出原因。 */
+    console.warn('[人格卡] 点亮记录写入失败（不影响本轮显示）：', e);
+  }
 }
 
 /* ============ 身体档案结果卡（v2.7.66 替代 alert）============
