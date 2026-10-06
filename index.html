@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -344,6 +344,11 @@ body {
 .gacha-btn.ten { background:linear-gradient(135deg,#ff8a00,#ff3b47); color:#fff; border:1px solid transparent; box-shadow:0 4px 14px rgba(255,59,71,.25); }
 .gacha-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
 .g-cell { border:1px solid var(--border); border-radius:12px; padding:12px 6px; text-align:center; background:var(--panel); }
+/* 卡面图（2026-10-06 起用插画，弃 emoji）。
+   ⚠️ 高度**必须由宽度推**（`height:auto`）：格宽随视口变（390 屏 ~113px / 430 屏 ~127px），
+      写死高度会两端比例不一致、rect 对拍整片飘。
+   ⚠️ 小程序侧 `<image>` 不写 height 默认 240px（见铁律 #5）⇒ 那边一律 `mode="widthFix"`。 */
+.g-cell .g-art { width:100%; height:auto; display:block; border-radius:8px; background:var(--border); }
 .g-cell .g-emoji { font-size:26px; line-height:1.2; }
 .g-cell .g-emoji.dim { opacity:0.25; filter:grayscale(1); }
 .g-cell .g-name { font-size:11px; font-weight:500; margin-top:4px; }
@@ -380,6 +385,7 @@ body {
 .gacha-result-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
 .gacha-result-grid.single { grid-template-columns:1fr; }
 .g-card { border:1px solid; border-radius:14px; padding:14px 8px; text-align:center; animation:gpop .35s ease; }
+.g-card .g-art { width:100%; height:auto; display:block; border-radius:10px; background:var(--border); }
 .g-card .g-emoji { font-size:34px; line-height:1.2; }
 .g-card .g-name { font-size:13px; font-weight:600; margin-top:6px; }
 .g-card .g-rarity { font-size:11px; margin-top:2px; font-weight:600; }
@@ -1393,7 +1399,7 @@ body {
       <div class="gacha-hero">
         <div class="g-balance-label">当前健康币</div>
         <div class="g-balance" id="g-balance">0</div>
-        <div class="g-collected" id="g-collected">收集度 0% · 0/45 星</div>
+        <div class="g-collected" id="g-collected">收集度 0% · 0/90 星</div>
         <div class="gacha-btns">
           <button class="gacha-btn single" onclick="drawCard(1)"><span class="big">抽 1 次</span><span class="cost">50 币</span></button>
           <button class="gacha-btn ten" onclick="drawCard(10)"><span class="big">抽 10 次</span><span class="cost">450 币 · 必得稀有</span></button>
@@ -1401,9 +1407,9 @@ body {
       </div>
 
       <div class="card">
-        <div class="card-title"><span class="t">收集度里程碑</span><span class="m" id="g-collected2">0 / 15 张</span></div>
+        <div class="card-title"><span class="t">收集度里程碑</span><span class="m" id="g-collected2">0 / 30 张</span></div>
         <div class="g-collect-track"><div class="g-collect-fill" id="g-collect-bar"></div></div>
-        <div class="g-collect-tip">收集度按「总星数 / 45 星」计算，达标领健康币奖励</div>
+        <div class="g-collect-tip" id="g-collect-tip">收集度按「总星数 / 90 星」计算，达标领健康币奖励</div>
         <div id="g-milestones"></div>
       </div>
 
@@ -2886,27 +2892,53 @@ const RARITY = {
 // 福袋档：不出卡，按下列比例返还「本次抽卡花费」（三档等概率各 1/3）。
 // 期望返还 ≈ 39% × (50+60+80)/3 = 24.7% 花费 ⇒ 单抽期望净支出 ≈ 37.6 币。
 const LUCKY_BACK = [50, 60, 80];
+/* 30 张藏品图鉴（2026-10-06 落库）。
+   ⚠️ 位置**不重排**：各档原有槽位「就地替换」，新卡一律**追加在各档末尾**
+      —— 位置索引（测试里按 index 取卡）与旧存档的 `state.cards` 键都靠这个前提。
+   ⚠️ **上线后绝不能再改 id**：改了 = 旧存档里抽到的那张变孤儿（不报错、图鉴少一张）。
+   · art  = 无框插画（内衬 1000×1200 裁切）→ 图鉴格子 / 十连结果
+   · card = 整张鎏金卡面（含卡名烫金条）→ 单抽结果大图
+     两档的分工是量出来的：格子内宽 ~113px，整张卡面缩到 99px 时卡名只有 5.6px（糊），
+     而单抽满宽 ~310px 时卡名 ~17px 可读 ⇒ 小尺寸用无框、大尺寸用整张。见 `_shots/gcell_choice.png`。
+   路径由 `cardArt()/cardFace()` 从 id 拼（⛔不逐卡写字符串，少 60 处漂移点）。 */
 const CARDS = [
   // 普通 N
-  { id:'sanhu',    name:'散户',     rarity:'N',  emoji:'🐟', desc:'小白起步，追涨杀跌' },
-  { id:'xiaosan',  name:'小散',     rarity:'N',  emoji:'🌱', desc:'开始记账，养成习惯' },
-  { id:'zhuigao',  name:'追高客',   rarity:'N',  emoji:'🍔', desc:'管不住嘴，总在顶峰' },
-  { id:'chaodi',   name:'抄底客',   rarity:'N',  emoji:'📉', desc:'报复性节食，跌停抄底' },
-  { id:'mancang',  name:'满仓哥',   rarity:'N',  emoji:'🍗', desc:'一次吃撑，满仓梭哈' },
-  { id:'gerou',    name:'割肉侠',   rarity:'N',  emoji:'🔪', desc:'狠心割肉，练到腿软' },
+  { id:'yushi',    name:'浴室战神',   rarity:'N',  emoji:'🚿', desc:'进更衣室比进器械区熟' },
+  { id:'tongqin',  name:'通勤健将',   rarity:'N',  emoji:'🚶', desc:'八千步全靠上班路，一步没多走' },
+  { id:'zhuigao',  name:'追高客',     rarity:'N',  emoji:'🍔', desc:'管不住嘴，总在顶峰' },
+  { id:'chaodi',   name:'抄底客',     rarity:'N',  emoji:'📉', desc:'报复性节食，跌停抄底' },
+  { id:'mancang',  name:'满仓哥',     rarity:'N',  emoji:'🍗', desc:'一次吃撑，满仓梭哈' },
+  { id:'gerou',    name:'割肉侠',     rarity:'N',  emoji:'🔪', desc:'狠心割肉，练到腿软' },
+  { id:'yexiao',   name:'夜宵刺客',   rarity:'N',  emoji:'🌙', desc:'盘中守纪律，收盘被投喂' },
+  { id:'pingtai',  name:'平台期',     rarity:'N',  emoji:'⏸️', desc:'一动不动，横了三个月' },
+  { id:'shoucang', name:'收藏即练',   rarity:'N',  emoji:'📥', desc:'视频存了两百个，真练过三个' },
+  { id:'nianka',   name:'年卡选手',   rarity:'N',  emoji:'🎫', desc:'办卡一时爽，到场三次半' },
+  { id:'zuoti',    name:'做T选手',    rarity:'N',  emoji:'🔁', desc:'一天来回八趟，成本纹丝不动' },
+  { id:'mingtian', name:'明天开始',   rarity:'N',  emoji:'📆', desc:'今天先不算，明天正式开始' },
   // 稀有 R
-  { id:'zhonghu',  name:'中户',     rarity:'R',  emoji:'💼', desc:'稳定记录，控制热量' },
-  { id:'dahu',     name:'大户',     rarity:'R',  emoji:'💰', desc:'持续减脂，初见成效' },
-  { id:'youzi',    name:'游资',     rarity:'R',  emoji:'⚡', desc:'高频运动，缺口为王' },
-  { id:'duanxian', name:'短线客',   rarity:'R',  emoji:'🏃', desc:'快进快出，节奏拉满' },
-  { id:'jiazhi',   name:'价投大师', rarity:'R',  emoji:'📊', desc:'长期主义，价值投资' },
+  { id:'kongfu',   name:'空腹有氧',   rarity:'R',  emoji:'🌅', desc:'饿着肚子出门，跑完才敢吃' },
+  { id:'liucan',   name:'一日六餐',   rarity:'R',  emoji:'🍱', desc:'吃到吐，就为长那两斤' },
+  { id:'liantui',  name:'练腿免谈',   rarity:'R',  emoji:'🦵', desc:'上半身猛如虎，下半身细如竹' },
+  { id:'zhongliang',name:'大重量信徒',rarity:'R',  emoji:'🏋️', desc:'姿势可以丑，杠铃不能轻' },
+  { id:'jiazhi',   name:'价投大师',   rarity:'R',  emoji:'📊', desc:'长期主义，价值投资' },
+  { id:'shengtong',name:'生酮信徒',   rarity:'R',  emoji:'🥑', desc:'牛油果管够，米面是异端' },
+  { id:'jianshe',  name:'间歇断食',   rarity:'R',  emoji:'⏳', desc:'16 小时不进食，8 小时狂进食' },
+  { id:'sijiao',   name:'私教克星',   rarity:'R',  emoji:'😤', desc:'教练说再来一组，他说下节课见' },
+  { id:'yaogu',    name:'妖股猎人',   rarity:'R',  emoji:'🎯', desc:'专挑最疯的追，追到就套' },
+  { id:'beixiang', name:'北向资金',   rarity:'R',  emoji:'🌊', desc:'只留背影，不留理由' },
   // 传说 SR
-  { id:'jigou',    name:'机构',     rarity:'SR', emoji:'🏛️', desc:'专业自律，模式成型' },
-  { id:'zhuangjia',name:'庄家',     rarity:'SR', emoji:'👑', desc:'掌控节奏，稳定盈利' },
-  { id:'kongcang', name:'空仓忍者', rarity:'SR', emoji:'🥷', desc:'零超标，空仓也是修行' },
-  { id:'gushen',   name:'股神',     rarity:'SR', emoji:'🏆', desc:'登顶健交所，封神' },
+  { id:'tieren',   name:'铁人三项',   rarity:'SR', emoji:'🏊', desc:'游完就骑，骑完就跑' },
+  { id:'canhe',    name:'自带餐盒',   rarity:'SR', emoji:'🥡', desc:'火锅局掏出鸡胸肉，全场安静' },
+  { id:'kongcang', name:'空仓忍者',   rarity:'SR', emoji:'🥷', desc:'零超标，空仓也是修行' },
+  { id:'guandeng', name:'最后关灯',   rarity:'SR', emoji:'🕛', desc:'保安来撵人，是每天的固定节目' },
+  { id:'lianghua', name:'量化机器',   rarity:'SR', emoji:'🤖', desc:'只信回测，不信直觉' },
+  { id:'shuangmen',name:'双开门冰箱', rarity:'SR', emoji:'🧊', desc:'肩宽过门框，站着就是台冰箱' },
+  { id:'beisai',   name:'备战奥赛',   rarity:'SR', emoji:'🏅', desc:'控水控盐，只为台上三分钟' },
+  { id:'baiji',    name:'薄肌黄毛',   rarity:'SR', emoji:'🧠', desc:'线条拉满，块头随缘' },
 ];
-// 收集度里程碑：按「总星数 / 15张×3星=45星」计算，达标领健康币
+function cardArt(c) { return 'assets/gacha/art_' + c.id + '.webp'; }    // 无框插画
+function cardFace(c) { return 'assets/gacha/card_' + c.id + '.webp'; }  // 整张鎏金卡面
+// 收集度里程碑：按「总星数 / 30张×3星=90星」计算，达标领健康币
 const COLLECT_TOTAL = CARDS.length * 3;
 const COLLECT_MILESTONES = [
   { pct:30,  coin:200,  label:'新锐收藏家' },
@@ -2915,6 +2947,20 @@ const COLLECT_MILESTONES = [
   { pct:90,  coin:1200, label:'图鉴狂人' },
   { pct:100, coin:2000, label:'图鉴全满·封神' },
 ];
+/* 两个成就的 target 必须跟着图鉴规模走 —— 写死数字会在扩图鉴后「做到一半就解锁」：
+     · maxstar「满星收藏家」原写 45（3 星 × 15 张）
+     · fulln  「集邮狂魔」  原写 6 （普通档张数）
+   图鉴 15 → 30 张后，不改就是「收集到一半自动弹满星收藏家 +500 币」，不报错、界面还正常。
+   ⛔ 不能在这两行（L2200 一带）就地引用 COLLECT_TOTAL：CARDS / COLLECT_TOTAL 定义在**后面**，
+      模块顶层求值即踩 TDZ ⇒ ReferenceError ⇒ 整页白。
+   ⇒ 后置回填：载体是**普通对象字段**，不碰 s=> 闭包的形状（a.target 在 3 处当普通数字做算术）。 */
+(function () {
+  const m = ACHIEVEMENTS.find(a => a.id === 'maxstar');
+  if (m) { m.target = COLLECT_TOTAL; m.desc = COLLECT_TOTAL + ' 星全部点亮'; }
+  const f = ACHIEVEMENTS.find(a => a.id === 'fulln');
+  if (f) { const n = CARDS.filter(c => c.rarity === 'N').length;
+           f.target = n; f.desc = '集齐所有普通(N)卡 ' + n + ' 张'; }
+})();
 
 function defaultState() {
   return {
@@ -8565,7 +8611,7 @@ function drawCard(n) {
   showGachaResult(results, refundTotal);
   renderGacha();
 }
-function cardCardHTML(c) {
+function cardCardHTML(c, big) {
   const r = RARITY[c.rarity];
   if (c.rarity === 'BAG') {
     // 福袋不出卡：第三行给返还比例，第四行给实返金额
@@ -8579,8 +8625,10 @@ function cardCardHTML(c) {
   const extra = c.refund
     ? '<div class="g-refund">已满星 · 转化 +' + c.refund + ' 币</div>'
     : '<div class="g-desc">' + c.desc + '</div>';
+  // big = 单抽（满宽 ~310px）⇒ 用整张鎏金卡面，卡名烫金条才看得清；
+  //       十连（~113px/格）⇒ 用无框插画，否则卡名缩到 5.6px 糊成一团。见 _shots/gcell_choice.png
   return '<div class="g-card" style="background:' + r.glow + ';border-color:' + r.color + ';">' +
-    '<div class="g-emoji">' + c.emoji + '</div>' +
+    '<img class="g-art" src="' + (big ? cardFace(c) : cardArt(c)) + '" alt="">' +
     '<div class="g-name">' + c.name + '</div>' +
     '<div class="g-rarity" style="color:' + r.color + ';">' + r.name + '</div>' +
     extra +
@@ -8602,15 +8650,17 @@ function cardCellHTML(c, own) {
       prog = '<div class="g-max">MAX · 满星</div>';
     }
     return '<div class="g-cell owned" style="border-color:' + r.color + ';">' +
-      '<div class="g-emoji">' + c.emoji + '</div>' +
+      '<img class="g-art" src="' + cardArt(c) + '" alt="" loading="lazy">' +
       '<div class="g-name">' + c.name + '</div>' +
       '<div class="g-rarity" style="color:' + r.color + ';">' + r.name + '</div>' +
       '<div class="g-star">' + starStr(s) + '</div>' +
       prog +
       '</div>';
   }
+  // 未解锁：用一张「?」占位图（不是 div + 文字）—— 两端尺寸都由图片自身比例决定，
+  // rect 对拍才能逐像素对齐；用文字盒就得在小程序里手算高度（那边没有 aspect-ratio）。
   return '<div class="g-cell locked">' +
-    '<div class="g-emoji dim">?</div>' +
+    '<img class="g-art" src="assets/gacha/locked.webp" alt="">' +
     '<div class="g-name">???</div>' +
     '<div class="g-rarity" style="color:' + r.color + ';">' + r.name + '</div>' +
     '<div class="g-star dim">☆☆☆</div>' +
@@ -8637,12 +8687,18 @@ function settleDay(dateStr) {
   saveState(); render();
 }
 function renderGacha() {
-  const owned = Object.keys(state.cards).length;
+  // ⚠️ 别数 `Object.keys(state.cards).length`：那是**存档里的键数**，会把已不在卡表里的
+  //    旧 id（本轮 9 张就地换了 id）算进来 ⇒ 「已拥有 10 张」而格子里只亮 4 个。
+  //    分母口径必须落在卡表上（铁律：谁的分母就按谁数）。
+  const owned = CARDS.filter(function(c) { return (state.cards[c.id] || 0) > 0; }).length;
   const stars = totalStars();
   const pct = collectPct();
   document.getElementById('g-balance').textContent = state.coins;
   document.getElementById('g-collected').textContent = '收集度 ' + pct + '% · ' + stars + '/' + COLLECT_TOTAL + ' 星';
   document.getElementById('g-collected2').textContent = owned + ' / ' + CARDS.length + ' 张';
+  // tip 里的星数由 COLLECT_TOTAL 拼 —— 静态 HTML 里那份只是首屏占位（扩图鉴时它不会自己变）
+  const tip = document.getElementById('g-collect-tip');
+  if (tip) tip.textContent = '收集度按「总星数 / ' + COLLECT_TOTAL + ' 星」计算，达标领健康币奖励';
   document.getElementById('gacha-grid').innerHTML = CARDS.map(function(c) {
     return cardCellHTML(c, state.cards[c.id] || 0);
   }).join('');
@@ -8689,7 +8745,9 @@ function showGachaResult(results, refundTotal) {
   const sorted = results.slice().sort(function(a, b) { return order[a.rarity] - order[b.rarity]; });
   const grid = document.getElementById('gacha-result-grid');
   grid.className = 'gacha-result-grid' + (sorted.length === 1 ? ' single' : '');
-  grid.innerHTML = sorted.map(cardCardHTML).join('');
+  // ⚠️ 必须显式传 big：`.map(cardCardHTML)` 会把 **index** 塞进第二个形参（现在它是 big）
+  //    ⇒ 10 张里第 2 张起全被当成单抽、去拉卡面大图。
+  grid.innerHTML = sorted.map(function(c) { return cardCardHTML(c, sorted.length === 1); }).join('');
   const best = sorted[0];
   // 福袋返还额从 results 现算（不新增形参 ⇒ mp_build 自动生成的接口钩子签名不用跟着动）
   let bagTotal = 0, bagCount = 0;
