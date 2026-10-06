@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5786,21 +5786,18 @@ function reviewTip(r) {
 }
 /* ---- 复盘卡里的走势图（DOM 版，内联 SVG）----
    ⚠️ 与画布版 _rvpPaint 的折线段**不是逐像素同坐标**（SVG 与 canvas 的内边距约定本来就不同），
-      但两者必须满足同一套口径：图题 + 右上的最大回撤说明 + 面积填充 + 峰/谷/回撤三个标注，
+      但两者必须满足同一套口径：图题 + 面积填充 + 峰/谷/回撤三个标注，
       标注下标一律来自内核 marks（⛔ 不在这边自己找最大值/最小值）。
-   Mak 2026-10-03：加高（56 → 78），并标注波峰 / 波谷 / 最大回撤点。 */
+   Mak 2026-10-03：加高（56 → 78），并标注波峰 / 波谷 / 最大回撤点。
+   Mak 2026-10-06：「最大回撤 N」别挂在说明行右上角，挪到虚线拐角上方的空白处（四处实现同口径）。 */
 function reviewSpark(cum, col, mk) {
   const W = 320, H = 96, padL = 6, padR = 8, padT = 16, padB = 10;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  /* 说明行（顶部 16px）：左图题 / 右最大回撤。
+  /* 说明行（顶部 16px）：只放左图题（「最大回撤 N」2026-10-06 起挪进图内，落在拐角上方）；
      ⛔ 标注文字别往数据点旁边挤 —— 峰必贴上边界、谷必贴下边界，两个标签必打架。 */
   let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H
     + '" style="display:block;margin:0;">';
   svg += '<text x="' + (padL + 2) + '" y="12" fill="#5a6478" font-size="9">累计缺口走势</text>';
-  if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
-    svg += '<text x="' + (W - padR - 2) + '" y="12" text-anchor="end" fill="#ff8b96" font-size="9"'
-      + ' font-weight="700">最大回撤 ' + mk.ddTxt + '</text>';
-  }
   if (cum.length >= 2) {
     const mn = Math.min.apply(null, cum), mx = Math.max.apply(null, cum);
     const span = (mx - mn) || 1;
@@ -5825,6 +5822,14 @@ function reviewSpark(cum, col, mk) {
       svg += '<polyline points="' + f1(a[0]) + ',' + f1(a[1]) + ' ' + f1(b[0]) + ',' + f1(a[1])
         + ' ' + f1(b[0]) + ',' + f1(b[1]) + '" fill="none" stroke="rgba(255,139,150,.6)"'
         + ' stroke-width="1" stroke-dasharray="3 3"/>';
+      /* 「最大回撤 N」落在拐角上方的空白处（判据与画布版逐字同源，见 _rvpPaint 里那段注释）：
+         x ≤ 拐角右端、y ≤ 峰值虚线的半平面恒无折线（ddI 是运行最大值）⇒ 放这里永不压线。
+         ⚠️ SVG 里量不了文字宽度，所以**不要**做左边界夹取 —— 两端口径是「右对齐到竖直虚线左侧 3px」，
+            夹取只会在量得到宽度的那一端生效，反而把两端弄成两套。 */
+      const ddUp = a[1] - padT >= 11;
+      svg += '<text x="' + f1(ddUp ? b[0] - 3 : W - padR - 2) + '" y="' + f1(ddUp ? a[1] - 4 : 12)
+        + '" text-anchor="end" fill="#ff8b96" font-size="9" font-weight="700">最大回撤 '
+        + mk.ddTxt + '</text>';
     }
     svg += '<polyline points="' + xy.map(function(a) { return f1(a[0]) + ',' + f1(a[1]); }).join(' ')
       + '" fill="none" stroke="' + col + '" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
@@ -6304,21 +6309,14 @@ function _rvpPaint(c, d, W, rankImg, measure) {
 
   /* ---- 折线：累计缺口走势（Mak 2026-10-03：不要柱状，回到折线；加高 + 标注波峰/波谷/最大回撤）----
      块内自上而下分三层（内边距 16 / 26 是**两端共用契约**，MP 的 _paintPoster 必须同口径）：
-       ① 顶部 16px 是**说明行**：左图题、右「最大回撤 N」。
-          ⛔ 别把标注文字往数据点旁边挤 —— 峰必贴绘图区上边界、谷必贴下边界，两个标签必打架；
-       ② 中间 sh−26 = 52px 是绘图区（点集映射到这里）；
+       ① 顶部 16px 是**说明行**：只放左图题（「最大回撤 N」2026-10-06 起挪进图内，见下）；
+       ② 中间 sh−26 = 70px 是绘图区（点集映射到这里）；
        ③ 底部 10px 到基线。
      ⚠️ SPARK_H 改了要同步 reviewPosterH 里的 SPARK_H（两边同一个名字，别只改一处）。 */
   const sx = pad, sy = y + 6, sw = cw, sh = SPARK_H, base = sy + sh - 6;
   const mk = d.marks;
   _posterFont(c, 9, 400); c.fillStyle = dim;
   c.fillText('累计缺口走势', sx + 2, sy + 12);
-  if (mk && mk.dd > 0 && mk.ddJ > mk.ddI) {
-    c.textAlign = 'right';
-    _posterFont(c, 9, 700); c.fillStyle = '#ff8b96';
-    c.fillText('最大回撤 ' + mk.ddTxt, sx + sw - 2, sy + 12);
-    c.textAlign = 'left';
-  }
   if (d.cum && d.cum.length >= 2) {
     const mn = Math.min.apply(null, d.cum), mx = Math.max.apply(null, d.cum);
     const span = (mx - mn) || 1;
@@ -6351,6 +6349,22 @@ function _rvpPaint(c, d, W, rankImg, measure) {
       c.strokeStyle = 'rgba(255,139,150,.6)'; c.lineWidth = 1;
       c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
       c.restore();
+      /* ---- 「最大回撤 N」的落点（2026-10-06 Mak：从说明行挪到**虚线拐角上方的空白处**）----
+         🔴 为什么这块一定是空白（可证，不是「试出来」的）：
+            ddI 是 rvSparkMarks 里的运行最大值下标 ⇒ i ≤ ddI 时 cum[i] ≤ cum[ddI]；
+            而 ddI→ddJ 之间若冒出更高的值，最大回撤就会从那里重新起算（lo 会前移）⇒ 同样不高于它。
+            ⇒ **x ≤ 拐角右端、y ≤ 峰值虚线** 的整个半平面上不可能有折线经过（面积填充也在线的下方）。
+              标注放进去永远不会压线，这就是挑这块空白的依据。
+         落点：右对齐到竖直虚线左侧 3px、基线贴着水平虚线上方 4px —— 读数与拐角同框，一眼对得上。
+         ⚠️ 回退：峰值正好贴着绘图区上边界（cum[ddI] = 本期最高）时上方没有 11px 空间，
+            退回说明行右上角（原位置）。⛔ 别硬塞进拐角内侧 —— 那里的净空 = 回撤高度，
+            常常只有几像素（本期 523 只折出 8.7px），必与折线打架。
+         ⚠️ 11px 的来历：9px 中文字形几乎占满 em（顶到基线上方 9px），扣掉 2px 呼吸 ⇒ 需要 11px。 */
+      const ddUp = a[1] - (sy + 16) >= 11;
+      c.textAlign = 'right';
+      _posterFont(c, 9, 700); c.fillStyle = '#ff8b96';
+      c.fillText('最大回撤 ' + mk.ddTxt, ddUp ? b[0] - 3 : sx + sw - 2, ddUp ? a[1] - 4 : sy + 12);
+      c.textAlign = 'left';
     }
     c.fillStyle = d.col; c.beginPath();
     c.arc(px[px.length - 1][0], px[px.length - 1][1], 3, 0, Math.PI * 2); c.fill();
