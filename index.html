@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1449,7 +1449,7 @@ body {
             <option value="active">高度（每周 6～7 天）</option>
             <option value="athlete">极高（体力劳动/每日两练）</option>
           </select></div>
-          <div class="field"><label>每日目标缺口（kcal，负数=减重）</label><input id="f-target" type="number" step="50"></div>
+          <div class="field"><label>每日目标缺口（kcal，负数=减重，最宽 -200）</label><input id="f-target" type="number" step="50" min="-1500" max="-200"></div>
         </div>
         <div class="bmr-box" id="bmr-box"></div>
         <button class="confirm sell" onclick="saveProfile()">上传档案数据</button>
@@ -1931,6 +1931,40 @@ const CAT_COLOR = {
 
 
 const STORAGE_KEY = 'jianpan_v2';
+
+/* ============================================================
+ * 「每日目标缺口」的安全下限（2026-10-06 Mak 拍板：-200 kcal）
+ *
+ * 为什么要有地板 —— 这个字段同时是两个身份：
+ *   ① 身体档案里的个性化设定（用户自己填）
+ *   ② 复盘「缺口达标」的判定线（= |target|，见 rvHitKcal）
+ * ⇒ 它既是「用户的自由」又是「工具的标准」。没有地板时，填 -1 就能把标准降到形同虚设
+ *   （净缺口 300 的那天：线 500 判不达标、线 1 判达标），而档案页不会有任何提示。
+ *   更现实的路径是**误触**：想填 -500 少打一个 0 ⇒ -50 ⇒ 达标率静默变好看。
+ *   Mak 的立场是「自律记录工具的标准不能降低」⇒ 个性化只允许**更严**，不允许更松。
+ *
+ * ⚠️ 只服务于「每日目标缺口」这一个字段，⛔ 别拿去裁别的数值。
+ * ⚠️⚠️ 声明位置**绝不能**挪到 rvHitKcal() 那一带（L5488 附近）：
+ *     `let state = loadState();` 是 L2416 的顶层立即执行语句，那会儿 L5488 的常量还在
+ *     TDZ ⇒ loadState 里一引用就 ReferenceError ⇒ **启动即白屏**，而且会被 loadState 的
+ *     兜底吞成「当作新用户」⇒ 正是 2026-09-25 那次抹档事故的同族形态。
+ * ============================================================ */
+const TARGET_GAP_MIN = -200;
+
+/* 每日目标缺口归一化（唯一入口）—— 凡是读 / 写 state.user.target 的地方都要过这里：
+ *   保存表单（saveProfile / uploadProfile）、读存档（loadState）、求达标线（rvHitKcal）。
+ * ⛔ 别在别处再写一遍 -200：写两份就是两种口径，而且不会有任何报错。
+ * 返回值**一定 ≤ TARGET_GAP_MIN**（即 |值| ≥ 200）：
+ *   · 空 / 非数字 / 0        ⇒ -500（沿用档案默认值，与老代码 `|| -500` 同义）
+ *   · 比下限宽松（含正数、-50 这类）⇒ 压到 TARGET_GAP_MIN
+ *   · 已是 -620 这类更严的值  ⇒ 原样保留（**只挡松、不挡严**）
+ */
+function clampTargetGap(v) {
+  const n = parseInt(v, 10);
+  if (!isFinite(n) || n === 0) return -500;       // ⚠️ 0 是 falsy，与老逻辑一致
+  if (n > TARGET_GAP_MIN) return TARGET_GAP_MIN;  // ⚠️ 正数也走这条：意图是「放宽」⇒ 压回最宽允许值
+  return n;
+}
 
 // 身体成分指标参考区间、等级、AI建议、专家建议
 const BODY_RANGES = [
@@ -2963,6 +2997,12 @@ function loadState() {
         if (typeof merged.settledDate !== 'string') merged.settledDate = null;
       }
       // v2.1 新字段兜底（老存档没有这些键）
+      /* 目标缺口归一化（2026-10-06）：老存档里可能躺着 -50 这类「比安全下限还宽松」的值 ——
+         只拦输入框救不回来（用户不重新保存一次档案就永远不改）。
+         ⚠️ 必须在这一层做，而不是只塞进 rvHitKcal()：target 有**三处消费方**
+            （复盘达标线 / 涨停判定 / gapToday 派生），只修一处等于留下两种口径。
+         ⚠️ 本行只改一个数值字段，不碰任何记录数组 ⇒ 不影响 __loadedCounts 缩水闸基线。 */
+      merged.user.target = clampTargetGap(merged.user.target);
       if (!Array.isArray(merged.usuals)) merged.usuals = [];
       if (!Array.isArray(merged.usualsHidden)) merged.usualsHidden = [];
       if (!merged.foodFreq || typeof merged.foodFreq !== 'object') merged.foodFreq = {};
@@ -5485,21 +5525,28 @@ function renderAccount() {
  *   净缺口 = (运动消耗 + 基础代谢) − 饮食摄入   ← 全天口径
  *   达标   = 净缺口 ≥ |身体档案的「每日目标缺口」|   ← 见 rvHitKcal()，默认 -500 ⇒ 线 500
  * ============================================================ */
-const REVIEW_HIT_KCAL = 500;      // 达标线的**回退默认值**（只在档案缺失/非法时用到）
+const REVIEW_HIT_KCAL = 500;      // 达标线的**回退默认值**（只在档案缺失/非法/填 0 时用到）
+                                  // ⚠️ 它不是下限 —— 下限是 TARGET_GAP_MIN = -200（见 STORAGE_KEY 旁）
                                   // 热量换算复用全局 KCAL_PER_KG_FAT（7700），不重复声明
 
 /* 达标线（唯一入口）—— 2026-10-06 Mak 拍板：以身体档案里的「每日目标缺口」为准。
    🔴 达标 = 当天净缺口 ≥ |state.user.target|（档案默认 -500 ⇒ 线 500 kcal）。
+   🔴 且有**安全下限**：TARGET_GAP_MIN = -200 ⇒ 线最小 200 kcal（Mak 拍板，
+      理由：这是自律工具的判定标准，不能让用户自己把它降到形同虚设）。
    ⚠️ 此前这里是写死的 150（当年刻意对齐 GAP_TIERS 的「小阴线」）⇒ **现已脱钩**：
       日缺口评级的分档（十字星 / 小阴线 / 中阴线…）仍按它自己的阈值走，
       ⛔ 别看到两个数字不一样就回去「对齐」—— 那是 Mak 定的两个不同口径。
    ⚠️ 跟随档案而不是再写死一个 500：Mak 的原意就是「按身体档案里设定的每日目标缺口算」，
       他把目标改宽/改窄，达标率就该跟着变 —— 那才是自律记录工具该有的语义。
-   ⚠️ 档案缺失 / 非数字 / 填成正数 ⇒ 一律回退 REVIEW_HIT_KCAL。
+   ⚠️ 档案缺失 / 非数字 / 填 0 ⇒ 回退 REVIEW_HIT_KCAL（500）；
+      填得比下限宽松（含正数）⇒ 由 clampTargetGap 压到 200。
       ⛔ 别让它返回 0：「净缺口 ≥ 0」会把所有没暴食的日子全判成达标（标准形同取消）。 */
 function rvHitKcal() {
-  const t = (state && state.user) ? Math.abs(parseInt(state.user.target, 10)) : 0;
-  return (t > 0) ? t : REVIEW_HIT_KCAL;
+  /* 🔴 必须过 clampTargetGap（2026-10-06 加下限 -200）：直接 parseInt 会漏掉存档里
+     早已存在的 -50 这类宽松值 —— 拦输入框只挡得住**新填的**，这里是最后一道，
+     任何路径（含导入的存档）都逃不掉。clamp 后一定是负数 ⇒ abs 后 |线| ≥ 200。 */
+  const t = Math.abs(clampTargetGap(state && state.user ? state.user.target : null));
+  return (t > 0) ? t : Math.abs(REVIEW_HIT_KCAL);
 }
 
 /* 起点日 → 今天 之间的**自然日数**（含首尾两天）。
@@ -6760,6 +6807,12 @@ function applyImported(data, tip) {
   const merged = Object.assign({}, base, data);
   merged.user = Object.assign({}, base.user, data.user || {});
   merged.body = Object.assign({}, base.body, data.body || {});
+  /* 目标缺口也要过归一化：导入的是**别处的一份存档**，它可能带着 -50 这类宽松值；
+     base.user 虽然在 loadState 里已经校正过，但下一秒就被 data.user 覆盖了
+     ⇒ 必须在这里补一次，否则「导入一份旧档」就能把达标线悄悄放掉。
+     （小程序侧不需要这行：store.importPayload 是「先落盘 → 再 loadState 读回」，
+       天然走完整净化链。） */
+  merged.user.target = clampTargetGap(merged.user.target);
   /* 曲线补偿必须按**这份存档自己**的版本走，不能继承本机的锚：
      base 刚被 loadState 升到 CURVE_VER，若把它的 curve 一并带进来，一份老存档导进来就会被
      误判成「已升级」而跳过补偿 ⇒ 当场掉段。所以先用 data.curve 覆盖锚，再走补偿。 */
@@ -7658,10 +7711,20 @@ function saveProfile() {
   var rhr = parseInt(document.getElementById('f-rhr').value);
   state.user.restingHr = isFinite(rhr) && rhr > 0 ? rhr : null;
   state.user.activity = document.getElementById('f-act').value || 'sedentary';
-  state.user.target = parseInt(document.getElementById('f-target').value) || -500;
+  /* 目标缺口：一律过唯一入口 clampTargetGap（下限 TARGET_GAP_MIN = -200）。
+     ⛔ 别再退回 `parseInt(...) || -500` 那种写法 —— 它只挡 0 / NaN，
+        挡不住 -50 这类「比安全下限还宽松」的输入（少打一个 0 就中招）。 */
+  var rawTarget = parseInt(document.getElementById('f-target').value, 10);
+  state.user.target = clampTargetGap(rawTarget);
+  var targetClamped = isFinite(rawTarget) && rawTarget !== 0 && rawTarget > TARGET_GAP_MIN;
   recordWeight();   // 每次保存档案即写入一条真实体重日志
   render(); switchTab('market');
-  showBcCard(Math.round(calcBMR()), NutritionEngine.bmr(getUserProfile()).primaryName);
+  /* 被压过就在结果卡的附注行里说明（⛔ 不静默改写用户填的数）。
+     ⚠️ 载进 .bc-note 而不是另弹 toast：同一条消息只出现在一处，
+        且与小程序 body-archive 的 bmrCard.note 同源（那边也走结果卡）。
+     ⚠️ 必须在 showBcCard 调用里带过去，不能另起一次 DOM 操作 —— 会被上面那次覆盖。 */
+  showBcCard(Math.round(calcBMR()), NutritionEngine.bmr(getUserProfile()).primaryName,
+    targetClamped ? ('目标缺口已按安全下限 ' + TARGET_GAP_MIN + ' kcal/天 设定') : '');
 }
 
 /* ============ 身体档案子页（v2.7.67）============
@@ -8089,11 +8152,16 @@ function personaRememberLit(codes) {
 /* ============ 身体档案结果卡（v2.7.66 替代 alert）============
    原生 alert：阻塞、白底、系统「确定」按钮，每次保存档案都弹 —— 与产品视觉割裂。
    现在改成自建深色卡：给出 BMR 新值 + 用的哪条公式 + 下一步去哪儿。 */
-function showBcCard(bmr, formula) {
+function showBcCard(bmr, formula, note) {
   var v = document.getElementById('bc-v');
   if (v) v.innerHTML = bmr + '<span class="bc-u"> kcal/天</span>';
   var f = document.getElementById('bc-f');
   if (f) f.textContent = '公式：' + formula;
+  /* 第三参数 = 附注行（2026-10-06）：缺省仍是原固定文案「体重已写入今日记录」；
+     目标缺口被安全下限压过时换成说明 —— ⛔ 不静默改写用户填的数。
+     ⚠️ 与小程序的 bmrCard.note（BC_NOTE_DEFAULT）是同一条规则，⛔ 别只改一边。 */
+  var n = document.getElementById('bc-note');
+  if (n) n.textContent = note || '体重已写入今日记录';
   var m = document.getElementById('bc-mask');
   if (m) m.classList.add('show');
 }
@@ -8893,7 +8961,7 @@ scheduleMidnightSettle();
       <span class="bc-v" id="bc-v">0<span class="bc-u"> kcal/天</span></span>
     </div>
     <div class="bc-f" id="bc-f">公式：--</div>
-    <div class="bc-note">体重已写入今日记录</div>
+    <div class="bc-note" id="bc-note">体重已写入今日记录</div>
     <div class="bc-btns">
       <div class="bc-btn" onclick="closeBcCard()">留在本页</div>
       <div class="bc-btn primary" onclick="bcGoMarket()">去行情看</div>
