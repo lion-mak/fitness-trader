@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5481,12 +5481,26 @@ function renderAccount() {
  * 版式本身就是一张「分享卡」：期号 → 大数字 → 迷你趋势线 → 三宫格 → 一句建议。
  * 只给三个数字（守「信息密度低」原则），剩下的靠「复制战绩」带走。
  *
- * 口径（与「每日缺口评级」完全一致，避免两套算法打架）：
+ * 口径：
  *   净缺口 = (运动消耗 + 基础代谢) − 饮食摄入   ← 全天口径
- *   达标   = 净缺口 ≥ 150 kcal（对齐 GAP_TIERS 的「小阴线」）
+ *   达标   = 净缺口 ≥ |身体档案的「每日目标缺口」|   ← 见 rvHitKcal()，默认 -500 ⇒ 线 500
  * ============================================================ */
-const REVIEW_HIT_KCAL = 150;      // 达标线：与 GAP_TIERS「小阴线 · 温和减脂」一致
+const REVIEW_HIT_KCAL = 500;      // 达标线的**回退默认值**（只在档案缺失/非法时用到）
                                   // 热量换算复用全局 KCAL_PER_KG_FAT（7700），不重复声明
+
+/* 达标线（唯一入口）—— 2026-10-06 Mak 拍板：以身体档案里的「每日目标缺口」为准。
+   🔴 达标 = 当天净缺口 ≥ |state.user.target|（档案默认 -500 ⇒ 线 500 kcal）。
+   ⚠️ 此前这里是写死的 150（当年刻意对齐 GAP_TIERS 的「小阴线」）⇒ **现已脱钩**：
+      日缺口评级的分档（十字星 / 小阴线 / 中阴线…）仍按它自己的阈值走，
+      ⛔ 别看到两个数字不一样就回去「对齐」—— 那是 Mak 定的两个不同口径。
+   ⚠️ 跟随档案而不是再写死一个 500：Mak 的原意就是「按身体档案里设定的每日目标缺口算」，
+      他把目标改宽/改窄，达标率就该跟着变 —— 那才是自律记录工具该有的语义。
+   ⚠️ 档案缺失 / 非数字 / 填成正数 ⇒ 一律回退 REVIEW_HIT_KCAL。
+      ⛔ 别让它返回 0：「净缺口 ≥ 0」会把所有没暴食的日子全判成达标（标准形同取消）。 */
+function rvHitKcal() {
+  const t = (state && state.user) ? Math.abs(parseInt(state.user.target, 10)) : 0;
+  return (t > 0) ? t : REVIEW_HIT_KCAL;
+}
 
 /* 起点日 → 今天 之间的**自然日数**（含首尾两天）。
    🔴 唯一入口：⛔ 别在别处再写一遍日期差 —— 写两遍就会有两种口径，而且不会有任何报错。
@@ -5541,6 +5555,9 @@ function rvSparkMarks(cum) {
 function reviewData(isWeek_) {
   const p = reviewPeriod(isWeek_);
   const bmr = calcBMR();
+  /* 达标线本期只取一次：它是「档案目标缺口」的函数，一期之内不会变。
+     ⚠️ 别在下面的 forEach 里反复调 rvHitKcal()（读 state 又 parseInt，白跑几百次）。 */
+  const HIT = rvHitKcal();
   const rows = dayAgg().filter(function(d) { return d.date >= p.start; })
     .sort(function(a, b) { return a.date < b.date ? -1 : 1; });
   let total = 0, hit = 0, acc = 0;
@@ -5548,7 +5565,7 @@ function reviewData(isWeek_) {
   rows.forEach(function(d) {
     const def = d.out + bmr - d.in;     // 全天口径净缺口
     total += def;
-    if (def >= REVIEW_HIT_KCAL) hit++;
+    if (def >= HIT) hit++;
     acc += def;
     cum.push(acc);
     pts.push({ date: d.date, def: def });
@@ -5637,7 +5654,7 @@ function reviewData(isWeek_) {
      ⑥ dayN                  期内自然日数（「缺口达标 X/Y 天」的 Y ⇒ 覆盖率分母） */
   let streakBest = 0, streakNow = 0, slump = 0, slumpNow = 0, cumPeak = 0;
   pts.forEach(function (x) {
-    if (x.def >= REVIEW_HIT_KCAL) { streakNow++; slumpNow = 0; if (streakNow > streakBest) streakBest = streakNow; }
+    if (x.def >= HIT) { streakNow++; slumpNow = 0; if (streakNow > streakBest) streakBest = streakNow; }
     else { slumpNow++; if (slumpNow > slump) slump = slumpNow; streakNow = 0; }
   });
   cumPeak = cum.length ? Math.max.apply(null, cum) : 0;
@@ -5645,7 +5662,7 @@ function reviewData(isWeek_) {
   /* 掉队日（def < 达标线）里按星期几分组求均值，判「周几最容易崩」 */
   const dowSum = {}, dowCnt = {};
   pts.forEach(function (x) {
-    if (x.def >= REVIEW_HIT_KCAL) return;
+    if (x.def >= HIT) return;
     const dow = new Date(x.date + 'T00:00:00').getDay();      // 0=周日
     const k = dow === 0 ? 7 : dow;                              // 归一到 1..7 = 周一..周日
     dowSum[k] = (dowSum[k] || 0) + x.def; dowCnt[k] = (dowCnt[k] || 0) + 1;
@@ -5672,6 +5689,8 @@ function reviewData(isWeek_) {
     bigIn: bigIn, bigOut: bigOut,
     streakBest: streakBest, streakNow: streakNow, slump: slump,
     dowWorst: dowWorst, cumEnd: cumEnd, cumPeak: cumPeak, avgDef: avgDef, dayN: dayN,
+    /* 本期用的达标线（= rvHitKcal()）—— 海报画笔与闸都从这里取，⛔ 别各自再算一遍 */
+    hitKcal: HIT,
     /* 2026-10-03 新增：运动口径 + 特色榜单（复盘海报用，纯计算不碰 DOM ⇒ 自动同步小程序） */
     exKcal: Math.round(exKcal), exMin: exMin, exCnt: exCnt, exMax: exMax,
     exDays: Object.keys(exDayMap).length,
@@ -6594,9 +6613,12 @@ function reviewPosterData(isWeek_) {
     kgTxt: (kg >= 0 ? '' : '+') + Math.abs(kg).toFixed(2) + ' kg',
     kgUp: kg >= 0,
     hit: r.hit, cnt: r.cnt, dayN: r.dayN, rate: ln.rate,
+    /* 本期达标线（= |档案每日目标缺口|）—— 随视图对象一起出去，让**闸**有真源可取。
+       ⛔ 测试里别再把 500 手写一遍：线一旦跟着档案变，手写的那份就静默变成假绿。 */
+    hitKcal: r.hitKcal,
     /* 🔴 分母 = dayN（期内自然日），⛔ 不是 cnt（有记录的天数）—— 见 reviewData 里 dayN 的注释 */
     hitTxt: '缺口达标 ' + r.hit + '/' + r.dayN + ' 天',
-    cum: r.cum, hitLine: r.pts.map(function (x) { return x.def >= REVIEW_HIT_KCAL; }),
+    cum: r.cum, hitLine: r.pts.map(function (x) { return x.def >= r.hitKcal; }),
     /* 走势标注（波峰/波谷/最大回撤区间）—— 见 rvSparkMarks，两端画笔共用这一份 */
     marks: rvSparkMarks(r.cum),
     bigIn: r.bigIn ? r.bigIn.name : '--', bigInK: r.bigIn ? Math.round(r.bigIn.kcal || 0) : null,
