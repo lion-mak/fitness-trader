@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -342,26 +342,47 @@ body {
 .gacha-btn .cost { font-size:11px; opacity:0.85; }
 .gacha-btn.single { background:rgba(255,184,0,.14); color:#ffd24d; border:1px solid rgba(255,184,0,.4); }
 .gacha-btn.ten { background:linear-gradient(135deg,#ff8a00,#ff3b47); color:#fff; border:1px solid transparent; box-shadow:0 4px 14px rgba(255,59,71,.25); }
-.gacha-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
-.g-cell { border:1px solid var(--border); border-radius:12px; padding:12px 6px; text-align:center; background:var(--panel); }
-/* 卡面图（2026-10-06 起用插画，弃 emoji）。
-   ⚠️ 高度**必须由宽度推**（`height:auto`）：格宽随视口变（390 屏 ~113px / 430 屏 ~127px），
-      写死高度会两端比例不一致、rect 对拍整片飘。
-   ⚠️ 小程序侧 `<image>` 不写 height 默认 240px（见铁律 #5）⇒ 那边一律 `mode="widthFix"`。 */
-.g-cell .g-art { width:100%; height:auto; display:block; border-radius:8px; background:var(--border); }
-.g-cell .g-emoji { font-size:26px; line-height:1.2; }
-.g-cell .g-emoji.dim { opacity:0.25; filter:grayscale(1); }
-.g-cell .g-name { font-size:11px; font-weight:500; margin-top:4px; }
-.g-cell .g-rarity { font-size:10px; margin-top:2px; }
-.g-cell .g-count { font-size:10px; color:var(--amber); margin-top:2px; }
-.g-cell.locked { opacity:0.5; }
-/* 升星 / 碎片进度 */
-.g-cell .g-star { font-size:11px; letter-spacing:1px; color:var(--amber); margin-top:3px; }
-.g-cell .g-star.dim { color:var(--muted2); }
-.g-prog { height:4px; background:var(--border); border-radius:2px; margin-top:6px; overflow:hidden; }
-.g-prog-fill { height:100%; border-radius:2px; transition:width .3s; }
-.g-frag { font-size:9px; color:var(--muted2); margin-top:3px; }
-.g-max { font-size:9px; color:var(--amber); margin-top:5px; font-weight:600; }
+/* ============ 藏品图鉴卡廊（Mak 2026-10-06：按 N/R/SR 三档分类 + 卡面放大）============
+   ⭐ 机制**照抄段位卡廊 / 人格卡廊**（.rail-track/.rail-card：居中放大、两侧缩小、停手吸附、
+   未解锁整张 grayscale）—— ⛔ 别写第三套滑动逻辑：三处不同源，改一边必漏两边。
+   与那两处的差异只有三条，全都是卡面决定的：
+   ① 卡面实测 **420×630（2:3）** ⇒ 卡高 = 168 × 1.5 = **252**。⛔ 不能沿用段位卡的 240：
+      那会 cover 掉左右两侧的鎏金框与底部卡名 —— 正是「能看到卡的精髓」要保住的东西
+      （240 对应的是 .ps-rail 的人格卡，它裁了 4.8%，是存量、本处不动它）。
+   🔴 卡元素必须带 **`rail-card` 类**（`class="rail-card g-rail-card locked"`）：本块所有规则都写成
+      `.g-rail .rail-card`，只加 `g-rail-card` 的话一条都匹配不上（2026-10-06 实测踩到 ——
+      卡高会静默变成「图片自己撑的 252」、缩放/灰阶全丢，看着像「CSS 没写」）。
+   ② 分三档各一条轨道 ⇒ 焦点索引 / 吸附定时器 / 滚动位置**按轨道分开存**。
+   ③ 卡下方多一行「星数 + 碎片进度」（段位卡只讲图，图鉴要讲进度）。
+   ⚠️ 卡面**自带卡名**（底部烫金条）⇒ 这里不再画名字。旧 .g-cell .g-name 已删，
+      「图鉴格与卡面名字重复」那个坑随之消失。
+   ⚠️ 旧的三列网格（.gacha-grid / .g-cell / .g-prog / .g-frag / .g-max）已整体废弃：
+      格子内宽只有 ~113 CSS px，整张卡面缩到 99px 时卡名烫金条仅 5.6px、糊到读不出
+      —— 那正是当初退成「无框插画」的原因，放大到 168px 后这个理由不成立了。 */
+.g-class { margin-top:14px; }
+.g-class-hd { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px; }
+.g-class-hd .t { font-size:12px; font-weight:500; }
+.g-class-hd .dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+.g-class-hd .m { font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.g-rail { position:relative; margin:0 -14px; }
+.g-rail .rail-track { padding:5px calc(50% - 84px) 8px; }
+.g-rail-item { flex:0 0 168px; width:168px; }
+.g-rail .rail-card { flex:0 0 168px; width:168px; height:252px; border-radius:12px; overflow:hidden;
+  background:#0f1524; transform:scale(.86); opacity:.5;
+  filter:grayscale(1) brightness(.55);
+  transition:transform .2s ease, opacity .2s ease, filter .2s ease; }
+.g-rail .rail-card.unlocked { filter:none; opacity:.72; }
+.g-rail .rail-card.focus { transform:scale(1); opacity:1; box-shadow:0 8px 20px rgba(0,0,0,.55); }
+.g-rail .rail-card.focus.locked { filter:grayscale(1) brightness(.72); }
+.g-rail-img { width:100%; height:100%; display:block; object-fit:cover; }
+.g-rail-meta { display:flex; align-items:center; justify-content:space-between; gap:6px;
+  margin-top:5px; padding:0 1px; }
+.g-rail-star { font-size:11px; letter-spacing:1px; color:var(--amber); }
+.g-rail-star.dim { color:var(--muted2); }
+.g-rail-frag { font-size:10px; color:var(--muted2); font-variant-numeric:tabular-nums; }
+.g-rail-frag.max { color:var(--amber); font-weight:600; }
+.g-rail-prog { height:3px; background:var(--border); border-radius:2px; margin-top:3px; overflow:hidden; }
+.g-rail-prog-fill { display:block; height:100%; border-radius:2px; transition:width .3s; }
 .g-refund { font-size:10px; color:var(--amber); margin-top:4px; }
 /* 收集度里程碑 */
 .g-collect-track { height:8px; background:var(--border); border-radius:4px; margin-top:12px; overflow:hidden; }
@@ -1414,8 +1435,9 @@ body {
       </div>
 
       <div class="card">
-        <div class="card-title"><span class="t">我的图鉴</span><span class="m">升星收集</span></div>
-        <div class="gacha-grid" id="gacha-grid"></div>
+        <div class="card-title"><span class="t">我的图鉴</span><span class="m">按稀有度分类 · 左右滑动</span></div>
+        <!-- 三档卡廊由 renderGacha 注入（普通 N / 稀有 R / 传说 SR 各一条轨道） -->
+        <div id="gacha-rails"></div>
       </div>
     </section>
 
@@ -8634,37 +8656,129 @@ function cardCardHTML(c, big) {
     extra +
     '</div>';
 }
-function cardCellHTML(c, own) {
+/* ============ 藏品图鉴卡廊（Mak 2026-10-06：按 N/R/SR 三档分类 + 卡面放大）============
+   三档各一条轨道，机制照抄段位卡廊 / 人格卡廊（居中放大 + 两侧缩小 + 停手吸附 + 未解锁 grayscale）。
+   ⚠️ 状态**按轨道分开存**：三条轨道同时在 DOM 里，共用一份焦点索引会让 A 轨的滑动改掉 B 轨的。
+   ⚠️ 步长 G_RAIL_STEP = 168 + 22 = 190，168 取内核单源 RAIL_CARD_W、22 必须与 .rail-track 的 gap
+      同值 —— 吸附位置按等差排推算，差 1px 会在第 N 张累积成 N px（段位卡廊同款注释）。
+   ⚠️ 焦点 / 定时器一律**不存模块级变量**，全部挂在轨道元素上（track._gFocus / track._gTimer）
+      或现算 —— mp_build 会把顶层 const/let **原样搬进小程序内核**，而「PWA 的页面状态」
+      躺在内核里会误导成「小程序也在用这份状态」（同 psMem / window.__ps 那条注释）。
+      现算的代价是滚动时每帧 toggle 12 次 class（到相同值即 no-op、不触发布局），可忽略。 */
+const G_ORDER = ['N', 'R', 'SR'];
+const G_RAIL_GAP = 22;
+const G_RAIL_STEP = RAIL_CARD_W + G_RAIL_GAP;
+
+function gRailOf(k) { return document.getElementById('g-rail-' + k); }
+
+/* 焦点 = 离轨道中线最近的那张。⚠️ 用 round(scrollLeft / STEP)，⛔ 不去量 offsetLeft：
+   轨道带 padding:calc(50% - 84px) ⇒ 第 i 张居中时 scrollLeft 恰好 = i × STEP（与容器宽无关），
+   两端同一条公式（小程序侧 gacha.js 走内核这份）。量 offsetLeft 的写法在页面隐藏时
+   （display:none ⇒ clientWidth 全 0）会把所有卡判成第 0 张。 */
+function gFocusIdxOf(sl, n) {
+  return Math.max(0, Math.min(n - 1, Math.round((sl || 0) / G_RAIL_STEP)));
+}
+
+/* 焦点态挂在元素上（⛔ 不用模块级 gFocus）—— 见上面那条「别把页面状态写进顶层常量」。 */
+function paintGFocus(k, sl) {
+  const track = gRailOf(k);
+  if (!track || !track.children.length) return;
+  const i = gFocusIdxOf(sl == null ? track.scrollLeft : sl, track.children.length);
+  if (i === track._gFocus) return;
+  track._gFocus = i;
+  for (let j = 0; j < track.children.length; j++) {
+    const cd = track.children[j].querySelector('.g-rail-card');
+    if (cd) cd.classList.toggle('focus', j === i);
+  }
+}
+
+function bindGRails() {
+  G_ORDER.forEach(function (k) {
+    const track = gRailOf(k);
+    if (!track || track._gBound) return;
+    track._gBound = true;
+    track.addEventListener('scroll', function () {
+      paintGFocus(k, track.scrollLeft);
+      clearTimeout(track._gTimer);
+      track._gTimer = setTimeout(function () { snapGRail(k); }, 130);   // 停手再吸附，别跟手指抢（同两处卡廊的 130ms）
+    }, { passive: true });
+  });
+}
+
+/* 吸附：目标位置现算（⛔ 不查缓存的焦点索引 —— 滚动中被外部改过 scrollLeft 时缓存会失真）。 */
+function snapGRail(k) {
+  const track = gRailOf(k);
+  if (!track || !track.children.length) return;
+  const target = gFocusIdxOf(track.scrollLeft, track.children.length) * G_RAIL_STEP;
+  if (Math.abs(track.scrollLeft - target) > 1) track.scrollTo({ left: target, behavior: 'smooth' });
+}
+
+/* 一张卡 → 卡廊里的一格。图用**整张鎏金卡面**（card_<id>）—— 168px 宽时底部卡名约 9px、
+   实测可读；旧图鉴格内宽只有 99px（卡名 5.6px、糊），那才是上一版退成「无框插画」的原因。
+   ⚠️ 卡面**自带卡名**（底部烫金条）⇒ 这里不画名字（旧版 .g-name 与它重复的那个坑随之消失）。
+   ⚠️ 未解锁给同一张卡面 + .locked（CSS 整张 grayscale）——不用「?」占位板：
+      168px 卡位里一块深色板显得空、且与旁边卡面质感断层（对照图 _sketch_gacha/sketch.png 的 A/B）。
+   ⚠️ 本函数刻意**不沾 DOM**（只拼字符串），会被 mp_build 误判成纯计算搬进内核 ⇒ 已登记 RENDER_ONLY，
+      小程序侧由 pages/gacha/gacha.js 的 cardRailItemView 重画（同 cardCardHTML 的关系）。 */
+function cardRailItemHTML(c, own) {
   const r = RARITY[c.rarity];
+  let meta, prog = '';
   if (own > 0) {
     const s = cardStar(own);
-    let prog;
-    if (s < 3) {
-      const need = STAR_NEED[s + 1];
-      const cur = own - STAR_NEED[s];
-      const span = need - STAR_NEED[s];
-      const p = Math.round(cur / span * 100);
-      prog = '<div class="g-prog"><div class="g-prog-fill" style="width:' + p + '%;background:' + r.color + ';"></div></div>' +
-             '<div class="g-frag">' + own + ' / ' + need + ' 碎片</div>';
+    if (s >= 3) {
+      meta = '<span class="g-rail-star">' + starStr(s) + '</span>' +
+             '<span class="g-rail-frag max">MAX · 满星</span>';
     } else {
-      prog = '<div class="g-max">MAX · 满星</div>';
+      const need = STAR_NEED[s + 1];
+      const span = need - STAR_NEED[s];
+      const p = Math.round((own - STAR_NEED[s]) / span * 100);
+      meta = '<span class="g-rail-star">' + starStr(s) + '</span>' +
+             '<span class="g-rail-frag">' + own + ' / ' + need + ' 碎片</span>';
+      /* 用同名 class（⛔ 不用 <i>）：小程序 wxml 没有 i/span 这些标签，那边是
+         <view class="g-rail-prog-fill">，同名 class 才让这一条两端同源。 */
+      prog = '<div class="g-rail-prog"><div class="g-rail-prog-fill" style="width:' + p + '%;background:' + r.color + ';"></div></div>';
     }
-    return '<div class="g-cell owned" style="border-color:' + r.color + ';">' +
-      '<img class="g-art" src="' + cardArt(c) + '" alt="" loading="lazy">' +
-      '<div class="g-name">' + c.name + '</div>' +
-      '<div class="g-rarity" style="color:' + r.color + ';">' + r.name + '</div>' +
-      '<div class="g-star">' + starStr(s) + '</div>' +
-      prog +
-      '</div>';
+  } else {
+    meta = '<span class="g-rail-star dim">☆☆☆</span><span class="g-rail-frag">未解锁</span>';
   }
-  // 未解锁：用一张「?」占位图（不是 div + 文字）—— 两端尺寸都由图片自身比例决定，
-  // rect 对拍才能逐像素对齐；用文字盒就得在小程序里手算高度（那边没有 aspect-ratio）。
-  return '<div class="g-cell locked">' +
-    '<img class="g-art" src="assets/gacha/locked.webp" alt="">' +
-    '<div class="g-name">???</div>' +
-    '<div class="g-rarity" style="color:' + r.color + ';">' + r.name + '</div>' +
-    '<div class="g-star dim">☆☆☆</div>' +
+  return '<div class="g-rail-item">' +
+    '<div class="rail-card g-rail-card ' + (own > 0 ? 'unlocked' : 'locked') + '">' +
+      '<img class="g-rail-img" src="' + cardFace(c) + '" alt="" loading="lazy" decoding="async">' +
+    '</div>' +
+    '<div class="g-rail-meta">' + meta + '</div>' + prog +
     '</div>';
+}
+
+/* 三档轨道。⚠️ 重建 innerHTML 会丢滚动位置 ⇒ 先记住、贴回去：抽卡后 renderGacha 会再跑一次，
+   不保留的话用户正看的第 7 张会被弹回第 1 张（段位卡廊同款注释：别让人记一笔饮食就被弹回当前段位）。 */
+function renderGRails() {
+  const el = document.getElementById('gacha-rails');
+  if (!el) return;
+  const keep = {};
+  G_ORDER.forEach(function (k) { const t = gRailOf(k); if (t) keep[k] = t.scrollLeft; });
+  el.innerHTML = G_ORDER.map(function (k) {
+    const list = CARDS.filter(function (c) { return c.rarity === k; });
+    const r = RARITY[k];
+    const got = list.filter(function (c) { return (state.cards[c.id] || 0) > 0; }).length;
+    return '<div class="g-class">' +
+      '<div class="g-class-hd">' +
+        '<span class="t"><span class="dot" style="background:' + r.color + ';"></span>' +
+          r.name + ' <span style="color:' + r.color + ';">' + k + '</span></span>' +
+        '<span class="m">' + got + ' / ' + list.length + ' 张</span>' +
+      '</div>' +
+      '<div class="g-rail"><div class="rail-track" id="g-rail-' + k + '">' +
+        list.map(function (c) { return cardRailItemHTML(c, state.cards[c.id] || 0); }).join('') +
+      '</div></div>' +
+    '</div>';
+  }).join('');
+  bindGRails();
+  G_ORDER.forEach(function (k) {
+    const t = gRailOf(k);
+    if (!t) return;
+    t._gFocus = -1;                       // 新 DOM 上没有 focus 类 ⇒ 先清状态再重算
+    if (keep[k]) t.scrollLeft = keep[k];
+    paintGFocus(k, t.scrollLeft);
+  });
 }
 function showGacha() { renderGacha(); switchTab('gacha'); }
 function dayBefore(k){ var d=new Date(k+'T00:00:00'); d.setDate(d.getDate()-1); return todayStr(d); }
@@ -8699,9 +8813,7 @@ function renderGacha() {
   // tip 里的星数由 COLLECT_TOTAL 拼 —— 静态 HTML 里那份只是首屏占位（扩图鉴时它不会自己变）
   const tip = document.getElementById('g-collect-tip');
   if (tip) tip.textContent = '收集度按「总星数 / ' + COLLECT_TOTAL + ' 星」计算，达标领健康币奖励';
-  document.getElementById('gacha-grid').innerHTML = CARDS.map(function(c) {
-    return cardCellHTML(c, state.cards[c.id] || 0);
-  }).join('');
+  renderGRails();   // 三档卡廊（N/R/SR 各一条轨道）
   const bar = document.getElementById('g-collect-bar');
   if (bar) bar.style.width = pct + '%';
   renderMilestones();
