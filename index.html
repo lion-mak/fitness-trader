@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.16.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.16.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5488,6 +5488,20 @@ function renderAccount() {
 const REVIEW_HIT_KCAL = 150;      // 达标线：与 GAP_TIERS「小阴线 · 温和减脂」一致
                                   // 热量换算复用全局 KCAL_PER_KG_FAT（7700），不重复声明
 
+/* 起点日 → 今天 之间的**自然日数**（含首尾两天）。
+   🔴 唯一入口：⛔ 别在别处再写一遍日期差 —— 写两遍就会有两种口径，而且不会有任何报错。
+   ⚠️ 必须先把「今天」归零到 00:00 再相减。直接拿 (new Date() − 起点) 的毫秒差，
+      **当天 12:00 之后**小数部分 > 0.5，Math.round 会进位**多算一天**。
+      2026-10-06 把这个值接到分母上时才暴露（它此前全库无人读、是死值，所以错了也没人看得见）。
+   ⚠️ 起点串一律 'YYYY-MM-DD'（rangeStartFor 的产出）⇒ 补 'T00:00:00' 让浏览器按**本地时区**解析。
+      ⛔ 别写 new Date('YYYY-MM-DD') 的裸形式 —— 那是按 UTC 解析，东八区会整体差一天。 */
+function rvDaysFrom(startStr) {
+  const a = new Date(startStr + 'T00:00:00');
+  const b = new Date();
+  b.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((b - a) / 86400000) + 1);
+}
+
 function reviewPeriod(isWeek_) {
   const isWeek = (isWeek_ === undefined) ? (lbRange === 'week') : !!isWeek_;
   const start = rangeStartFor(isWeek ? 'week' : 'month');   // ⛔ 唯一真源，⛔ 别另抄一份月起始
@@ -5620,7 +5634,7 @@ function reviewData(isWeek_) {
      ③ dowWorst              周内哪一天最容易崩（按 1..7 = 周一..周日 取平均净缺口最低）
      ④ cumEnd / cumPeak      期末累计 / 期内累计峰值（峰值用来判「冲高回落」）
      ⑤ avgDef                达标日均净缺口（写称号用）
-     ⑥ days                  期内自然日跨度（覆盖率分母） */
+     ⑥ dayN                  期内自然日数（「缺口达标 X/Y 天」的 Y ⇒ 覆盖率分母） */
   let streakBest = 0, streakNow = 0, slump = 0, slumpNow = 0, cumPeak = 0;
   pts.forEach(function (x) {
     if (x.def >= REVIEW_HIT_KCAL) { streakNow++; slumpNow = 0; if (streakNow > streakBest) streakBest = streakNow; }
@@ -5642,13 +5656,22 @@ function reviewData(isWeek_) {
     const avg = dowSum[k] / dowCnt[k];
     if (avg < dowWorstDef) { dowWorstDef = avg; dowWorst = k; }
   }
-  const days = Math.max(1, Math.round((new Date() - new Date(p.start + 'T00:00:00')) / 86400000) + 1);
+  /* 期内自然日数 = 「缺口达标 X/Y 天」的 Y，也是 {rate} 与称号分档的分母。
+     🔴 2026-10-06 Mak 拍板启用（此前这个值算出来**全库无人读**，是死值）：
+        显示用的 Y 是 rows.length（= **有记录的天数**）⇒ 没记账的日子被完全豁免，
+        一周只记 1 天且达标就显示「1/1 天」= 100% —— 口径在鼓励不记录，与打卡留存相反。
+     ⚠️ 三处分母必须**一起**换，否则卡面自相矛盾（「1/2 天」配「达标率 100%」）：
+        hitTxt（reviewPosterData / reviewText）· rate（reviewLines / rvFill）· reviewTip 分档
+        + rvPosterKey 的缓存指纹（分母变了图就得重画）。
+     ⚠️ `cnt` 的语义**不变**，仍是「有记录的天数」—— 池子里「{cnt} 天记满 / {cnt} 天持仓」靠它，
+        而且 empty 与 none 池的判定（r.cnt === 0）也靠它。⛔ 别顺手把 cnt 也改成自然日。 */
+  const dayN = rvDaysFrom(p.start);
   const avgDef = hit > 0 ? (pts.reduce(function (a, x) { return a + x.def; }, 0) / pts.length) : 0;
 
   return { p: p, total: total, hit: hit, cnt: rows.length, cum: cum, pts: pts, worst: worst,
     bigIn: bigIn, bigOut: bigOut,
     streakBest: streakBest, streakNow: streakNow, slump: slump,
-    dowWorst: dowWorst, cumEnd: cumEnd, cumPeak: cumPeak, avgDef: avgDef, days: days,
+    dowWorst: dowWorst, cumEnd: cumEnd, cumPeak: cumPeak, avgDef: avgDef, dayN: dayN,
     /* 2026-10-03 新增：运动口径 + 特色榜单（复盘海报用，纯计算不碰 DOM ⇒ 自动同步小程序） */
     exKcal: Math.round(exKcal), exMin: exMin, exCnt: exCnt, exMax: exMax,
     exDays: Object.keys(exDayMap).length,
@@ -5658,7 +5681,11 @@ function reviewData(isWeek_) {
 /* 文案占位符填充 —— 数字/日期/周期词**全部来自 r**，⛔ 池子里不许写死任何数值或「本周」。
    因为池子里的梗要「结合数据」，占位符就是这句话能不能成立的全部来源。
    {p} 本周|本月 ／ {tail} 下周|下月 ／ {worst} 最难看的那天 ／
-   {cnt} 记录天数 ／ {hit} 达标天数 ／ {rate} 达标率% ／ {kg} 折合减脂 kg ／
+   {cnt} **记录**天数 ／ {hit} 达标天数 ／ {dayN} 期内**自然日**数 ／ {rate} 达标率% ／ {kg} 折合减脂 kg ／
+   ⚠️ {cnt} 与 {dayN} 是**两回事**，⛔ 别混用：「{cnt} 天记满 / {cnt} 天持仓」讲的是**记了几天的账**（{cnt}）；
+      而「{hit}/{dayN} 的达标率」的分母必须是**期内有几天**（{dayN}）——
+      只有分母是自然日，跳过不记的那天才算「没达标」，而不是「根本不存在」。
+      ⛔ 也别写「{cnt} 天全勤」：{cnt} 只数记过账的天，不够 {dayN} 时「全勤」就是假话。
    {ex} 总消耗 kcal ／ {min} 总时长分钟 ／ {max} 单次最高 kcal ／ {excnt} 运动次数 ／
    {top} 多头霸主（吃最多）／ {work} 做空劳模（最常练）／ {burn} 空军司令（烧最多）
    ⚠️ 写池子时**只用上面这些**；typo 不会报错，只会原样印在用户的海报上
@@ -5668,7 +5695,9 @@ function rvFill(tpl, r, tail) {
   const w = r.worst ? fmtDay(r.worst.date) : (r.p.isWeek ? '本周' : '本月');
   const nm = function (o, d) { return (o && o.name) ? o.name : d; };
   return tpl.replace(/\{cnt\}/g, r.cnt).replace(/\{hit\}/g, r.hit)
-            .replace(/\{rate\}/g, r.cnt ? Math.round(r.hit / r.cnt * 100) : 0)
+            .replace(/\{dayN\}/g, r.dayN)
+            /* ⚠️ {rate} 的分母是 dayN（期内自然日），⛔ 不是 cnt —— 见 reviewData 里 dayN 的注释 */
+            .replace(/\{rate\}/g, r.dayN ? Math.round(r.hit / r.dayN * 100) : 0)
             .replace(/\{ex\}/g, fmtNum(r.exKcal)).replace(/\{min\}/g, r.exMin)
             .replace(/\{max\}/g, fmtNum(r.exMax)).replace(/\{excnt\}/g, r.exCnt)
             .replace(/\{kg\}/g, Math.abs(r.total / KCAL_PER_KG_FAT).toFixed(2))
@@ -5683,7 +5712,8 @@ function reviewTip(r) {
   const seed = _rvSeed(r);
   let pool;
   if (r.cnt === 0) pool = RV_TIP.none;
-  else if (r.total > 0 && r.hit / r.cnt >= 0.8) pool = RV_TIP.hi;
+  /* ⚠️ 分档看的是「达标率」⇒ 分母同 {rate}，用 dayN（自然日）：跳过不记的日子会拉低它 */
+  else if (r.total > 0 && r.hit / r.dayN >= 0.8) pool = RV_TIP.hi;
   else if (r.total > 0) pool = RV_TIP.up;
   else pool = RV_TIP.down;
   return rvFill(_rvPick(pool, seed, 7), r, tail);
@@ -5918,8 +5948,10 @@ const _RV_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 let _rvPoster = { key: '', file: null, url: '', busy: '', bad: false };
 
 function rvPosterKey(d) {
+  /* ⚠️ 分母 dayN 必须进指纹：跨天后自然日数变了，同一份存档的「X/Y 天」也就变了，
+     不进 key 的话预热缓存会把昨天的旧图端上来（label 在周内是不变的，指望不上它）。 */
   return (d.isWeek ? 'w' : 'm') + '|' + d.label + '|' + d.totalTxt
-    + '|' + d.hit + '/' + d.cnt + '|' + d.boards.length;
+    + '|' + d.hit + '/' + d.dayN + '|' + d.boards.length;
 }
 function rvPosterName(d) {
   return '健身交易员-' + d.title + '-' + d.label.replace(/[^\w]/g, '') + '.png';
@@ -6409,12 +6441,12 @@ const RV_ROAST = {
            '一头 {ex} kcal 的运动，一头没崩过的菜单——你就是「{top}」本人。',
            '{ex} kcal 的成绩单上只有一条走法，{tail}照抄就行。',
            '别人在追涨杀跌，你在按 {min} 分钟的节奏慢慢建仓。'],
-    down: ['{hit}/{cnt} 天达标，方向却反了——{ex} kcal 练出去，嘴又给补回来了。',
-           '{rate}% 的记录完成度，配上一份 {ex} kcal 的努力和一份更努力的菜单。',
+    down: ['{hit}/{dayN} 天达标，方向却反了——{ex} kcal 练出去，嘴又给补回来了。',
+           '{rate}% 的达标率，配上一份 {ex} kcal 的努力和一份更努力的菜单。',
            '账面亏损，问题不在运动：{min} 分钟的汗还没干，{top} 就上桌了。',
            '你练得很认真，吃得也很认真——{ex} kcal 白烧了。',
            '缺口全负：{excnt} 笔运动，被 {top} 一笔做平。',
-           '记录满分，纪律零分——{cnt} 天全勤，却没赢过一次账单。']
+           '记录满分，纪律零分——{cnt} 天全记着，却没赢过一次账单。']
   },
   mid: {
     up:   ['不温不火，稳中有升——{ex} kcal 的底仓，这种走势最养人。',
@@ -6426,7 +6458,7 @@ const RV_ROAST = {
     down: ['小亏能忍，但别惯性拖延到变大亏——{worst} 那天就该止损。',
            '{p}还在亏，{ex} kcal 的运动没盖住菜单。',
            '震荡偏弱，{worst} 是那个缺口，{tail}先盯它。',
-           '缺口是负的，但没崩——{hit}/{cnt} 的达标率，先别急着找理由。',
+           '缺口是负的，但没崩——{hit}/{dayN} 的达标率，先别急着找理由。',
            '账面小亏，{top} 的仓位明显太重了。',
            '上下都在动，{excnt} 笔运动的差额还没跟上。']
   },
@@ -6434,12 +6466,12 @@ const RV_ROAST = {
     up:   ['赚了点点，但基本靠运气——{ex} kcal 的浮盈最不经风。',
            '缺口是正的，靠的是 {ex} kcal 这一笔，不是你每天的纪律。',
            '小有红盘，别误以为自己是股神。',
-           '交易全凭感觉，{hit}/{cnt} 的胜率全靠天意。',
+           '交易全凭感觉，{hit}/{dayN} 的胜率全靠天意。',
            '赚了，但说不清是怎么赚的——曲线上唯一的高点就是你那次 {burn}。',
            '记录断断续续，单次最高 {max} kcal 那一笔倒是把曲线拉正了。'],
     down: ['这样下去，K线要在低位横盘很久——{ex} kcal 撑不起这条曲线。',
            '{p}净盈余，先别急着找理由。',
-           '回撤可控，但你该看看纪律了：{hit}/{cnt}。',
+           '回撤可控，但你该看看纪律了：{hit}/{dayN}。',
            '账记了一半，亏欠倒是完整的。',
            '{excnt} 笔 {work} 太少，撑不起一条曲线。',
            '不是没救，是还没开始。']
@@ -6454,9 +6486,9 @@ const RV_TIP = {
          '曲线要从第一笔记起，{tail}先补上第一天。', '没有成交就没有复盘，先动一笔。',
          '你的席位是空的：{tail}先记上一顿，哪怕只是一杯水。',
          '零成交也零风险，但零成交换不来任何变化。'],
-  hi:   ['{cnt} 天里 {hit} 天达标，{ex} kcal 练出去了，{tail}保持仓位别乱动。',
-         '达标 {hit}/{cnt}，几乎没有塌过——这种执行力，{tail}照抄就行。',
-         '{cnt} 天全勤、{hit} 天达标，{tail}的对手只有你自己。',
+  hi:   ['{dayN} 天里 {hit} 天达标，{ex} kcal 练出去了，{tail}保持仓位别乱动。',
+         '达标 {hit}/{dayN}，几乎没有塌过——这种执行力，{tail}照抄就行。',
+         '{cnt} 天记录、{hit} 天达标，{tail}的对手只有你自己。',
          '{rate}% 的达成率，{tail}别乱加仓位，稳住就是赢。',
          '{min} 分钟、{ex} kcal，这套流水线已经跑通了，{tail}别改参数。'],
   up:   ['整体是盈利的。{worst}那笔空单没接住，{tail}补回来就漂亮了。',
@@ -6477,7 +6509,7 @@ function reviewLines(r) {
   const tail = r.p.isWeek ? '下周' : '下月';
   if (r.cnt === 0) return { title: _rvPick(RV_TITLE.none, seed, 1),
     roast: rvFill(_rvPick(RV_ROAST.none, seed, 2), r, tail), rate: 0 };
-  const rate = r.hit / r.cnt;
+  const rate = r.hit / r.dayN;
   const band = rate >= 0.8 ? 'hi' : (rate >= 0.4 ? 'mid' : 'low');
   let title;
   if (r.streakBest >= 4) title = _rvPick(RV_TITLE.streak, seed, 3);
@@ -6561,8 +6593,9 @@ function reviewPosterData(isWeek_) {
     col: col, up: up,
     kgTxt: (kg >= 0 ? '' : '+') + Math.abs(kg).toFixed(2) + ' kg',
     kgUp: kg >= 0,
-    hit: r.hit, cnt: r.cnt, rate: ln.rate,
-    hitTxt: '缺口达标 ' + r.hit + '/' + r.cnt + ' 天',
+    hit: r.hit, cnt: r.cnt, dayN: r.dayN, rate: ln.rate,
+    /* 🔴 分母 = dayN（期内自然日），⛔ 不是 cnt（有记录的天数）—— 见 reviewData 里 dayN 的注释 */
+    hitTxt: '缺口达标 ' + r.hit + '/' + r.dayN + ' 天',
     cum: r.cum, hitLine: r.pts.map(function (x) { return x.def >= REVIEW_HIT_KCAL; }),
     /* 走势标注（波峰/波谷/最大回撤区间）—— 见 rvSparkMarks，两端画笔共用这一份 */
     marks: rvSparkMarks(r.cum),
@@ -6633,7 +6666,7 @@ function reviewText(isWeek_) {
   L.push('【' + r.p.title + ' · ' + r.p.label + '】');
   L.push('封号：' + ln.title + '（达标率 ' + ln.rate + '%）');
   L.push('净缺口 ' + fmtNum(Math.abs(r.total)) + ' kcal（约合减脂 ' + Math.abs(kg).toFixed(2) + ' kg）'
-    + '｜缺口达标 ' + r.hit + '/' + r.cnt + ' 天');
+    + '｜缺口达标 ' + r.hit + '/' + r.dayN + ' 天');
   /* 运动口径与海报数字格**逐项对齐**（Mak 2026-10-03：数字类目重在运动消耗） */
   L.push('运动：总消耗 ' + fmtNum(r.exKcal) + ' kcal / ' + r.exMin + ' 分钟 / '
     + r.exCnt + ' 次 / ' + r.exDays + ' 天，单次最高 ' + fmtNum(r.exMax) + ' kcal');
