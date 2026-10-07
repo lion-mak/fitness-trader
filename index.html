@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -755,18 +755,23 @@ body {
    为什么比成就金卡隆重：段位只有 10 档、升一档要几周，远稀有于「解锁一项成就」
    ⇒ 值得把注意力整体从页面上拿开（全屏遮罩），而不是角落里闪一下。
 
-   ⭐ v2.17.4 改版要点 ——「把段位卡本身亮出来」。原设计只有一行文字，
-      而段位卡是**自带鎏金框、底部已印段位名**的完整收藏卡 ⇒
+   ⭐ 改版要点 ——「把段位卡本身亮出来」+「主题只有四个字」。
       ① 卡外不再套第二层框（会跟金框打架）、卡下也不再重印段位名
          （与「藏品图鉴格不再自画卡名」是同一条纪律：卡面已印的东西别再说一遍）；
       ② 段位色**只在光晕一处**发光；仪式里的文字统一走琥珀 `--amber`。
          ⛔ 不再做「1px 段位色描边 + 46px 大光晕」—— 那是灯箱感，也是「粗糙」的主因；
          ⛔ 文字也不再用段位色（2026-10-07 用户反馈：中户段位色 #3d7be0 让
-            「段位提升 / 中户 / lv 3」三处文字**全成深蓝**，压在鎏金卡面上不搭）。
+            仪式文字**全成深蓝**，压在鎏金卡面上不搭）。
             另外段位色里有绿(#3fbf57 韭菜)有红(#c43a2e 主力)，在本 App 的盘口语境下
             与**涨跌色**撞义 ⇒ 庆祝文案绝不能是绿的。
             ⇒ 文字 = 荣耀琥珀（与卡面鎏金框同族）；段位身份由**光晕颜色**与卡面本身承担。
-      ③ 入场拆成四拍：光晕胀开 → 卡面弹入 → 扫光划过 → 文字逐行落位。
+      ③ 入场四拍：光晕胀开 → 卡面弹入 → 扫光划过 → 文字逐行落位。
+      ④ ⭐ v2.17.6（Mak 2026-10-07）：「段位提升」四个字就是主题 ⇒ **加粗加大**
+         （11px/700 → **17px/800**）；「散户 → 中户」整行**删掉**。
+         为什么删得掉：段位卡底部**已印段位名**，卡下再说一遍是重复（同 ① 的纪律），
+         而且那行字会跟卡面上的名字**打架**、把视线从主题上分走。
+         ⇒ 删掉后 `.ru-cap` 是全卡唯一的标题，字号必须压过 `.ru-desc` / `.ru-lv` 两个附注
+         （闸里就压这一条：cap > desc 且 cap > lv）。
    ⚠️ 全部走 transition（不是 animation）⇒ 常驻节点 + class 切换才能稳定重放。
       扫光回起点用 `transition:none` 兜住，否则关闭遮罩时它会倒着扫一遍。
    ⚠️ 卡面 210×300 = 源图 504×720 的 2.4x 缩放；画面是插画（不是像素画）⇒ 缩放无锯齿问题。
@@ -785,8 +790,9 @@ body {
   opacity:0; transform:scale(.55); pointer-events:none;
   transition:opacity .55s ease, transform .55s cubic-bezier(.34,1.4,.6,1); }
 #rankup.show .ru-glow { opacity:.34; transform:scale(1); }
-/* ⛔ 以下三处文字（小标题 / 流向终点 / lv 胶囊）统一琥珀，⛔ 不用 --ru（见文件头 ②） */
-#rankup .ru-cap { position:relative; font-size:11px; letter-spacing:3px; font-weight:700;
+/* ⛔ 以下两处文字（小标题 / lv 胶囊）统一琥珀，⛔ 不用 --ru（见文件头 ②）。
+   ⭐ v2.17.6：「段位提升」是主题 ⇒ 17px/800 是全卡最大最重的字（原是 11px/700 的小字）。 */
+#rankup .ru-cap { position:relative; font-size:17px; letter-spacing:5px; font-weight:800;
   color:var(--amber, #ffb800); opacity:0; transform:translateY(6px);
   transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-cap { opacity:1; transform:translateY(0); transition-delay:.10s; }
@@ -801,13 +807,12 @@ body {
   background:linear-gradient(105deg, rgba(255,255,255,0), rgba(255,255,255,.30), rgba(255,255,255,0));
   transform:translateX(-180%) rotate(8deg); transition:none; pointer-events:none; }
 #rankup.show .ru-sheen { transform:translateX(260%) rotate(8deg); transition:transform .8s ease .46s; }
-#rankup .ru-flow { position:relative; margin:14px 0 0; display:flex; align-items:center; justify-content:center; gap:8px;
-  opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
-#rankup.show .ru-flow { opacity:1; transform:translateY(0); transition-delay:.24s; }
-#rankup .ru-from { font-size:13px; color:var(--muted2); }
-#rankup .ru-arrow { font-size:12px; color:var(--muted2); }
-#rankup .ru-to { font-size:15px; font-weight:800; letter-spacing:1px; color:var(--amber, #ffb800); }
-#rankup .ru-desc { position:relative; font-size:12px; color:var(--muted); margin-top:7px;
+/* ⭐ v2.17.6：「散户 → 中户」整行删除（见文件头 ④）⇒ `.ru-flow` / `.ru-from` /
+   `.ru-arrow` / `.ru-to` 四个选择器两端一并消失，⛔ 别只删其中一个
+   （闸里按「四个都不存在」判，防半删）。
+   ⚠️ 原来 `.ru-flow` 自带 `margin-top:14px`，删了它 art → desc 就只剩 7px，比上方
+      cap → art 的 13px 还紧 ⇒ 把那段呼吸空间转给 `.ru-desc`（7px → 16px）。 */
+#rankup .ru-desc { position:relative; font-size:12px; color:var(--muted); margin-top:16px;
   opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-desc { opacity:1; transform:translateY(0); transition-delay:.31s; }
 #rankup .ru-lv { position:relative; display:inline-block; margin-top:13px; font-size:11px; padding:3px 12px;
@@ -3380,7 +3385,10 @@ function buzz(ms) {
 /* ============ 段位提升仪式（v2.17.3）============
    ⛔ 不发币（Mak 2026-10-07 拍板 1A「只发称号」）：本函数只读 RANKS / state.exp，不碰任何账。
    ⚠️ 没有队列：rankTellFrom 一次只返回一跳（seen → cur），同一帧最多一个仪式；
-      跨多级的情形在文案里体现（from → 最终段位），不拆成多次弹。
+      跨多级的情形由**卡面本身**体现（直接亮最终段位那张卡），不拆成多次弹。
+      ⚠️ v2.17.6 起 up.fromName / up.toName **不再上屏**（见 #rankup 段文件头 ④）⇒
+         up 里留着它们只是内核返回值的一部分，⛔ 别因为「界面上没人用」就去内核里
+         把字段删掉 —— 两端契约同源，删字段是小程序侧看不见的破坏。
    ⚠️ 定时器挂 `el._t`（不是模块级变量）—— 模块级 `let` 会被 mp_build 原样搬进内核，
       那样内核里就躺着一份「谁也改不到、恒为初值」的死状态。 */
 function showRankUp(up) {
@@ -3389,17 +3397,12 @@ function showRankUp(up) {
   /* 展示字段全部来自内核（rankTellFrom 的 up）—— 本函数只负责贴到 DOM 上，
      ⛔ 不在这里查 RANKS / 拼文案：那样两端的字就会各写一遍。 */
   el.style.setProperty('--ru', up.color);
-  /* ⚠️ v2.17.5：这里**不再**把 up.color 写进 #ru-to 的行内 color。
-     v2.17.3 起那行是 `t.style.color = up.color`（当时文字本就跟着段位色走，
-     还兼作老 WebView 的 CSS 变量保底）。现在文字统一琥珀（见 #rankup 段文件头 ②）
-     ⇒ 行内色会**盖住**样式表里的琥珀，把「散户 → 中户」的段位名又拽回深蓝；
-     更糟的是小程序侧没有这行（纯走 CSS）⇒ **两端会当场不一致**。
-     ⚠️ 这一条**源码级闸查不出来**（样式表两侧都是对的、对拍也全绿）——
-     是 PWA 探针量**算出来的颜色**才抓到的（铁律 #2：闸的运行环境必须对齐目标环境）。 */
-  const f = document.getElementById('ru-from'), t = document.getElementById('ru-to');
+  /* ⭐ v2.17.6（Mak 2026-10-07）：「散户 → 中户」整行删除 ⇒ 这里不再贴 from / to。
+     为什么删得掉：段位卡底部**已印段位名**，卡下再说一遍是重复，而且会跟卡面上的
+     名字打架、把视线从「段位提升」四个字上分走（见 #rankup 段文件头 ④）。
+     ⚠️ 历史：v2.17.3 这里曾有一行 `t.style.color = up.color`，v2.17.5 已删
+        —— 行内色会盖住样式表里的琥珀，且小程序侧没有这行 ⇒ 两端当场不一致。 */
   const d = document.getElementById('ru-desc'), l = document.getElementById('ru-lv');
-  if (f) f.textContent = up.fromName;
-  if (t) t.textContent = up.toName;
   if (d) d.textContent = up.desc;
   if (l) l.textContent = up.lvText;
   /* ⭐ v2.17.4：把段位卡本身亮出来 —— 升段拿到的就是这个东西，光写一行字太薄。
@@ -9380,8 +9383,9 @@ scheduleMidnightSettle();
 <div id="ach-toast"></div>
 <div id="info-toast"></div>
 
-<!-- 段位提升仪式（v2.17.3）。与三条 toast 一样**常驻**，靠 .show 切换。
-     ⛔ 不发币：只念段位名 + 描述 + lv。段位色由 showRankUp 注入 --ru。 -->
+<!-- 段位提升仪式（v2.17.3，v2.17.6 改版）。与三条 toast 一样**常驻**，靠 .show 切换。
+     ⛔ 不发币：亮段位卡 + 主题「段位提升」+ 描述 + lv（⛔ 段位名不上屏，卡面底部已印）。
+     段位色由 showRankUp 注入 --ru，只喂给光晕。 -->
 <div id="rankup" onclick="closeRankUp()">
   <div class="ru-card">
     <!-- ⛔ 光晕必须是第一个子元素：它和后面的卡面/文字同为定位元素，靠 DOM 序决定叠放 -->
@@ -9390,11 +9394,6 @@ scheduleMidnightSettle();
     <div class="ru-art">
       <img id="ru-img" alt="">
       <div class="ru-sheen"></div>
-    </div>
-    <div class="ru-flow">
-      <span class="ru-from" id="ru-from"></span>
-      <span class="ru-arrow">→</span>
-      <span class="ru-to" id="ru-to"></span>
     </div>
     <div class="ru-desc" id="ru-desc"></div>
     <div class="ru-lv" id="ru-lv"></div>
