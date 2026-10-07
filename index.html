@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -751,25 +751,64 @@ body {
       ⛔ 别在三个选择器里各写一遍颜色（改一处漏两处就是色不对）。
    ⚠️ 卡片的入场是 transition（不是 animation）—— 与三条 toast 同一套路：
       常驻节点 + class 切换才能让 transition 稳定触发。 */
+/* ============ 段位提升仪式（v2.17.4 改版）============
+   为什么比成就金卡隆重：段位只有 10 档、升一档要几周，远稀有于「解锁一项成就」
+   ⇒ 值得把注意力整体从页面上拿开（全屏遮罩），而不是角落里闪一下。
+
+   ⭐ v2.17.4 改版要点 ——「把段位卡本身亮出来」。原设计只有一行文字，
+      而段位卡是**自带鎏金框、底部已印段位名**的完整收藏卡 ⇒
+      ① 卡外不再套第二层框（会跟金框打架）、卡下也不再重印段位名
+         （与「藏品图鉴格不再自画卡名」是同一条纪律：卡面已印的东西别再说一遍）；
+      ② 段位色只承担四处：光晕 / 小标题 / 流向终点 / lv 胶囊。
+         ⛔ 不再做「1px 段位色描边 + 46px 大光晕」—— 那是灯箱感，也是「粗糙」的主因；
+      ③ 入场拆成四拍：光晕胀开 → 卡面弹入 → 扫光划过 → 文字逐行落位。
+   ⚠️ 全部走 transition（不是 animation）⇒ 常驻节点 + class 切换才能稳定重放。
+      扫光回起点用 `transition:none` 兜住，否则关闭遮罩时它会倒着扫一遍。
+   ⚠️ 卡面 210×300 = 源图 504×720 的 2.4x 缩放；画面是插画（不是像素画）⇒ 缩放无锯齿问题。
+      这个小程序侧**一字不差**（那是同源闸的基准，⛔ 别只改一端）。 */
 #rankup { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
   background:rgba(8,11,20,0); opacity:0; pointer-events:none;
   transition:opacity .3s ease, background .3s ease; }
-#rankup.show { opacity:1; background:rgba(8,11,20,.78); pointer-events:auto; }
-#rankup .ru-card { position:relative; width:76vw; max-width:300px; padding:26px 22px 22px; border-radius:20px;
-  background:linear-gradient(160deg, rgba(30,38,62,.99), rgba(18,23,38,.99));
-  border:1px solid var(--ru, #d4af37); text-align:center;
-  box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 46px -6px var(--ru, #d4af37);
-  transform:scale(.86) translateY(10px);
-  transition:transform .42s cubic-bezier(.34,1.56,.64,1); }
-#rankup.show .ru-card { transform:scale(1) translateY(0); }
-#rankup .ru-cap { font-size:11px; letter-spacing:3px; color:var(--ru, #d4af37); font-weight:700; }
-#rankup .ru-flow { margin:15px 0 4px; display:flex; align-items:center; justify-content:center; gap:9px; }
+#rankup.show { opacity:1; background:rgba(8,11,20,.82); pointer-events:auto; }
+#rankup .ru-card { position:relative; width:250px; padding:18px 20px 20px; border-radius:20px;
+  background:linear-gradient(165deg, #1b2338, #10141f);
+  border:1px solid rgba(255,255,255,.09); text-align:center;
+  box-shadow:0 24px 64px rgba(0,0,0,.7); }
+/* 段位色光晕：卡面的「光」由它出，而不是靠描边。⛔ 必须排在卡面之前（同 z-index 靠 DOM 序叠） */
+#rankup .ru-glow { position:absolute; top:34px; left:50%; width:244px; height:320px; margin-left:-122px;
+  background:radial-gradient(closest-side, var(--ru, #d4af37), transparent 78%);
+  opacity:0; transform:scale(.55); pointer-events:none;
+  transition:opacity .55s ease, transform .55s cubic-bezier(.34,1.4,.6,1); }
+#rankup.show .ru-glow { opacity:.34; transform:scale(1); }
+#rankup .ru-cap { position:relative; font-size:11px; letter-spacing:3px; font-weight:700;
+  color:var(--ru, #d4af37); opacity:0; transform:translateY(6px);
+  transition:opacity .3s ease, transform .3s ease; }
+#rankup.show .ru-cap { opacity:1; transform:translateY(0); transition-delay:.10s; }
+#rankup .ru-art { position:relative; width:210px; height:300px; margin:13px auto 0; border-radius:12px;
+  overflow:hidden; background:#0f1524; box-shadow:0 14px 34px rgba(0,0,0,.55);
+  opacity:0; transform:scale(.8) translateY(16px);
+  transition:opacity .4s ease, transform .5s cubic-bezier(.34,1.5,.5,1); }
+#rankup.show .ru-art { opacity:1; transform:scale(1) translateY(0); transition-delay:.16s; }
+#rankup .ru-art img { width:100%; height:100%; display:block; object-fit:cover; }
+/* 扫光：只扫一次，靠 transition-delay 压在卡面落位之后（.16+.5=.66 落定 ⇒ .46 起扫正合适） */
+#rankup .ru-sheen { position:absolute; top:-20%; left:0; width:60%; height:140%;
+  background:linear-gradient(105deg, rgba(255,255,255,0), rgba(255,255,255,.30), rgba(255,255,255,0));
+  transform:translateX(-180%) rotate(8deg); transition:none; pointer-events:none; }
+#rankup.show .ru-sheen { transform:translateX(260%) rotate(8deg); transition:transform .8s ease .46s; }
+#rankup .ru-flow { position:relative; margin:14px 0 0; display:flex; align-items:center; justify-content:center; gap:8px;
+  opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+#rankup.show .ru-flow { opacity:1; transform:translateY(0); transition-delay:.24s; }
 #rankup .ru-from { font-size:13px; color:var(--muted2); }
 #rankup .ru-arrow { font-size:12px; color:var(--muted2); }
-#rankup .ru-to { font-size:25px; font-weight:800; letter-spacing:1px; color:var(--ru, #d4af37); }
-#rankup .ru-desc { font-size:12px; color:var(--muted); margin-top:8px; }
-#rankup .ru-lv { display:inline-block; margin-top:15px; font-size:11px; padding:3px 12px; border-radius:12px;
-  color:var(--ru, #d4af37); border:1px solid var(--ru, #d4af37); font-variant-numeric:tabular-nums; }
+#rankup .ru-to { font-size:15px; font-weight:800; letter-spacing:1px; color:var(--ru, #d4af37); }
+#rankup .ru-desc { position:relative; font-size:12px; color:var(--muted); margin-top:7px;
+  opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+#rankup.show .ru-desc { opacity:1; transform:translateY(0); transition-delay:.31s; }
+#rankup .ru-lv { position:relative; display:inline-block; margin-top:13px; font-size:11px; padding:3px 12px;
+  border-radius:12px; color:var(--ru, #d4af37); border:1px solid var(--ru, #d4af37);
+  font-variant-numeric:tabular-nums;
+  opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
+#rankup.show .ru-lv { opacity:1; transform:translateY(0); transition-delay:.38s; }
 
 /* ============ 身体档案结果卡（v2.7.66：替代浏览器原生 alert） ============
    为什么不用 alert：阻塞式、白底、带系统「确定」按钮，完全脱离产品视觉；
@@ -3352,6 +3391,17 @@ function showRankUp(up) {
   if (t) { t.textContent = up.toName; t.style.color = up.color; }
   if (d) d.textContent = up.desc;
   if (l) l.textContent = up.lvText;
+  /* ⭐ v2.17.4：把段位卡本身亮出来 —— 升段拿到的就是这个东西，光写一行字太薄。
+     卡面地址由本端自己的资源表出（PWA = assets/ranks/*.webp，小程序 = 云存储 fileID，
+     两端地址本就不同，索引却同为 up.to ⇒ 各自查各自的表，语义同源）。
+     ⚠️ RANK_CARDS 在 L8500 一带声明，而本函数只可能在 render() 里被调到，
+        而 render() 的首次调用在脚本最末 ⇒ 不存在 TDZ（loadRankImg 同此假设）。 */
+  const im = document.getElementById('ru-img');
+  if (im) {
+    const src = 'assets/ranks/' + (RANK_CARDS[up.to] || RANK_CARDS[0]);
+    if (im.getAttribute('src') !== src) im.setAttribute('src', src);
+    im.alt = up.toName;
+  }
   el.classList.add('show');
   clearTimeout(el._t);
   el._t = setTimeout(function() { el.classList.remove('show'); }, 3600);
@@ -9323,7 +9373,13 @@ scheduleMidnightSettle();
      ⛔ 不发币：只念段位名 + 描述 + lv。段位色由 showRankUp 注入 --ru。 -->
 <div id="rankup" onclick="closeRankUp()">
   <div class="ru-card">
+    <!-- ⛔ 光晕必须是第一个子元素：它和后面的卡面/文字同为定位元素，靠 DOM 序决定叠放 -->
+    <div class="ru-glow"></div>
     <div class="ru-cap">段位提升</div>
+    <div class="ru-art">
+      <img id="ru-img" alt="">
+      <div class="ru-sheen"></div>
+    </div>
     <div class="ru-flow">
       <span class="ru-from" id="ru-from"></span>
       <span class="ru-arrow">→</span>
