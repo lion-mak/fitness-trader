@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -759,8 +759,13 @@ body {
       而段位卡是**自带鎏金框、底部已印段位名**的完整收藏卡 ⇒
       ① 卡外不再套第二层框（会跟金框打架）、卡下也不再重印段位名
          （与「藏品图鉴格不再自画卡名」是同一条纪律：卡面已印的东西别再说一遍）；
-      ② 段位色只承担四处：光晕 / 小标题 / 流向终点 / lv 胶囊。
+      ② 段位色**只在光晕一处**发光；仪式里的文字统一走琥珀 `--amber`。
          ⛔ 不再做「1px 段位色描边 + 46px 大光晕」—— 那是灯箱感，也是「粗糙」的主因；
+         ⛔ 文字也不再用段位色（2026-10-07 用户反馈：中户段位色 #3d7be0 让
+            「段位提升 / 中户 / lv 3」三处文字**全成深蓝**，压在鎏金卡面上不搭）。
+            另外段位色里有绿(#3fbf57 韭菜)有红(#c43a2e 主力)，在本 App 的盘口语境下
+            与**涨跌色**撞义 ⇒ 庆祝文案绝不能是绿的。
+            ⇒ 文字 = 荣耀琥珀（与卡面鎏金框同族）；段位身份由**光晕颜色**与卡面本身承担。
       ③ 入场拆成四拍：光晕胀开 → 卡面弹入 → 扫光划过 → 文字逐行落位。
    ⚠️ 全部走 transition（不是 animation）⇒ 常驻节点 + class 切换才能稳定重放。
       扫光回起点用 `transition:none` 兜住，否则关闭遮罩时它会倒着扫一遍。
@@ -780,8 +785,9 @@ body {
   opacity:0; transform:scale(.55); pointer-events:none;
   transition:opacity .55s ease, transform .55s cubic-bezier(.34,1.4,.6,1); }
 #rankup.show .ru-glow { opacity:.34; transform:scale(1); }
+/* ⛔ 以下三处文字（小标题 / 流向终点 / lv 胶囊）统一琥珀，⛔ 不用 --ru（见文件头 ②） */
 #rankup .ru-cap { position:relative; font-size:11px; letter-spacing:3px; font-weight:700;
-  color:var(--ru, #d4af37); opacity:0; transform:translateY(6px);
+  color:var(--amber, #ffb800); opacity:0; transform:translateY(6px);
   transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-cap { opacity:1; transform:translateY(0); transition-delay:.10s; }
 #rankup .ru-art { position:relative; width:210px; height:300px; margin:13px auto 0; border-radius:12px;
@@ -800,12 +806,12 @@ body {
 #rankup.show .ru-flow { opacity:1; transform:translateY(0); transition-delay:.24s; }
 #rankup .ru-from { font-size:13px; color:var(--muted2); }
 #rankup .ru-arrow { font-size:12px; color:var(--muted2); }
-#rankup .ru-to { font-size:15px; font-weight:800; letter-spacing:1px; color:var(--ru, #d4af37); }
+#rankup .ru-to { font-size:15px; font-weight:800; letter-spacing:1px; color:var(--amber, #ffb800); }
 #rankup .ru-desc { position:relative; font-size:12px; color:var(--muted); margin-top:7px;
   opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-desc { opacity:1; transform:translateY(0); transition-delay:.31s; }
 #rankup .ru-lv { position:relative; display:inline-block; margin-top:13px; font-size:11px; padding:3px 12px;
-  border-radius:12px; color:var(--ru, #d4af37); border:1px solid var(--ru, #d4af37);
+  border-radius:12px; color:var(--amber, #ffb800); border:1px solid var(--amber, #ffb800);
   font-variant-numeric:tabular-nums;
   opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-lv { opacity:1; transform:translateY(0); transition-delay:.38s; }
@@ -3383,12 +3389,17 @@ function showRankUp(up) {
   /* 展示字段全部来自内核（rankTellFrom 的 up）—— 本函数只负责贴到 DOM 上，
      ⛔ 不在这里查 RANKS / 拼文案：那样两端的字就会各写一遍。 */
   el.style.setProperty('--ru', up.color);
-  /* 色值一并写进行内：老 WebView 对 CSS 变量的支持不稳，颜色是这段唯一的语义信息，
-     丢不起（边框/光晕仍走 --ru，只是多一份保底）。 */
+  /* ⚠️ v2.17.5：这里**不再**把 up.color 写进 #ru-to 的行内 color。
+     v2.17.3 起那行是 `t.style.color = up.color`（当时文字本就跟着段位色走，
+     还兼作老 WebView 的 CSS 变量保底）。现在文字统一琥珀（见 #rankup 段文件头 ②）
+     ⇒ 行内色会**盖住**样式表里的琥珀，把「散户 → 中户」的段位名又拽回深蓝；
+     更糟的是小程序侧没有这行（纯走 CSS）⇒ **两端会当场不一致**。
+     ⚠️ 这一条**源码级闸查不出来**（样式表两侧都是对的、对拍也全绿）——
+     是 PWA 探针量**算出来的颜色**才抓到的（铁律 #2：闸的运行环境必须对齐目标环境）。 */
   const f = document.getElementById('ru-from'), t = document.getElementById('ru-to');
   const d = document.getElementById('ru-desc'), l = document.getElementById('ru-lv');
   if (f) f.textContent = up.fromName;
-  if (t) { t.textContent = up.toName; t.style.color = up.color; }
+  if (t) t.textContent = up.toName;
   if (d) d.textContent = up.desc;
   if (l) l.textContent = up.lvText;
   /* ⭐ v2.17.4：把段位卡本身亮出来 —— 升段拿到的就是这个东西，光写一行字太薄。
