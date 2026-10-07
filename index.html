@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -820,6 +820,53 @@ body {
   font-variant-numeric:tabular-nums;
   opacity:0; transform:translateY(6px); transition:opacity .3s ease, transform .3s ease; }
 #rankup.show .ru-lv { opacity:1; transform:translateY(0); transition-delay:.38s; }
+
+/* ============ 新手引导 + 未建档提示条（v2.18.0）============
+   Mak 2026-10-07 拍板「软强制」：首启自动弹 3 屏引导 → 最后一步**直达身体档案页**；
+   档案页留「稍后再说」⇒ 跳过后照常进主界面，但顶部**常驻**一条提示条
+   「档案未完善 · 达标线暂按默认 500 kcal」，点一下随时回去补。
+   ⛔ 为什么不给「必须填完才能用」的硬拦截（两道理由都写在提交信息里）：
+      ① 它是**自律工具**：数据越全越好，但「填不完就用不起来」是最差的结果；
+      ② 微信审核员点进去先被拦在填表单，容易被判成功能不完整。
+   ⚠️ 两个层都是**常驻节点 + class 切换**（与 #rankup / 三条 toast 同一套路）——
+      引导含入场过渡，常驻才能稳定重放；⛔ 一次性 display 重建会让过渡不触发。
+   ⚠️ z-index 序：引导 1100 > 提示条 1050 > 段位仪式 1000 > 三条 toast 999。
+      引导**必须**压住段位仪式 —— 首启补结算可能当场跨段，两者同框会打架。 */
+#onboard { position:fixed; inset:0; z-index:1100; display:flex; align-items:center; justify-content:center;
+  background:rgba(8,11,20,0); opacity:0; pointer-events:none;
+  transition:opacity .28s ease, background .28s ease; }
+#onboard.show { opacity:1; background:rgba(8,11,20,.9); pointer-events:auto; }
+#onboard .ob-card { width:290px; padding:24px 22px 18px; border-radius:20px;
+  background:linear-gradient(165deg, #1b2338, #10141f);
+  border:1px solid rgba(255,255,255,.09); box-shadow:0 24px 64px rgba(0,0,0,.7); }
+#onboard .ob-k { font-size:11px; letter-spacing:3px; color:var(--muted); text-align:center; }
+#onboard .ob-t { font-size:20px; font-weight:600; color:#fff; text-align:center; margin-top:6px;
+  line-height:1.4; }
+#onboard .ob-s { font-size:12px; color:var(--muted); text-align:center; margin-top:8px; line-height:1.7; }
+#onboard .ob-l { margin-top:16px; }
+#onboard .ob-li { display:flex; gap:9px; align-items:flex-start; margin-top:10px; }
+#onboard .ob-n { flex:0 0 18px; width:18px; height:18px; border-radius:5px; margin-top:1px;
+  background:rgba(255,184,0,.14); border:1px solid rgba(255,184,0,.5); color:var(--amber,#ffb800);
+  font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+#onboard .ob-x { font-size:12px; color:var(--muted); line-height:1.65; }
+#onboard .ob-dots { display:flex; gap:6px; justify-content:center; margin-top:18px; }
+#onboard .ob-dot { width:6px; height:6px; border-radius:3px; background:rgba(255,255,255,.2); }
+#onboard .ob-dot.on { background:var(--amber,#ffb800); }
+#onboard .ob-btns { display:flex; gap:10px; margin-top:18px; }
+#onboard .ob-b { flex:1; padding:11px 0; border-radius:12px; font-size:13px; text-align:center; cursor:pointer; }
+#onboard .ob-b.main { background:var(--red); color:#fff; font-weight:600; }
+#onboard .ob-b.ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+
+/* 未建档提示条：PWA 的页面顶部**不是** fixed 顶栏（是 .pheader，随页滚动），
+   所以这条 fixed 在 top:0 不会压住任何东西；⛔ 但正文要整体下移一条，否则盖住 .pheader。
+   ⇒ 挂在 body 上，一处生效、12 个页面自动都有（小程序没有 body，等价物是「逐页挂组件」，
+   见 hint.wxml 那条同源注释 —— 平台机制不同、语义一致）。 */
+#setupbar { display:none; position:fixed; top:0; left:0; right:0; z-index:1050;
+  padding:9px 14px; background:rgba(255,184,0,.12); border-bottom:1px solid rgba(255,184,0,.34);
+  font-size:12px; color:var(--amber,#ffb800); text-align:center; cursor:pointer; }
+#setupbar.show { display:block; }
+#setupbar .sb-go { color:#fff; font-weight:600; }
+body.setup-pending .page { padding-top:39px; }
 
 /* ============ 身体档案结果卡（v2.7.66：替代浏览器原生 alert） ============
    为什么不用 alert：阻塞式、白底、带系统「确定」按钮，完全脱离产品视觉；
@@ -3087,6 +3134,14 @@ function defaultState() {
     foodFreq: {},        // 自动统计：{ 食物名: { days:[日期...], n:次数, last:日期, cat, kcal, unit, gram } }
     usualsHidden: [],    // 被用户移出的自动常吃（不再自动回来）
     usualsGuideSeen: false,
+    /* 🆕 v2.18.0 新手引导 + 强制建档（Mak 2026-10-07 拍板「软强制」）。
+       🔴 为什么必须**显式**记这两个字段、不能靠 user 判空：
+          user 里全是**硬编码默认值**（男/30/175/72.8/目标-500）⇒ 存档里
+          **分不清「用户从没填过」和「用户填的就是这些值」**。而达标线
+          （rvHitKcal）恰恰只读 user.target ⇒ 不显式记就永远判不出「该不该引导」。
+       profileAt   = 首次建档日期（null = 从未建档）⇒ 顶部提示条的唯一判据
+       onboardSeen = 新手引导弹过没有（软强制：看过引导就 true，填不填档案他说了算） */
+    profileAt: null, onboardSeen: false,
     weightLog: [],       // 真实体重日志（仅记录真实输入，禁止任何模拟数据）：[{ date, weight }]
     bodyLog: []          // 身体成分逐次录入日志（仅真实录入，禁止模拟历史，口径同 diet/exercise/weightLog）：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]
   };
@@ -3154,6 +3209,18 @@ function loadState() {
       if (!Array.isArray(merged.usualsHidden)) merged.usualsHidden = [];
       if (!merged.foodFreq || typeof merged.foodFreq !== 'object') merged.foodFreq = {};
       merged.usualsGuideSeen = !!merged.usualsGuideSeen;
+      /* ---- v2.18.0 新手引导 / 强制建档：**老存档一律不弹** ----
+         🔴 为什么必须在这一层补：上面 `Object.assign({}, def, s)` 会把 def.profileAt（null）
+            填进**每一个**老存档 ⇒ 不补的话，全部现存用户都会被当成新用户弹一次引导。
+            这里是 loadState 里**唯一**的判据位置（下面 defaultState() 那条是给「无存档」的
+            全新用户走的，天然是 null/false ⇒ 必弹，符合预期）。
+         ⛔ 判据刻意**不看**有没有记录、只看「有没有走过这段迁移」：本地已有存档 = 这个人
+            见过这个 App 了，打扰他比漏引导更糟。⇒ 覆盖 100% 现存用户，零打扰。
+         ⚠️ 也别想在这里「用记录条数判断是不是老用户」：下面 weightLog 空时会被兜底塞 1 条
+            （见下方 v2.5.1）⇒ 拿 merged 判会得出「新用户也是老用户」的相反结论。
+         本行只改两个标记字段，不碰任何记录数组 ⇒ 不影响 __loadedCounts 缩水基线。 */
+      if (merged.profileAt == null) { merged.profileAt = k; merged.onboardSeen = true; }
+      merged.onboardSeen = !!merged.onboardSeen;
       // v2.2 健康币字段兜底 + 跨天重置当日记录得币
       if (typeof merged.coinToday !== 'number') merged.coinToday = 0;
       if (merged.coinDate !== k) { merged.coinToday = 0; merged.coinDate = k; }
@@ -3793,6 +3860,10 @@ function render() {
 
 
   // 涨停改为「收盘结算」触发：见 settleDay()，render 不再自动判定（避免记一笔就查达标）
+  /* v2.18.0 未建档提示条挂在这里 ⛔ 不挂在 saveProfile()：任何改 state 的路径
+     （保存档案 / 导入存档 / 跨天重置）都必经 render()，挂这里才保证「提示条的
+     显示与否」只有一个判据来源，不会出现「界面变了但那条没变」。 */
+  try { renderSetupBar(); } catch (e) { console.error('[引导] 提示条渲染失败：', e); }
   saveState();
   /* 首帧 render 走完 = 启动期结束 ⇒ 关掉缩水闸（此后用户的删除/编辑都是正常操作）。 */
   __booted = true;
@@ -7988,6 +8059,12 @@ function saveProfile() {
   var rawTarget = parseInt(document.getElementById('f-target').value, 10);
   state.user.target = clampTargetGap(rawTarget);
   var targetClamped = isFinite(rawTarget) && rawTarget !== 0 && rawTarget > TARGET_GAP_MIN;
+  /* 🔴 v2.18.0 建档时刻打点 —— 顶部「档案未完善」提示条的唯一判据。
+     幂等（已建过档就永远保留第一次的时间，⛔ 别每次保存都刷新成今天：
+     那样「建档多久」这个信息就丢了，而段位/成就的时间线都靠它对齐）。
+     ⚠️ 必须在下面的 render() → saveState() **之前**改，否则会出现
+     「提示条这次消失了，但存档里还是 null」⇒ 下次冷启动提示条又冒出来。 */
+  if (!state.profileAt) { state.profileAt = todayStr(); state.onboardSeen = true; }
   recordWeight();   // 每次保存档案即写入一条真实体重日志
   render(); switchTab('market');
   /* 被压过就在结果卡的附注行里说明（⛔ 不静默改写用户填的数）。
@@ -8010,6 +8087,119 @@ function showBodyArchive() { switchTab('body-archive'); }
    注：`#f-gender` 的 onchange 会即时重画人形图（图文同源，都读该控件当前值），
    未保存返回时「图变了、其余三项没变」是既有设计，不是不一致 bug。 */
 function backFromBodyArchive() { switchTab('profile'); }
+
+/* ============ 新手引导 + 未建档提示条（v2.18.0）============
+   Mak 2026-10-07 拍板「软强制」：首启自动弹 3 屏 ⇒ 最后一步**直达身体档案页**；
+   档案页留「稍后再说」⇒ 跳过后照常进主界面，但顶部**常驻**一条提示条。
+   ⚠️ 判定只有两个字段：onboardSeen（弹过没有）/ profileAt（建档没有）。
+      这两条能成立的前提是 loadState 的迁移链已把**老存档**一次性标成
+      「已建档 + 看过引导」⇒ 现存用户 100% 不会被弹（理由见 loadState 那段注释）。
+   ⚠️ 下面 4 个渲染函数都登记在 mp_build 的 RENDER_ONLY 里：它们是 PWA 页面专用，
+      而 onboardNext 这种「自己不碰 document、只调别人」的**必被误判成纯计算**搬进内核，
+      一旦依赖被剔除，内核里就躺着「一调就 ReferenceError」的坏函数（与 psMem 同款坑）。
+   ⚠️ 文案里**不写死数字**：达标线那个数用 {hit} 占位、渲染时过 rvHitKcal() 填 ——
+      两端同一份真源（小程序内核也导出了它），改了常量文案自动跟着变（铁律 #27）。
+   ⚠️ 标题是**两段数组**、渲染成两行，⛔ 不靠自动折行 —— 两条都是量出来的：
+      ① 本页有 `*{box-sizing:border-box}`（文件头第 15 行）⇒ `.ob-card` 的**内容宽
+         = 290 − padding 22×2 − border 1×2 = 244px**（⛔ 不是 290px，我第一版注释就是这么
+         写错的，被探针量到的 span 宽 244px 打掉）；
+      ② 小程序侧 padding 用 rpx ⇒ 内容宽约 **265px**。**两端卡片内容宽本来就不同** ⇒
+         同一段文案靠自动折行，两端折出来的位置必然不一样。
+      ⇒ 折行点写进文案（t 是两段数组），每段 ≤8 字（8×23=184px，两端都留足余量）。 */
+const OB_STEPS = [
+  { k: '交易员入场',
+    t: ['这不是记体重', '是开一个账户'],
+    s: '你的一日三餐是持仓，运动是交易，缺口是净值。',
+    li: ['吃：每一笔饮食 = 一次买入，热量进仓',
+        '动：每一次运动 = 一次卖出，热量出仓',
+        '算：当日净缺口 = 你的收盘净值'] },
+  { k: '达标线的唯一来源',
+    t: ['达标线只认', '你的身体档案'],
+    s: '没有档案，所有数字都是默认值 —— 达标、复盘、段位全都算不准。',
+    li: ['达标线 = 档案里的「每日目标缺口」，现在暂按 {hit} kcal 算',
+        '基础代谢 BMR 由 性别 / 年龄 / 身高 / 体重 算出',
+        '活动量决定 TDEE，运动消耗按它折算'] },
+  { k: '两分钟填完',
+    t: ['两分钟填完', '之后随时能改'],
+    s: '填完立刻生效；之后在「我的 → 身体档案」里随时改，达标线会跟着变。',
+    li: ['8 个字段，只有 4 个必填',
+        '目标缺口有安全下限（不会松到形同虚设）',
+        '我们不生成任何示例数据，只有你填的才算'] },
+];
+const OB_LAST = OB_STEPS.length - 1;
+
+/* 渲染第 i 屏。⛔ 不碰 state —— 引导本身不改变任何计算数据。 */
+function onboardGo(i) {
+  const el = document.getElementById('onboard');
+  if (!el || !OB_STEPS[i]) return;
+  const d = OB_STEPS[i];
+  /* ⛔ 一次 replace 只换第一处：文案里若出现两个 {hit} 会漏掉一个
+     （String.replace 无 /g）⇒ 统一走 split/join，不赌文案只写一次。 */
+  const tx = (s) => String(s).split('{hit}').join(String(rvHitKcal()));
+  document.getElementById('ob-k').textContent = 'STEP ' + (i + 1) + ' / ' + OB_STEPS.length;
+  /* 标题两行：⛔ 不用 CSS 自动折行（两端字体不同 ⇒ 折行位置会不一样），
+     也⛔不用 textContent 一次写完（那样又是一行）。innerHTML 拼 <br> 是安全的 ——
+     t 是**硬编码常量数组**、没有用户输入（真要接动态文案，这里必须改成建子节点）。 */
+  document.getElementById('ob-t').innerHTML = d.t.map(function (x) {
+    return '<span style="display:block">' + tx(x) + '</span>';
+  }).join('');
+  document.getElementById('ob-s').textContent = d.s;
+  document.getElementById('ob-l').innerHTML = d.li.map(function (x, j) {
+    return '<div class="ob-li"><div class="ob-n">' + (j + 1) + '</div><div class="ob-x">' + tx(x) + '</div></div>';
+  }).join('');
+  document.getElementById('ob-dots').innerHTML = OB_STEPS.map(function (_, j) {
+    return '<div class="ob-dot' + (j === i ? ' on' : '') + '"></div>';
+  }).join('');
+  document.getElementById('ob-next').textContent = (i === OB_LAST) ? '去建档' : '下一步';
+  el.classList.add('show');
+  el._ob = i;
+}
+
+/* 下一步；最后一屏那个按钮也是它（只换了文案，仍是「往终点走」）。 */
+function onboardNext() {
+  const el = document.getElementById('onboard');
+  const i = (el && typeof el._ob === 'number') ? el._ob : 0;
+  if (i < OB_LAST) { onboardGo(i + 1); return; }
+  onboardClose(1);
+}
+
+/* 关闭。gotoArchive=1 ⇒ 顺路把人送到身体档案页（这条就是「软强制」的落点）。
+   ⚠️ onboardSeen 在**这里**置 true，不是在保存档案时：用户点「去建档」后没保存就退出，
+      引导不该再弹第二次，但顶部提示条要继续盯着他（profileAt 仍是 null）。 */
+function onboardClose(gotoArchive) {
+  const el = document.getElementById('onboard');
+  if (el) el.classList.remove('show');
+  if (!state.onboardSeen) { state.onboardSeen = true; saveState(); }
+  renderSetupBar();
+  if (gotoArchive) showBodyArchive();
+}
+
+/* 顶部「档案未完善」提示条。判据 = !profileAt（⛔ 不是 !onboardSeen ——
+   看过引导但没建档的人，正是这条提示要一直盯住的那批）。
+   ⚠️ 一并切 body.setup-pending 把 12 个页面整体下移一条（页面顶部不是 fixed 顶栏）。 */
+function renderSetupBar() {
+  const el = document.getElementById('setupbar');
+  if (!el) return;
+  const pending = !state.profileAt;
+  if (pending) {
+    const tx = document.getElementById('setupbar-tx');
+    if (tx) tx.textContent = '身体档案未完善 · 达标线暂按 ' + rvHitKcal() + ' kcal 算';
+  }
+  if (pending) el.classList.add('show'); else el.classList.remove('show');
+  if (document.body) {
+    if (pending) document.body.classList.add('setup-pending');
+    else document.body.classList.remove('setup-pending');
+  }
+}
+
+/* 启动：先刷提示条（render() 里也会刷，这里是给引导那一次用的），
+   再按需弹引导。⚠️ 延迟 380ms：让首屏先画完 —— 引导是 transition，
+   首帧就 .show 会与页面入场同帧抖一下。 */
+function bootOnboard() {
+  renderSetupBar();
+  if (state.onboardSeen) return;
+  setTimeout(function () { if (!state.onboardSeen) onboardGo(0); }, 380);
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    交易人格测试子页（v2.8.0）—— 规划文档《健身交易员-交易人格测试-规划》§3
@@ -9247,6 +9437,9 @@ document.getElementById('avatar-input').addEventListener('change', function(e) {
 /* 预加载食物库（失败自动降级到内置精简库，不报错） */
 if (typeof FoodStore !== 'undefined') { FoodStore.load().catch(function(){}); }
 render();
+/* v2.18.0 新手引导：首启弹 3 屏（老存档已被 loadState 标成 onboardSeen ⇒ 这里不会弹）。
+   ⚠️ 必须在 render() **之后**：首屏先画完，引导的入场过渡才不会与页面入场同帧抖一下。 */
+bootOnboard();
 /* 品牌 logo 预热（见 loadBrandLogo）：上面那句 render() 已经 warm 过一次海报，
    但那时图还没到 ⇒ 加载完成后作废缓存重画一次，否则第一次保存的图上没有 logo。 */
 loadBrandLogo(function () { _rvPoster.key = ''; warmReviewPoster(); });
@@ -9398,6 +9591,29 @@ scheduleMidnightSettle();
     <div class="ru-desc" id="ru-desc"></div>
     <div class="ru-lv" id="ru-lv"></div>
   </div>
+</div>
+
+<!-- 新手引导（v2.18.0）· 3 屏常驻，靠 .show 切换。与 #rankup 同一套路（⛔ 一次性重建会让过渡不触发）。
+     ⛔ 文案里**不写死数字**：达标线那个数由 rvHitKcal() 在渲染时填（铁律 #27），
+        否则改了 REVIEW_HIT_KCAL 而文案没改 ⇒ 用户看到一个已经不准的数。 -->
+<div id="onboard">
+  <div class="ob-card">
+    <div class="ob-k" id="ob-k"></div>
+    <div class="ob-t" id="ob-t"></div>
+    <div class="ob-s" id="ob-s"></div>
+    <div class="ob-l" id="ob-l"></div>
+    <div class="ob-dots" id="ob-dots"></div>
+    <div class="ob-btns">
+      <div class="ob-b ghost" id="ob-skip" onclick="onboardClose(0)">稍后再说</div>
+      <div class="ob-b main" id="ob-next" onclick="onboardNext()">下一步</div>
+    </div>
+  </div>
+</div>
+
+<!-- 未建档提示条（v2.18.0）：只有 !state.profileAt 时 .show。点一下直达身体档案页。
+     ⛔ 这条是「软强制」的兑现处：引导可以跳过，但「没档案」这件事会一直挂在眼前。 -->
+<div id="setupbar" onclick="showBodyArchive()">
+  <span id="setupbar-tx"></span><span class="sb-go"> 去补全 ›</span>
 </div>
 
 <!-- ============ 身体档案结果卡（v2.7.66，替代 alert）============
