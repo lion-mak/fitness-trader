@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.17.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.17.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -741,6 +741,35 @@ body {
 @keyframes achPop { 0%{transform:scale(0) rotate(-20deg)} 60%{transform:scale(1.3) rotate(8deg)} 100%{transform:scale(1) rotate(0)} }
 #info-toast { position:fixed; top:calc(env(safe-area-inset-top, 0px) + 110px); left:50%; transform:translateX(-50%) translateY(-16px); background:rgba(18,25,42,.96); color:#00c896; font-size:13px; font-weight:600; padding:9px 16px; border-radius:20px; border:1px solid rgba(0,200,150,.4); box-shadow:0 6px 24px rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .22s ease, transform .22s ease; z-index:999; white-space:nowrap; }
 #info-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ============ 段位提升仪式（v2.17.3 · Mak 2026-10-07 拍板 1A）============
+   全屏遮罩 + 居中大卡。**为什么比成就金卡隆重**：段位只有 10 档、升一档要几周，
+   比「解锁一项成就」稀有得多 ⇒ 值得把注意力从页面上整体拿开，而不是角落里闪一下。
+   ⛔ **不发币**（拍板「只发称号」）：本层只读 RANKS / state.exp，RANKS 表也没有 reward 字段，
+      别在这里给段位偷偷加经济效果。
+   ⚠️ 段位色走 CSS 变量 `--ru`（由 showRankUp 按目标段位注入）⇒ 边框/光晕/胶囊三处同色，
+      ⛔ 别在三个选择器里各写一遍颜色（改一处漏两处就是色不对）。
+   ⚠️ 卡片的入场是 transition（不是 animation）—— 与三条 toast 同一套路：
+      常驻节点 + class 切换才能让 transition 稳定触发。 */
+#rankup { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
+  background:rgba(8,11,20,0); opacity:0; pointer-events:none;
+  transition:opacity .3s ease, background .3s ease; }
+#rankup.show { opacity:1; background:rgba(8,11,20,.78); pointer-events:auto; }
+#rankup .ru-card { position:relative; width:76vw; max-width:300px; padding:26px 22px 22px; border-radius:20px;
+  background:linear-gradient(160deg, rgba(30,38,62,.99), rgba(18,23,38,.99));
+  border:1px solid var(--ru, #d4af37); text-align:center;
+  box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 46px -6px var(--ru, #d4af37);
+  transform:scale(.86) translateY(10px);
+  transition:transform .42s cubic-bezier(.34,1.56,.64,1); }
+#rankup.show .ru-card { transform:scale(1) translateY(0); }
+#rankup .ru-cap { font-size:11px; letter-spacing:3px; color:var(--ru, #d4af37); font-weight:700; }
+#rankup .ru-flow { margin:15px 0 4px; display:flex; align-items:center; justify-content:center; gap:9px; }
+#rankup .ru-from { font-size:13px; color:var(--muted2); }
+#rankup .ru-arrow { font-size:12px; color:var(--muted2); }
+#rankup .ru-to { font-size:25px; font-weight:800; letter-spacing:1px; color:var(--ru, #d4af37); }
+#rankup .ru-desc { font-size:12px; color:var(--muted); margin-top:8px; }
+#rankup .ru-lv { display:inline-block; margin-top:15px; font-size:11px; padding:3px 12px; border-radius:12px;
+  color:var(--ru, #d4af37); border:1px solid var(--ru, #d4af37); font-variant-numeric:tabular-nums; }
 
 /* ============ 身体档案结果卡（v2.7.66：替代浏览器原生 alert） ============
    为什么不用 alert：阻塞式、白底、带系统「确定」按钮，完全脱离产品视觉；
@@ -3240,13 +3269,99 @@ function achOwnedAllOf(r) {
 /* v2.7.55 已删除 resetAll() 与行情页右上角的「↺ 重置」按钮：该按钮位于顶部可误触区，一次误点就清空全部记录。需要清空时请直接清浏览器站点数据。⛔不要加回来。 */
 
 /* ============ 数据备份 / 恢复（防丢，跨源可移植） ============ */
+/* 是否有**全屏遮罩**正在播（段位仪式 / 涨停仪式）。
+   ⚠️ 这两层都是 `position:fixed` 铺满 + z-index >= 1000，而三条 toast 是 999
+      ⇒ 遮罩期间弹 toast，用户只会看到「遮罩合上又打开」，那条提示在遮罩底下
+        过完了自己的停留时间（成就 2600ms / 信息 1800ms），**等于没弹**。
+   ⚠️ 判据走 DOM class 而不是模块级变量：模块级 `let` 会被 mp_build 原样搬进内核，
+      那样内核里就躺着一份谁也改不到的死状态。 */
+function fullOverlayOn() {
+  const a = document.getElementById('rankup');
+  if (a && a.classList.contains('show')) return true;
+  const c = document.getElementById('celeb');
+  if (c && c.classList.contains('show')) return true;
+  return false;
+}
+/* 让出遮罩时间：有遮罩时把动作推迟到遮罩结束（3600ms 仪式 + 300ms 余量）。
+   ⛔ 别改成「等遮罩消失再查」的轮询 —— 轮询在遮罩没出现时会一直空转，
+      而这里只需要一次让步。 */
+const OVERLAY_HOLD = 3900;
+
 function toastInfo(msg) {
   const el = document.getElementById('info-toast');
   if (!el) return;
+  /* 遮罩期间让位：这条信息在遮罩下过完 1.8s = 白弹（见 fullOverlayOn 的注释）。 */
+  if (fullOverlayOn()) {
+    clearTimeout(el._w);
+    el._w = setTimeout(function() { toastInfo(msg); }, OVERLAY_HOLD);
+    return;
+  }
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(el._t);
   el._t = setTimeout(function() { el.classList.remove('show'); }, 1800);
+}
+
+/* 显示一条成就金卡（原先是内联在 render() 的 forEach 里，2026-10-07 抽出来 ——
+   因为现在它需要**在遮罩期间延后再来一次**，内联写法没法自我重入）。 */
+function showOneAch(a) {
+  const el = document.getElementById('ach-toast');
+  if (!el) return;
+  if (fullOverlayOn()) {
+    clearTimeout(el._w);
+    el._w = setTimeout(function() { showOneAch(a); }, OVERLAY_HOLD);
+    return;
+  }
+  el.innerHTML = '<span class="a-ic">🏆</span><div class="a-cap">成就解锁</div><div class="a-name">' + a.name + '</div><div class="a-rew">+' + a.reward + ' 健康币</div>';
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function() { el.classList.remove('show'); }, 2600);
+}
+
+/* ============ 触觉反馈（v2.17.3）============
+   三处：涨停 / 抽到 SR / 成就解锁（Mak 2026-10-07 拍板）。
+   ⚠️ **iOS Safari 没有 navigator.vibrate**（WebKit 至今没实现振动 API）⇒ 静默跳过，不是 bug。
+      所以本函数只做「有就震、没有就算了」，⛔ 绝不能拿它当唯一反馈通路
+      （PWA 侧 iOS 用户占大头，震动只是锦上添花）。
+   ⚠️ 传**单个毫秒数**而不是数组模式：数组模式在 Android Chrome 上支持最好，
+      但我们只要「轻点一下」的手感 —— 单值最稳，也不会因设备差异变成长震。
+   ⚠️ 本函数含 `navigator.` ⇒ mp_build 的 DARK 会把它判成渲染档、在内核里留一个
+      `__fire('buzz', …)` 空壳 —— **这正是我们要的**：内核（settleDay / drawCard）
+      照样能调 buzz()，小程序侧由 app.js 接到 wx.vibrateShort。⛔ 别登记进 RENDER_ONLY。 */
+function buzz(ms) {
+  try { if (navigator.vibrate) navigator.vibrate(ms || 14); } catch (e) {}
+}
+
+/* ============ 段位提升仪式（v2.17.3）============
+   ⛔ 不发币（Mak 2026-10-07 拍板 1A「只发称号」）：本函数只读 RANKS / state.exp，不碰任何账。
+   ⚠️ 没有队列：rankTellFrom 一次只返回一跳（seen → cur），同一帧最多一个仪式；
+      跨多级的情形在文案里体现（from → 最终段位），不拆成多次弹。
+   ⚠️ 定时器挂 `el._t`（不是模块级变量）—— 模块级 `let` 会被 mp_build 原样搬进内核，
+      那样内核里就躺着一份「谁也改不到、恒为初值」的死状态。 */
+function showRankUp(up) {
+  const el = document.getElementById('rankup');
+  if (!el || !up) return;
+  /* 展示字段全部来自内核（rankTellFrom 的 up）—— 本函数只负责贴到 DOM 上，
+     ⛔ 不在这里查 RANKS / 拼文案：那样两端的字就会各写一遍。 */
+  el.style.setProperty('--ru', up.color);
+  /* 色值一并写进行内：老 WebView 对 CSS 变量的支持不稳，颜色是这段唯一的语义信息，
+     丢不起（边框/光晕仍走 --ru，只是多一份保底）。 */
+  const f = document.getElementById('ru-from'), t = document.getElementById('ru-to');
+  const d = document.getElementById('ru-desc'), l = document.getElementById('ru-lv');
+  if (f) f.textContent = up.fromName;
+  if (t) { t.textContent = up.toName; t.style.color = up.color; }
+  if (d) d.textContent = up.desc;
+  if (l) l.textContent = up.lvText;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function() { el.classList.remove('show'); }, 3600);
+}
+/* 点遮罩任意处提前关掉 —— 3.6s 对想看数字的人是长了一点。 */
+function closeRankUp() {
+  const el = document.getElementById('rankup');
+  if (!el) return;
+  clearTimeout(el._t);
+  el.classList.remove('show');
 }
 function exportData() {
   try {
@@ -3485,6 +3600,19 @@ function badgeIcon(type) {
 function render() {
   const t = totals();
   const u = state.user;
+
+  /* 段位提升检测（v2.17.3）。挂在这里的三个理由：
+     ① 段位 = f(state.exp)，而 exp 只在「记录 / 结算 / 导入」时变 ⇒ 与成就同一时机，
+        共用本函数尾部的 saveState() 落盘（rankSeen 必须落盘，否则下次打开二次弹）；
+     ② 必须在 saveState() **之前**改 state.rankSeen —— 顺序反了就是「弹了但没记住」；
+     ③ 不放进 loadState()：那里 `RANKS` / `lvFromExp` 还没初始化（`let state = loadState()`
+        在 L2478，而 `RANKS` 在 L2505）⇒ 一调就踩 TDZ、启动即白屏
+        （与 TARGET_GAP_MIN 那次是同一个坑）。
+     ⚠️ 首次识别（老存档没有 rankSeen）由 rankTellFrom 内部认领，不报事件。 */
+  const rt = rankTellFrom(state.exp, state.rankSeen);
+  if (rt.seen !== state.rankSeen) state.rankSeen = rt.seen;
+  if (rt.up) { showRankUp(rt.up); buzz(16); }
+
   // 更新成就条件状态（解锁 + 发奖）
   // 幂等：state.ach[id] 一旦置 true 即持久化，重复 render 不会二次发奖
   state.gapToday = t.net <= state.user.target && t.net < 0;
@@ -3500,16 +3628,13 @@ function render() {
     }
   });
   if (achQueue.length) {
+    /* 触觉只给一次（不是按条震）：连解锁三项也只是一个「成功了」的手感，
+       按条震会变成连拍、像卡了 bug。 */
+    buzz(14);
     achQueue.forEach(function(a, i) {
-      setTimeout(function() {
-        var el = document.getElementById('ach-toast');
-        if (el) {
-          el.innerHTML = '<span class="a-ic">🏆</span><div class="a-cap">成就解锁</div><div class="a-name">' + a.name + '</div><div class="a-rew">+' + a.reward + ' 健康币</div>';
-          el.classList.add('show');
-          clearTimeout(el._t);
-          el._t = setTimeout(function() { el.classList.remove('show'); }, 2600);
-        }
-      }, i * 550);
+      /* 队列步进 550ms（原节奏不变）。「遮罩期间延后」由 showOneAch 自己处理 ——
+         段位仪式 3.6s / 涨停仪式期间弹金卡，等于让它在遮罩底下过完 2600ms。 */
+      setTimeout(function() { showOneAch(a); }, i * 550);
     });
   }
   const unlocked = ACHIEVEMENTS.filter(a => state.ach[a.id]).length;
@@ -8338,9 +8463,51 @@ function closeCeleb() { document.getElementById('celeb').classList.remove('show'
 /* ============ 健康币 / 等级 详情页 ============ */
 function currentRank() {
   const lv = lvFromExp(state.exp);          // ⚠️ 曲线口径在 lvFromExp，⛔别写回 exp/100+1
-  let r = RANKS[0];
-  for (const x of RANKS) if (lv >= x.minLv) r = x;
-  return { lv: lv, rank: r };
+  /* ⚠️ 段位索引走 rankIdxOf（「lv → 第几段」的**唯一**实现），⛔ 别在这里再写一遍循环：
+     两处各写一份的话，改一处漏一处就会出现「我的页显示中户、段位仪式却说散户」
+     这种自相矛盾 —— 而且两处都还是绿的（各自内部自洽）。
+     `rankIdxOf` 定义在本函数之后，靠函数声明提升，调用无顺序问题。 */
+  return { lv: lv, rank: RANKS[rankIdxOf(state.exp)] || RANKS[0] };
+}
+
+/* ============ 段位变化告知（v2.17.3 · Mak 2026-10-07 拍板 1A）============
+   从前「段位提升」这件事**在系统里不存在**：currentRank() 是纯函数（累计经验 → 段位），
+   没有任何「我上次是几段」的持久化 ⇒ 系统无从知道「你刚刚升段了」。
+   唯一的痕迹是段位卡廊会自动滚到当前段位，而那个定位锚（railCurIdx）是内存变量、重载即失忆。
+   ⇒ 从散户熬到中户，用户只会在某次打开「我的」页时**偶然发现卡廊换位置了**。
+
+   这两个函数是纯函数（**显式传参，不读模块级 state**）：
+     ① 不碰 state ⇒ DARK 判据不会把它当渲染档，mp_build 会一字不改地抽进内核 ⇒ 两端同源；
+     ② 好测 —— 给 exp/seen 就能断言，不用构造整个存档。
+
+   ⚠️ `seen` 传 null（老存档没有该字段 / 新用户）时只「认领当下」**不报事件** ——
+      否则每个老用户升级到本版本后一打开就白弹一次「韭菜 → 当前段位」的假仪式。
+   ⚠️ 段位只升不降，但**导入一份低 exp 的存档**会让 cur < seen ⇒ 静默把 seen 回退到 cur。
+      不回退的话，下次真升段会一次跨两级（从虚高的旧值直接跳到新值，中间那级永远不报）。 */
+function rankIdxOf(exp) {
+  const lv = lvFromExp(exp);
+  let i = 0;
+  for (let k = 0; k < RANKS.length; k++) if (lv >= RANKS[k].minLv) i = k;
+  return i;
+}
+function rankTellFrom(exp, seen) {
+  const cur = rankIdxOf(exp);
+  if (seen == null) return { seen: cur, up: null };
+  if (cur <= seen) return { seen: cur, up: null };
+  /* `up` 里连**展示字段**一起带出去（名字 / 颜色 / 描述 / lv 串）——
+     两端都从内核取，⛔ 别让页面各自 `RANKS[up.to].name`：
+     那样改一次 RANKS 就要改两处，而「名字和颜色对不上」这种错根本看不出是 bug。
+     `rankRange` / `lvFromExp` 是函数声明（提升），在这里调用没有顺序问题。 */
+  const fm = RANKS[Math.max(0, seen)] || RANKS[0];
+  const to = RANKS[cur] || RANKS[0];
+  return { seen: cur, up: { from: seen, to: cur,
+    fromName: fm.name, toName: to.name, color: to.color, desc: to.desc,
+    /* ⚠️ 只报**当前等级**，⛔ 别再拼 rankRange：RANKS 里每段只占一级
+       （minLv 逐段 +1）⇒ rankRange(i) 恒等于 'lv ' + RANKS[i].minLv，
+       拼成 `'lv ' + lvFromExp(exp) + ' · ' + rankRange(cur)` 就会出现
+       「lv 3 · lv 3」这种重复（2026-10-07 实拍图里抓到的）。
+       ⛔ 也别换成「段位区间」—— 区间与当前等级在 10 段表下永远是同一个数，同样冗余。 */
+    lvText: 'lv ' + lvFromExp(exp) } };
 }
 /* 段位覆盖的等级区间文案：'lv 1'（单级）/ 'lv 4–6' / 'lv 30+'（顶段无上限）。
    ⚠️ **唯一实现** —— 段位页的区间列与我的页卡廊 tip 都调它。
@@ -8794,8 +8961,23 @@ function settleDay(dateStr) {
     state.coins += COIN_LIMITUP;
     state.coinsEarnedTotal += COIN_LIMITUP;
     state.exp += EXP_LIMITUP;
+    buzz(28);                       /* 涨停是大事：比成就/升段那两处稍长一点 */
     var ce=document.getElementById('celeb-net'); if(ce) ce.innerHTML = net + '<small>kcal</small>';
     var cb=document.getElementById('celeb'); if(cb) cb.classList.add('show');
+  } else if (hasRec && net > state.user.target) {
+    /* ============ 未达标回执（v2.17.3）============
+       从前没达标是**彻底静默**的：只有涨停才弹 #celeb，于是「昨天没达标」这件事
+       用户永远不知道 —— 跨天回前台自动结算时尤其隐蔽，用户视角是「今天打开一片安静」。
+       对一个自律工具来说，「今天没达标」是需要被温和告知的信息，不是该藏的。
+       ⚠️ 只在**当天有记录**时才回执：昨天压根没记账是另一回事（没有数据可回执，
+          照 dailyNet 的缺省值说「未达标」是误导，而且会变成对「没打开 App」的指责）。
+       ⚠️ 一天最多回执一次 —— 由本函数开头的 settledDate 幂等锚保证；
+          没有它的话每次冷启动都会拿同一笔旧账报一遍。
+       ⚠️ 走 toastInfo（绿色顶部信息条）而不是 #celeb：这是**陈述**，不是里程碑。
+          PWA 侧直连 #info-toast；小程序侧同一次调用在内核里是 `__fire('toastInfo', …)` 空壳，
+          由 app.js 接到页面的 <hint>.info()（同一条绿色浮层，样式逐值同源）。 */
+    toastInfo('📉 ' + dateStr.slice(5).replace('-', '/') + ' 收盘 ' + net +
+              ' kcal（目标 ' + state.user.target + '）');
   }
   state.settledDate = dateStr;
   saveState(); render();
@@ -8861,6 +9043,9 @@ function showGachaResult(results, refundTotal) {
   //    ⇒ 10 张里第 2 张起全被当成单抽、去拉卡面大图。
   grid.innerHTML = sorted.map(function(c) { return cardCardHTML(c, sorted.length === 1); }).join('');
   const best = sorted[0];
+  /* 触觉（v2.17.3）：十连里只要有一张 SR 就震 —— best 是排序后的第一张，无需再遍历。
+     这是**唯一**不靠读字就能感知「这次抽得不错」的通道（卡面在结果层里要滑着看）。 */
+  if (best && best.rarity === 'SR') buzz(22);
   // 福袋返还额从 results 现算（不新增形参 ⇒ mp_build 自动生成的接口钩子签名不用跟着动）
   let bagTotal = 0, bagCount = 0;
   sorted.forEach(function(c) { if (c.rarity === 'BAG') { bagTotal += c.back; bagCount++; } });
@@ -9133,6 +9318,21 @@ scheduleMidnightSettle();
 <div id="coin-toast"></div>
 <div id="ach-toast"></div>
 <div id="info-toast"></div>
+
+<!-- 段位提升仪式（v2.17.3）。与三条 toast 一样**常驻**，靠 .show 切换。
+     ⛔ 不发币：只念段位名 + 描述 + lv。段位色由 showRankUp 注入 --ru。 -->
+<div id="rankup" onclick="closeRankUp()">
+  <div class="ru-card">
+    <div class="ru-cap">段位提升</div>
+    <div class="ru-flow">
+      <span class="ru-from" id="ru-from"></span>
+      <span class="ru-arrow">→</span>
+      <span class="ru-to" id="ru-to"></span>
+    </div>
+    <div class="ru-desc" id="ru-desc"></div>
+    <div class="ru-lv" id="ru-lv"></div>
+  </div>
+</div>
 
 <!-- ============ 身体档案结果卡（v2.7.66，替代 alert）============
      ⚠️ 复用 .sheet-mask，但**用行内 style 把对齐覆盖成居中** ——
