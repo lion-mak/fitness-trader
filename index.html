@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.0"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -856,6 +856,32 @@ body {
 #onboard .ob-b { flex:1; padding:11px 0; border-radius:12px; font-size:13px; text-align:center; cursor:pointer; }
 #onboard .ob-b.main { background:var(--red); color:#fff; font-weight:600; }
 #onboard .ob-b.ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+
+/* ⚠️⚠️ 这一组 .setupbar 是**给小程序 app.wxss 搬的**（本页没有 class="setupbar" 的节点，
+   搬过去也不会影响本页）。
+   🔴 为什么它必须写在**这里**而不是小程序 app.wxss 里：
+      app.wxss 是 tools/mp_build.py 从本 <style> **自动生成**的（文件头就写着
+      「勿手工编辑」）⇒ 任何一次 mp_build（提交/推送链路里就会跑）都会把手写进去的段
+      **整段抹掉**。2026-10-08 实测踩到：小程序侧提示条样式是手加进 app.wxss 的，
+      部署前一次 mp_build 就抹干净了 ⇒ 昨天上线的那个版本里提示条**完全没有样式**
+      （裸 navigator：黑底白字、无 padding、无边框），而我本地量到的 390×57px
+      是**被抹之前**的状态 ⇒ 「验证通过」与「交付物」不一致。
+      ⇒ 共享样式的唯一真源是 PWA 的 <style>（与 mp_build 注释里那句
+         「共享样式一律写进 app.wxss（本块）」同一个意思，只是 app.wxss 本身就是从这儿搬的）。
+   ⭐ 两端机制不同、视觉同源：PWA 用 #setupbar（id）+ body.setup-pending 顶开；
+      小程序用 .setupbar（class）+ 普通流（小程序没有 body，且组件 shadow DOM 会裁掉 fixed）。
+      这三条属性（黄底 / 琥珀字 / 下边框 / 居中 / padding）两端逐值一致。 */
+/* ⚠️⚠️ 右边距 100px 是**给小程序避让右上角胶囊按钮**的（小程序里它是原生组件，
+   画在 webview 之外，会压住页面内容）。2026-10-08 真机实拍：只有 14px 右内边距时，
+   「达标线暂按 500 kcal」的「kcal」正好被胶囊盖掉（证据：tools/_onboard_me_bar.png）。
+   ⛔ 这一条**不会影响 PWA**：本页的提示条是 #setupbar（id 选择器），
+   而 .setupbar 这个类在 PWA 里没有任何节点 —— 它只是被 mp_build 搬进 app.wxss
+   给小程序用。所以「两端样式同源」在这里的落点是「同一段 CSS，类名各自取用」，
+   而**不是**逐值相同（这一处的右边距就是平台差异，与 #rankup 的 shadow DOM 同族）。 */
+.setupbar { display:block; padding:9px 100px 9px 14px; box-sizing:border-box;
+  background:rgba(255,184,0,.12); border-bottom:1px solid rgba(255,184,0,.34);
+  font-size:12px; color:var(--amber,#ffb800); text-align:center; }
+.setupbar .sb-go { color:#fff; font-weight:600; }
 
 /* 未建档提示条：PWA 的页面顶部**不是** fixed 顶栏（是 .pheader，随页滚动），
    所以这条 fixed 在 top:0 不会压住任何东西；⛔ 但正文要整体下移一条，否则盖住 .pheader。
@@ -9613,7 +9639,7 @@ scheduleMidnightSettle();
 <!-- 未建档提示条（v2.18.0）：只有 !state.profileAt 时 .show。点一下直达身体档案页。
      ⛔ 这条是「软强制」的兑现处：引导可以跳过，但「没档案」这件事会一直挂在眼前。 -->
 <div id="setupbar" onclick="showBodyArchive()">
-  <span id="setupbar-tx"></span><span class="sb-go"> 去补全 ›</span>
+  <span id="setupbar-tx"></span><span class="sb-go"> 去补全</span>
 </div>
 
 <!-- ============ 身体档案结果卡（v2.7.66，替代 alert）============
