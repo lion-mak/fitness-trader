@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.1"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1434,8 +1434,8 @@ body.setup-pending .page { padding-top:39px; }
       </div>
 
       <div class="coin-card" onclick="showCoins()" style="cursor:pointer;" data-page-node-id="tngafXQIKW1PR9SOXW5JK5">
-        <div class="coin" data-page-node-id="L8pqxTynEDdWx5zpKbVZpT">¥</div>
-        <div class="meta" data-page-node-id="4n1oQqgTB5doCXRDYBHU9L"><div class="n" id="p-coins" data-page-node-id="qK5hiG7XKZuZKmwPX6nmSs">0</div><div class="l" data-page-node-id="6bmyCWdJQK1JLNSZgePruI">健康币 · 可兑换奖励</div></div>
+        <div class="coin" data-page-node-id="L8pqxTynEDdWx5zpKbVZpT">◆</div>
+        <div class="meta" data-page-node-id="4n1oQqgTB5doCXRDYBHU9L"><div class="n" id="p-coins" data-page-node-id="qK5hiG7XKZuZKmwPX6nmSs">0</div><div class="l" data-page-node-id="6bmyCWdJQK1JLNSZgePruI">健康币 · 记录即赚</div></div>
         <div style="color:var(--amber);margin-left:auto;" data-page-node-id="fLbJaAv1VRCDab0k8JEjag">›</div>
       </div>
 
@@ -1540,7 +1540,7 @@ body.setup-pending .page { padding-top:39px; }
         <div class="card-title"><span class="t">怎么花</span><span class="m">抽卡已上线</span></div>
         <div class="rule-list" id="c-spend"></div>
         <button class="confirm buy" style="margin-top:12px;width:100%;" onclick="showGacha()">去抽卡 · 交易员图鉴</button>
-        <div class="gap-note">健康币是「健身交易员」的通行货币：记录行为即赚，可兑换抽卡、装扮、补卡等权益。</div>
+        <div class="gap-note">记录行为即赚，可抽交易员图鉴。</div>
       </div>
     </section>
 
@@ -1567,7 +1567,7 @@ body.setup-pending .page { padding-top:39px; }
     <!-- ============ 涨停抽卡 · 交易员图鉴 ============ -->
     <section class="page" id="page-gacha">
       <div class="backrow" onclick="backToProfile()"><div class="arrow">‹</div><div class="tt">涨停抽卡</div></div>
-      <div class="pagetitle"><div class="k">TRADER CARD GACHA</div><div class="t">涨停抽卡</div></div>
+      <div class="pagetitle"><div class="k">TRADER CARD COLLECTION</div><div class="t">涨停抽卡</div></div>
 
       <div class="gacha-hero">
         <div class="g-balance-label">当前健康币</div>
@@ -3719,7 +3719,7 @@ function badgeIcon(type) {
     run:'<circle cx="14" cy="5" r="2" fill="#0a0e1a"/><path d="M8 21 L14 11 L11 9 L9 7" stroke="#0a0e1a" stroke-width="1.5" fill="none"/>',
     trophy:'<circle cx="12" cy="9" r="6" fill="#0a0e1a"/><path d="M9 14 L7 22 L12 19 L17 22 L15 14 Z" fill="#0a0e1a"/>',
     gap:'<path d="M3 17 L9 11 L13 15 L21 7" stroke="#0a0e1a" stroke-width="2.5" stroke-linecap="round" fill="none"/>',
-    coin:'<circle cx="12" cy="12" r="9" fill="#0a0e1a"/><text x="12" y="17" text-anchor="middle" font-size="12" font-weight="600" fill="#5ac8fa">¥</text>',
+    coin:'<circle cx="12" cy="12" r="9" fill="#0a0e1a"/><text x="12" y="17" text-anchor="middle" font-size="12" font-weight="600" fill="#5ac8fa">◆</text>',
     leek:'<path d="M12 21 V11" stroke="#0a0e1a" stroke-width="2" fill="none"/><path d="M12 11 C8 9 7 5 9 3 C11 5 12 8 12 11 Z" fill="#0a0e1a"/><path d="M12 11 C16 9 17 5 15 3 C13 5 12 8 12 11 Z" fill="#0a0e1a"/>',
     untie:'<rect x="6" y="11" width="12" height="9" rx="2" fill="#0a0e1a"/><path d="M8 11 V8 a4 4 0 0 1 7 -2" stroke="#0a0e1a" stroke-width="2" fill="none" stroke-linecap="round"/>',
     wave:'<path d="M3 14 Q6 8 9 14 T15 14 T21 14" stroke="#0a0e1a" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
@@ -3730,7 +3730,7 @@ function badgeIcon(type) {
     allin:'<path d="M12 3 C14 8 18 9 16 14 C16 17 13 19 12 21 C11 19 8 17 8 14 C6 9 10 8 12 3 Z" fill="#0a0e1a"/>',
     lightning:'<path d="M13 3 L5 14 H11 L9 21 L19 9 H13 Z" fill="#0a0e1a"/>',
     whale:'<path d="M3 14 C3 9 8 7 13 8 C17 9 20 11 21 10 C20 13 18 15 14 15 C10 15 6 16 3 14 Z" fill="#0a0e1a"/><circle cx="16" cy="10.5" r="1" fill="#5ac8fa"/>',
-    bag:'<path d="M6 9 H18 L20 20 H4 Z" fill="#0a0e1a"/><path d="M9 9 C9 6 15 6 15 9" stroke="#0a0e1a" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#5ac8fa">¥</text>',
+    bag:'<path d="M6 9 H18 L20 20 H4 Z" fill="#0a0e1a"/><path d="M9 9 C9 6 15 6 15 9" stroke="#0a0e1a" stroke-width="2" fill="none"/><text x="12" y="17" text-anchor="middle" font-size="9" font-weight="700" fill="#5ac8fa">◆</text>',
     vault:'<rect x="4" y="5" width="16" height="14" rx="2" fill="#0a0e1a"/><circle cx="12" cy="12" r="4" fill="none" stroke="#5ac8fa" stroke-width="1.6"/><path d="M12 8 V16 M8 12 H16" stroke="#5ac8fa" stroke-width="1.4"/>',
     dice:'<rect x="4" y="4" width="16" height="16" rx="3" fill="#0a0e1a"/><circle cx="9" cy="9" r="1.6" fill="#5ac8fa"/><circle cx="15" cy="9" r="1.6" fill="#5ac8fa"/><circle cx="12" cy="15" r="1.6" fill="#5ac8fa"/>',
     cards:'<rect x="4" y="6" width="11" height="14" rx="2" fill="#0a0e1a"/><rect x="9" y="3" width="11" height="14" rx="2" fill="none" stroke="#0a0e1a" stroke-width="2"/>',
