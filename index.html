@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -9444,9 +9444,15 @@ function bindBackGesture() {
 bindBackGesture();
 
 /* ============ 头像 / 自定义ID ============ */
+/* 头像值有可能是小程序端云同步过来的（'cloud://…' 云存储 fileID）——浏览器 <img> 认不了，
+   直接塞进去就是一张破图。PWA 只认 data URL / http(s) / blob，其余一律当「没头像」退占位。
+   ⛔ 只改渲染，不动 state.user.avatar —— 那份值在小程序端是有效的，导出时原样带走。 */
+function isAvatarRenderable(s) {
+  return typeof s === 'string' && /^(data:image\/|https?:|blob:)/.test(s);
+}
 function avatarHTML(size) {
   const a = state.user.avatar;
-  if (a) return '<img src="' + a + '" alt="">';
+  if (isAvatarRenderable(a)) return '<img src="' + a + '" alt="">';
   return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none"><circle cx="12" cy="9" r="4" fill="#5a6478"/><path d="M5 20 C5 15 9 13 12 13 C15 13 19 15 19 20" stroke="#5a6478" stroke-width="1.5" fill="none"/></svg>';
 }
 function renderAvatar() {
@@ -9457,7 +9463,7 @@ function renderAvatar() {
 }
 function openProfileEdit() {
   document.getElementById('pe-id').value = state.user.userId;
-  document.getElementById('pe-avatar-img').innerHTML = state.user.avatar
+  document.getElementById('pe-avatar-img').innerHTML = isAvatarRenderable(state.user.avatar)
     ? '<img src="' + state.user.avatar + '" alt="">'
     : '<svg viewBox="0 0 24 24" width="80" height="80" fill="none"><circle cx="12" cy="9" r="4" fill="#5a6478"/><path d="M5 20 C5 15 9 13 12 13 C15 13 19 15 19 20" stroke="#5a6478" stroke-width="1.5" fill="none"/></svg>';
   document.getElementById('profile-edit-sheet').classList.add('show');
