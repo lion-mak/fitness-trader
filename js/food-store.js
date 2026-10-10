@@ -304,6 +304,9 @@ var FoodStore = (function () {
     addCustom: addCustom,
     removeCustom: removeCustom,
     customFoods: customFoods,
+    loadCustom: loadCustom,
+    saveCustom: saveCustom,
+    rebuild: rebuild,
     toGrams: toGrams
   };
 })();
