@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.4"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.5"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -3170,7 +3170,8 @@ function defaultState() {
        onboardSeen = 新手引导弹过没有（软强制：看过引导就 true，填不填档案他说了算） */
     profileAt: null, onboardSeen: false,
     weightLog: [],       // 真实体重日志（仅记录真实输入，禁止任何模拟数据）：[{ date, weight }]
-    bodyLog: []          // 身体成分逐次录入日志（仅真实录入，禁止模拟历史，口径同 diet/exercise/weightLog）：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]
+    bodyLog: [],         // 身体成分逐次录入日志（仅真实录入，禁止模拟历史，口径同 diet/exercise/weightLog）：[{ date, bmi, bodyFat, muscleRate, waterRate, bodyAge, visceralFat }]
+    __tomb: { diet: [], exercise: [] }   // 云同步 tombstone（与小程序 store.js 逐行同步）：删除记录的 id 落这里，防云端复活
   };
 }
 // 示例序列生成器：⚠️ 仅用于宣传图/demo 注入，**真机首启绝不调用**（趋势史属于记录类数据，必须真实）
@@ -3288,6 +3289,9 @@ function loadState() {
       }
       // v2.7.59 段位曲线换代：老存档一律「只升不降」（幂等锚 state.curve，细节见 applyCurveUpgrade）
       applyCurveUpgrade(merged);
+      // 云同步 tombstone 默认（与小程序 store.js 逐行同步）：删除记录时 removeFood/removeEx 往这里塞 id，拉取合并时挡住已删记录复活
+      if (!merged.__tomb || typeof merged.__tomb !== 'object') merged.__tomb = { diet: [], exercise: [] };
+      else { if (!Array.isArray(merged.__tomb.diet)) merged.__tomb.diet = []; if (!Array.isArray(merged.__tomb.exercise)) merged.__tomb.exercise = []; }
       return merged;
     }
   } catch(e) {
@@ -7886,7 +7890,7 @@ function addCustomFood() {
   document.getElementById('custom-food-form').style.display = 'none';
   renderFoodList();
 }
-function removeFood(id) { state.diet = state.diet.filter(d => d.id !== id); render(); }
+function removeFood(id) { state.diet = state.diet.filter(d => d.id !== id); if (state.__tomb) { if (state.__tomb.diet.indexOf(id) < 0) state.__tomb.diet.push(id); } else { state.__tomb = { diet: [id], exercise: [] }; } render(); }
 
 /* ============ 运动交互 ============ */
 let curEx = null, curDuration = 30, curIntensity = '中', curAvgHr = null;
@@ -8010,7 +8014,7 @@ function addExercise() {
   bumpStreak();
   closeExSheet(); render();
 }
-function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); render(); }
+function removeEx(id) { state.exercise = state.exercise.filter(e => e.id !== id); if (state.__tomb) { if (state.__tomb.exercise.indexOf(id) < 0) state.__tomb.exercise.push(id); } else { state.__tomb = { diet: [], exercise: [id] }; } render(); }
 
 /* ============ 记录编辑（今日板块色块 / 今日成交列表 点击修改数值） ============ */
 let recEditId = null, recEditType = null;
