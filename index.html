@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.2"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.3"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2604,12 +2604,13 @@ function restoreLatestSnapshot() {
                      '覆盖当前进度？\n\n当前进度会被替换，但快照仍保留。');
   if (!ok) return;
   try {
-    const data = migratePayload(JSON.parse(localStorage.getItem(snap.key)));
+    const raw = JSON.parse(localStorage.getItem(snap.key));
+    const data = migratePayload(raw);
     const nd = (data.diet || []).length, ne = (data.exercise || []).length;
     __loadFailed = false;          // 快照已校验通过 ⇒ 放开写入（否则 applyImported 里的保存会被保护模式挡掉）
     __guardTripped = false;
     hideSaveGuard();
-    applyImported(data, '已从快照恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+    applyImported(data, '已从快照恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔', customFoodsOf(raw));
     location.reload();
   } catch (e) {
     console.error('[存档] 快照恢复失败：', e);
@@ -3541,9 +3542,10 @@ function doImport(inp) {
   const reader = new FileReader();
   reader.onload = function() {
     try {
-      const data = migratePayload(JSON.parse(reader.result));
+      const raw = JSON.parse(reader.result);
+      const data = migratePayload(raw);
       const nd = (data.diet || []).length, ne = (data.exercise || []).length;
-      applyImported(data, '已从备份恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+      applyImported(data, '已从备份恢复：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔', customFoodsOf(raw));
     } catch(e) { toastInfo('导入失败：' + ((e && e.message) || '文件格式不正确')); }
     inp.value = '';
   };
@@ -7154,7 +7156,16 @@ function appVerNow() {
   try { return (document.querySelector('meta[name="app-version"]') || {}).content || ''; } catch (e) { return ''; }
 }
 function buildExportPayload() {
-  return { __app: APP_TAG, __schema: SCHEMA_VERSION, __exportedAt: new Date().toISOString(), __appVersion: appVerNow(), state: state };
+  const payload = { __app: APP_TAG, __schema: SCHEMA_VERSION, __exportedAt: new Date().toISOString(), __appVersion: appVerNow(), state: state };
+  /* 自建食物存在独立键 jianpan_custom_foods_v1（不在 state），不显式挂上换机就丢。
+     与小程序端 migrate.js 同款：顶层 customFoods 一起搬。 */
+  if (typeof FoodStore !== 'undefined' && FoodStore.loadCustom) {
+    const custom = FoodStore.loadCustom();
+    payload.customFoods = Array.isArray(custom) ? custom : [];
+  } else {
+    payload.customFoods = [];
+  }
+  return payload;
 }
 /* 把任意来源的存档归一化成 state；旧版裸 state 视为 __schema=0 */
 function migratePayload(raw) {
@@ -7170,7 +7181,23 @@ function migratePayload(raw) {
   // 迁移链（未来在此逐级补字段）：if (from < 2) { ... }
   return data;
 }
-function applyImported(data, tip) {
+/* 自建食物的行李判定：与小程序 migrate.js 的 customFoodsOf 同款语义。
+   🔴 「键不存在」≠「空数组」：旧版 PWA 导出的存档没有 customFoods 这个键，
+      若把「没有键」当「空」去替换，导入一份旧备份就会当场丢掉本机自建食物。
+        · 键存在且是数组（哪怕 []）→ 采纳，按「替换」语义写盘（明确带了就是权威口径）
+        · 键不存在 / 形态不对      → present=false，一个字节都不动本机自建食物 */
+function customFoodsOf(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { present: false, list: [] };
+  if (!Object.prototype.hasOwnProperty.call(payload, 'customFoods')) return { present: false, list: [] };
+  const v = payload.customFoods;
+  if (v === null || v === undefined) return { present: true, list: [] };
+  if (!Array.isArray(v)) return { present: false, list: [] };
+  const list = v.filter(function (x) {
+    return x && typeof x === 'object' && !Array.isArray(x) && typeof x.name === 'string' && !!x.name.trim();
+  });
+  return { present: true, list: list };
+}
+function applyImported(data, tip, custom) {
   const base = loadState();                          // 当前兜底后的完整状态作底
   const merged = Object.assign({}, base, data);
   merged.user = Object.assign({}, base.user, data.user || {});
@@ -7188,6 +7215,13 @@ function applyImported(data, tip) {
   applyCurveUpgrade(merged);
   state = merged;
   saveState(); render();
+  /* 自建食物：与小程序端同款。present 才有语义（旧备份没这个键就不动本机）。
+     ⚠️ 必须放在 saveState 之后：applyImported 会写两次盘并净化，
+        夹在中间写会被它的负载盖掉/穿插，顺序放在整段完成之后最可靠。 */
+  if (custom && custom.present && typeof FoodStore !== 'undefined' && FoodStore.saveCustom) {
+    try { FoodStore.saveCustom(custom.list); FoodStore.rebuild(); } catch (e) { console.error('[存档] 自建食物恢复失败：', e); }
+  }
+  if (custom && custom.present) tip = tip + ' / 自建食物 ' + custom.list.length + ' 条';
   toastInfo(tip);
 }
 function copyPlain(text, okMsg) {
@@ -7225,17 +7259,20 @@ function doPasteImport() {
   const hint = document.getElementById('paste-hint');
   const txt = (ta && ta.value || '').trim();
   if (!txt) { if (hint) hint.textContent = '内容为空，先粘贴迁移码。'; return; }
-  let data;
+  let raw, data;
   try {
-    data = migratePayload(JSON.parse(txt));
+    raw = JSON.parse(txt);
+    data = migratePayload(raw);
   } catch (e) {
     if (hint) hint.textContent = '解析失败：' + ((e && e.message) || '格式不正确');
     return;
   }
   const nd = (data.diet || []).length, ne = (data.exercise || []).length;
-  if (!confirm('即将覆盖当前进度。\n导入内容：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔。\n确定继续吗？')) return;
+  const cf = customFoodsOf(raw);
+  if (!confirm('即将覆盖当前进度。\n导入内容：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔'
+      + (cf.present ? (' / 自建食物 ' + cf.list.length + ' 条') : '') + '。\n确定继续吗？')) return;
   closePasteImport();
-  applyImported(data, '已导入：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔');
+  applyImported(data, '已导入：饮食 ' + nd + ' 笔 / 运动 ' + ne + ' 笔', cf);
 }
 
 /* ============ 龙虎榜 · 数据驱动 ============ */
