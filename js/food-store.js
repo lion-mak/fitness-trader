@@ -62,8 +62,17 @@ var FoodStore = (function () {
     } catch (e) { return []; }
   }
 
+  /* 🆕 变更通知（2026-10-10）：自建食物存在**独立键**里，不在主存档 state 内
+     ⇒ 主存档的「落盘即上云」钩子照不到它，新增一条自建食物后要等**下一次**
+     主存档写入才会被顺带上云（用户可能「加完就退」，那条就只在本地）。
+     注册一个回调即可（小程序侧接云同步上推）；
+     ⛔ 本层除存储外不做任何副作用，未注册时是纯 no-op（PWA 就没人注册）。 */
+  var onCustomChange = null;
+  function setOnCustomChange(fn) { onCustomChange = (typeof fn === 'function') ? fn : null; }
+
   function saveCustom(list) {
     try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch (e) {}
+    if (onCustomChange) { try { onCustomChange(list); } catch (e) {} }
   }
 
   /* ---------- 拼音（自建食物用） ---------- */
@@ -306,6 +315,7 @@ var FoodStore = (function () {
     customFoods: customFoods,
     loadCustom: loadCustom,
     saveCustom: saveCustom,
+    setOnCustomChange: setOnCustomChange,
     rebuild: rebuild,
     toGrams: toGrams
   };
