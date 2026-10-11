@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.7"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.8"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -2113,15 +2113,16 @@ const FOOD_CATS = ['全部','主食','肉蛋','蔬果','饮品','零食','家常
 
 /* 运动库五大分类（顺序即分区展示顺序）；所有 name 全库唯一，findExercise 按 name 定位 */
 const EX_CATS = ['力量','有氧','柔韧','功能性','HIIT'];
-
+/* 力量区下细分为 8 个训练分类（各为一条记录，不进一步展开具体动作） */
 const EXERCISE_DB = [
-  /* 力量 */
-  {name:'力量训练', met:5.0, cat:'力量'},
-  {name:'举重', met:6.0, cat:'力量'},
   {name:'哑铃训练', met:5.5, cat:'力量'},
-  {name:'俯卧撑', met:3.8, cat:'力量'},
-  {name:'引体向上', met:5.0, cat:'力量'},
-  {name:'深蹲', met:5.0, cat:'力量'},
+  {name:'自重训练', met:4.5, cat:'力量'},
+  {name:'腿部训练', met:6.0, cat:'力量'},
+  {name:'胸部训练', met:5.5, cat:'力量'},
+  {name:'背部训练', met:5.5, cat:'力量'},
+  {name:'肩部训练', met:5.0, cat:'力量'},
+  {name:'腹部训练', met:4.0, cat:'力量'},
+  {name:'手臂训练', met:4.5, cat:'力量'},
   /* 有氧 */
   {name:'跑步', met:8.3, cat:'有氧'},
   {name:'慢跑', met:7.0, cat:'有氧'},
@@ -7953,9 +7954,8 @@ function openExList() {
   const custom = state.exerciseCustom || [];
   const byCat = {};
   const ensure = c => (byCat[c] = byCat[c] || []);
-  EXERCISE_DB.forEach(ex => ensure(ex.cat).push({name:ex.name, met:ex.met, custom:false}));
-  custom.forEach(ex => ensure(ex.cat || '其他').push({name:ex.name, met:ex.met, custom:true}));
-  // 展示顺序：EX_CATS 在前，其余分类（含「其他」/历史自建未知分类）补在后面
+  EXERCISE_DB.forEach(ex => ensure(ex.cat).push({ name:ex.name, met:ex.met, custom:false }));
+  custom.forEach(ex => ensure(ex.cat || '其他').push({ name:ex.name, met:ex.met, custom:true }));
   const order = EX_CATS.slice();
   Object.keys(byCat).forEach(c => { if (!order.includes(c)) order.push(c); });
   let html = '';
