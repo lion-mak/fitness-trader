@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.6"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.7"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -141,6 +141,19 @@ body {
 .result-item .cat { font-size:10px; padding:2px 6px; border-radius:4px; background:#1f2638; color:var(--muted2); flex-shrink:0; }
 .result-item .n { flex:1; font-size:13px; }
 .result-item .kcal { color:var(--muted); font-size:12px; flex-shrink:0; }
+/* 运动库分区卡片（保留 .result-item 类，仅网格化重排） */
+.ex-sec { margin:14px 0 2px; }
+.ex-sec:first-child { margin-top:4px; }
+.ex-sec-h { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#fff; margin:8px 0 8px; }
+.ex-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.ex-cnt { font-size:11px; color:var(--muted); font-weight:400; }
+.ex-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ex-grid .result-item { display:flex; flex-direction:column; align-items:stretch; gap:4px; margin-bottom:0; padding:11px 12px; position:relative; }
+.ex-grid .result-item:hover { border-color:var(--blue); }
+.ex-grid .result-item .n { flex:none; font-size:13px; font-weight:500; padding-right:18px; }
+.ex-grid .result-item .kcal { font-size:11px; }
+.ex-grid .result-item .del { position:absolute; top:8px; right:8px; width:18px; height:18px; line-height:16px; text-align:center; border-radius:6px; background:#222a3d; color:var(--muted2); font-size:14px; cursor:pointer; flex-shrink:0; }
+.ex-grid .result-item .del:hover { background:var(--red); color:#fff; }
 
 /* 排行榜 */
 .lb-item { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
@@ -497,6 +510,7 @@ body {
 .field input, .field select { width:100%; padding:11px 12px; background:var(--panel); border:1px solid var(--border); border-radius:10px; color:#fff; font-size:14px; outline:none; font-family:inherit; color-scheme:dark; }
 .field input:focus { border-color:var(--blue); }
 .field select option { background:var(--panel); color:#fff; }
+.picker-val { width:100%; padding:11px 12px; background:var(--panel); border:1px solid var(--border); border-radius:10px; color:#fff; font-size:14px; box-sizing:border-box; }
 .confirm { width:100%; margin-top:18px; padding:14px; border:none; border-radius:12px; font-size:15px; font-weight:500; cursor:pointer; font-family:inherit; }
 .confirm.buy { background:var(--red); color:#fff; }
 .confirm.sell { background:var(--green); color:#0a1a15; }
@@ -1800,7 +1814,15 @@ body.setup-pending .page { padding-top:39px; }
         <span class="close" onclick="closeCustomEx()">×</span>
         <h3>自建运动</h3>
         <div class="field"><label>名称</label><input id="ce-name" type="text" placeholder="如 椭圆机 / 帕梅拉 / 爬坡走"></div>
-        <div class="field"><label>分类</label><input id="ce-cat" type="text" value="其他"></div>
+        <div class="field"><label>分类</label>
+          <select id="ce-cat">
+            <option value="力量">力量</option>
+            <option value="有氧">有氧</option>
+            <option value="柔韧">柔韧</option>
+            <option value="功能性">功能性</option>
+            <option value="HIIT">HIIT</option>
+          </select>
+        </div>
         <div class="field"><label>MET 值（运动强度系数，越大越耗能）</label><input id="ce-met" type="number" min="0" step="0.1" placeholder="如 8.0"></div>
         <div style="color:var(--muted);font-size:11px;margin:4px 0 8px;line-height:1.5;">不知道 MET？常用参考：散步 3 / 快走 4.3 / 慢跑 7 / 跑步 8.3 / 跳绳 10 / 力量 5。留空按 5.0 估算。</div>
         <div style="display:flex;gap:10px;margin-top:12px;">
@@ -2089,7 +2111,18 @@ const FOOD_DB = [
 ];
 const FOOD_CATS = ['全部','主食','肉蛋','蔬果','饮品','零食','家常'];
 
+/* 运动库五大分类（顺序即分区展示顺序）；所有 name 全库唯一，findExercise 按 name 定位 */
+const EX_CATS = ['力量','有氧','柔韧','功能性','HIIT'];
+
 const EXERCISE_DB = [
+  /* 力量 */
+  {name:'力量训练', met:5.0, cat:'力量'},
+  {name:'举重', met:6.0, cat:'力量'},
+  {name:'哑铃训练', met:5.5, cat:'力量'},
+  {name:'俯卧撑', met:3.8, cat:'力量'},
+  {name:'引体向上', met:5.0, cat:'力量'},
+  {name:'深蹲', met:5.0, cat:'力量'},
+  /* 有氧 */
   {name:'跑步', met:8.3, cat:'有氧'},
   {name:'慢跑', met:7.0, cat:'有氧'},
   {name:'快走', met:4.3, cat:'有氧'},
@@ -2097,14 +2130,31 @@ const EXERCISE_DB = [
   {name:'游泳', met:7.0, cat:'有氧'},
   {name:'跳绳', met:10.0, cat:'有氧'},
   {name:'爬楼梯', met:8.0, cat:'有氧'},
-  {name:'力量训练', met:5.0, cat:'力量'},
-  {name:'瑜伽', met:3.0, cat:'柔韧'},
   {name:'篮球', met:6.5, cat:'有氧'},
+  /* 柔韧 */
+  {name:'瑜伽', met:3.0, cat:'柔韧'},
+  {name:'拉伸放松', met:2.5, cat:'柔韧'},
+  {name:'普拉提', met:3.0, cat:'柔韧'},
+  {name:'太极', met:2.5, cat:'柔韧'},
+  /* 功能性 */
+  {name:'壶铃训练', met:6.0, cat:'功能性'},
+  {name:'战绳', met:6.5, cat:'功能性'},
+  {name:'核心训练', met:4.0, cat:'功能性'},
+  {name:'平衡训练', met:3.0, cat:'功能性'},
+  {name:'敏捷梯', met:6.0, cat:'功能性'},
+  {name:'波比跳', met:8.0, cat:'功能性'},
+  /* HIIT */
+  {name:'HIIT训练', met:9.0, cat:'HIIT'},
+  {name:'TABATA', met:9.5, cat:'HIIT'},
+  {name:'冲刺间歇', met:10.0, cat:'HIIT'},
+  {name:'高抬腿', met:8.0, cat:'HIIT'},
+  {name:'登山者', met:8.0, cat:'HIIT'},
 ];
 
 const CAT_COLOR = {
   '主食':'#ff8a93','肉蛋':'#ffb800','蔬果':'#5ee0c0','饮品':'#88c8fa','零食':'#c586c0','家常':'#ff7a38',
-  '有氧':'#5ee0c0','力量':'#ffb800','柔韧':'#c586c0','其他':'#9aa8be'
+  '有氧':'#5ee0c0','力量':'#ffb800','柔韧':'#c586c0','其他':'#9aa8be',
+  '功能性':'#5b8def','HIIT':'#ff5a5f'
 };
 
 // 体重 K 线：仅使用真实体重记录（state.weightLog），禁止任何模拟数据
@@ -7901,22 +7951,26 @@ function openExList() {
   document.getElementById('ex-sheet').classList.remove('show');
   document.getElementById('ex-list-sheet').classList.add('show');
   const custom = state.exerciseCustom || [];
-  let html = EXERCISE_DB.map(ex => `
-    <div class="result-item" onclick="openExSheet('${ex.name}')">
-      <span class="cat" style="color:${CAT_COLOR[ex.cat]||'#9aa8be'};">${ex.cat}</span>
-      <span class="n">${ex.name}</span>
-      <span class="kcal">MET ${ex.met}</span>
-    </div>`).join('');
-  if (custom.length) {
-    html += '<div style="color:var(--muted2);font-size:11px;margin:12px 0 4px;">自建运动</div>';
-    html += custom.map(ex => `
-    <div class="result-item" onclick="openExSheet('${ex.name}')">
-      <span class="cat" style="color:${CAT_COLOR[ex.cat]||'#9aa8be'};">${ex.cat}</span>
-      <span class="n">${ex.name}<span class="src-custom" style="margin-left:6px;">自建</span></span>
-      <span class="kcal">MET ${ex.met}</span>
-      <span class="del" onclick="event.stopPropagation();removeCustomEx('${ex.name}')">×</span>
-    </div>`).join('');
-  }
+  const byCat = {};
+  const ensure = c => (byCat[c] = byCat[c] || []);
+  EXERCISE_DB.forEach(ex => ensure(ex.cat).push({name:ex.name, met:ex.met, custom:false}));
+  custom.forEach(ex => ensure(ex.cat || '其他').push({name:ex.name, met:ex.met, custom:true}));
+  // 展示顺序：EX_CATS 在前，其余分类（含「其他」/历史自建未知分类）补在后面
+  const order = EX_CATS.slice();
+  Object.keys(byCat).forEach(c => { if (!order.includes(c)) order.push(c); });
+  let html = '';
+  order.forEach(cat => {
+    const items = byCat[cat];
+    if (!items || !items.length) return;
+    const color = CAT_COLOR[cat] || '#9aa8be';
+    const cards = items.map(ex => `
+      <div class="result-item" style="border-left:3px solid ${color}" onclick="openExSheet('${ex.name}')">
+        <span class="n">${ex.name}${ex.custom ? '<span class="src-custom" style="margin-left:6px;">自建</span>' : ''}</span>
+        <span class="kcal">MET ${ex.met}</span>
+        ${ex.custom ? `<span class="del" onclick="event.stopPropagation();removeCustomEx('${ex.name}')">×</span>` : ''}
+      </div>`).join('');
+    html += `<div class="ex-sec"><div class="ex-sec-h"><span class="ex-dot" style="background:${color}"></span>${cat}<span class="ex-cnt">${items.length}</span></div><div class="ex-grid">${cards}</div></div>`;
+  });
   document.getElementById('ex-list').innerHTML = html;
 }
 /* 统一运动查找：默认库 + 用户自建库 */
@@ -7927,7 +7981,7 @@ function findExercise(name) {
 }
 function openCustomEx() {
   document.getElementById('ce-name').value = '';
-  document.getElementById('ce-cat').value = '其他';
+  document.getElementById('ce-cat').value = '力量';
   document.getElementById('ce-met').value = '';
   document.getElementById('custom-ex-sheet').classList.add('show');
 }
