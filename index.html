@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.9"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.10"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -7539,9 +7539,14 @@ function renderAchievementsPage() {
  *      「不同日期」被记录 → 自动收录（按天计数，避免一顿吃三次就算高频）
  * 自动条目点 × 移出后进 usualsHidden，不再自动回来。
  * ============================================================ */
-function foodCatList() {
-  let base = [];
-  try { base = FoodStore.categories() || []; } catch (e) { base = []; }
+function foodCatList(baseCats, customFoods) {
+  // ⚠️ FoodStore 只在 PWA 侧是全局；小程序内核 calc.js 里**拿不到它**
+  //    （mp_build 把 FoodStore 列入 KNOWN_GLOBAL ⇒ 不会给它生成 require）。
+  //    ⇒ 依赖 FoodStore 的内核函数必须**显式传参**，否则小程序侧会走进 catch 静默降级
+  //      （症状：分类栏只剩「全部 / 我的常吃 / 自建」，自定义分类永不出现）。
+  //    不传参时回退读全局 FoodStore —— PWA 的调用点就是这么用的。
+  let base = baseCats;
+  if (!base) { try { base = FoodStore.categories() || []; } catch (e) { base = []; } }
   let cleaned = (base || []).filter(c => c && c !== '全部' && c !== USUAL_CAT);
   // 始终保留「自建」分类：它是所有自建食物的聚合入口（无论各自 cat 填什么）
   if (cleaned.indexOf('自建') < 0) cleaned.push('自建');
@@ -7550,13 +7555,12 @@ function foodCatList() {
   const known = {};
   cleaned.concat(['全部', USUAL_CAT]).forEach(function (c) { known[c] = true; });
   const customCats = [];
-  try {
-    const cf = FoodStore.customFoods() || [];
-    cf.forEach(function (f) {
-      const c = f.cat;
-      if (c && !known[c]) { known[c] = true; customCats.push(c); }
-    });
-  } catch (e) {}
+  let cf = customFoods;
+  if (!cf) { try { cf = FoodStore.customFoods() || []; } catch (e) { cf = []; } }
+  (cf || []).forEach(function (f) {
+    const c = f.cat;
+    if (c && !known[c]) { known[c] = true; customCats.push(c); }
+  });
   // 高频分类置前：全部 / 我的常吃 / 自建 / [用户自定义分类] / 其余系统分类
   const pinned = ['全部', USUAL_CAT, '自建'];
   const rest = cleaned.filter(function (c) { return pinned.indexOf(c) < 0; });
