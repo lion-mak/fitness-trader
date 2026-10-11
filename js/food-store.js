@@ -281,6 +281,36 @@ var FoodStore = (function () {
     rebuild();
   }
 
+  /**
+   * 编辑自建食物。按 id 定位，合并 patch 字段；名称变化会重算拼音首字母。
+   * @param {String} id
+   * @param {Object} patch { name, alias, cat, kcal, p, f, c, fb, unit, gram }
+   * @returns { ok:true, food } | { ok:false, msg }
+   */
+  function updateCustom(id, patch) {
+    var list = loadCustom();
+    var found = null;
+    for (var i = 0; i < list.length; i++) { if (list[i].id === id) { found = list[i]; break; } }
+    if (!found) return { ok: false, msg: '未找到该自建食物' };
+    patch = patch || {};
+    var name = (patch.name != null) ? String(patch.name).trim() : found.name;
+    if (!name) return { ok: false, msg: '请填写食物名称' };
+    found.name = name;
+    if (patch.alias != null) found.alias = String(patch.alias).split(/[ ,，、]+/).filter(Boolean);
+    if (patch.cat != null && patch.cat !== '') found.cat = patch.cat;
+    if (patch.kcal != null) found.kcal = parseFloat(patch.kcal) || 0;
+    if (patch.p != null) found.p = parseFloat(patch.p) || 0;
+    if (patch.f != null) found.f = parseFloat(patch.f) || 0;
+    if (patch.c != null) found.c = parseFloat(patch.c) || 0;
+    if (patch.fb != null) found.fb = parseFloat(patch.fb) || 0;
+    if (patch.gram != null) { var g = parseFloat(patch.gram); if (g > 0) found.gram = g; }
+    if (patch.unit != null && patch.unit !== '') found.unit = patch.unit;
+    found.py = ''; found.ini = initialsOf(name);
+    saveCustom(list);
+    rebuild();
+    return { ok: true, food: found };
+  }
+
   function customFoods() { return foods.filter(function (f) { return f.src === 'custom'; }); }
 
   /* ---------- 份量换算 ---------- */
@@ -312,6 +342,7 @@ var FoodStore = (function () {
     getStatus: getStatus,
     addCustom: addCustom,
     removeCustom: removeCustom,
+    updateCustom: updateCustom,
     customFoods: customFoods,
     loadCustom: loadCustom,
     saveCustom: saveCustom,

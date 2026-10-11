@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.8"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.9"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -141,6 +141,11 @@ body {
 .result-item .cat { font-size:10px; padding:2px 6px; border-radius:4px; background:#1f2638; color:var(--muted2); flex-shrink:0; }
 .result-item .n { flex:1; font-size:13px; }
 .result-item .kcal { color:var(--muted); font-size:12px; flex-shrink:0; }
+/* 食物/运动列表项里的删除·编辑按钮（自建条目才有），flex 子项而非绝对定位 */
+.result-item .del { width:22px; height:22px; flex-shrink:0; border-radius:50%; background:#1a2030; border:1px solid var(--border); color:var(--muted2); font-size:14px; line-height:20px; text-align:center; cursor:pointer; }
+.result-item .del:hover { background:var(--red); color:#fff; }
+.result-item .del.edit { color:#5ac8fa; }
+.result-item .del.edit:hover { background:#5ac8fa; color:#04121f; }
 /* 运动库分区卡片（保留 .result-item 类，仅网格化重排） */
 .ex-sec { margin:14px 0 2px; }
 .ex-sec:first-child { margin-top:4px; }
@@ -1758,7 +1763,7 @@ body.setup-pending .page { padding-top:39px; }
           <div class="field" data-page-node-id="JNZG8Zk2oVtwvhEnbEAsnC"><label data-page-node-id="3DyeCNbWKsesBbCkH2AVhT">碳水 g</label><input id="cf-c" type="number" min="0" step="0.1" data-page-node-id="jfbuHXWGpj95BI871HP6i0"></div>
           <div class="field" data-page-node-id="MVxZMCBllg4J1C0pQvIFYY"><label data-page-node-id="OI96S8Q0W25X03xPp8CGy7">默认份量（克）</label><input id="cf-gram" type="number" min="1" value="100" data-page-node-id="Ud2PLduaU8iCtgNdiOkcIv"></div>
           <div class="field" data-page-node-id="fuFxNcTfXJJlwFmGIeuspM"><label data-page-node-id="cFYsIXEEskFwiYwWBtHiKo">默认单位</label><input id="cf-unit" type="text" value="份" data-page-node-id="McLBPAmIh4A4hnBeBF3Kb1"></div>
-          <button class="confirm buy" onclick="addCustomFood()" data-page-node-id="TiD2k62nu8qgFaqveRtu1X">保存自建食物</button>
+          <button id="cf-save-btn" class="confirm buy" onclick="saveCustomFood()" data-page-node-id="TiD2k62nu8qgFaqveRtu1X">保存自建食物</button>
         </div>
       </div>
     </div>
@@ -7538,12 +7543,24 @@ function foodCatList() {
   let base = [];
   try { base = FoodStore.categories() || []; } catch (e) { base = []; }
   let cleaned = (base || []).filter(c => c && c !== '全部' && c !== USUAL_CAT);
-  // 始终保留「自建」分类：自定义食物 src=custom、cat=自建，按此分类即可检索到
+  // 始终保留「自建」分类：它是所有自建食物的聚合入口（无论各自 cat 填什么）
   if (cleaned.indexOf('自建') < 0) cleaned.push('自建');
-  // 高频分类置前：全部 / 我的常吃 / 自建 / 其余分类（自建是自定义食物入口，应靠近常用分类）
+  // 自建食物里用到的、非系统自带的自定义分类 → 也要作为 Tab 出现在记录页
+  // （系统分类清单 + 特殊分类「全部 / 我的常吃」之外的 cat，都算用户自定义分类）
+  const known = {};
+  cleaned.concat(['全部', USUAL_CAT]).forEach(function (c) { known[c] = true; });
+  const customCats = [];
+  try {
+    const cf = FoodStore.customFoods() || [];
+    cf.forEach(function (f) {
+      const c = f.cat;
+      if (c && !known[c]) { known[c] = true; customCats.push(c); }
+    });
+  } catch (e) {}
+  // 高频分类置前：全部 / 我的常吃 / 自建 / [用户自定义分类] / 其余系统分类
   const pinned = ['全部', USUAL_CAT, '自建'];
-  const rest = cleaned.filter(function(c) { return pinned.indexOf(c) < 0; });
-  return pinned.concat(rest);
+  const rest = cleaned.filter(function (c) { return pinned.indexOf(c) < 0; });
+  return pinned.concat(customCats, rest);
 }
 function manualUsuals() { return (state.usuals || []).slice(); }
 
@@ -7803,7 +7820,13 @@ function renderFoodList(list) {
     return;
   }
 
-  const foods = list || FoodStore.search('', { limit: 200, cat: curFoodCat === '全部' ? null : curFoodCat });
+  // 「自建」分类聚合所有自建食物（与其 cat 填什么无关）；用户自定义分类只作为附加入口
+  let foods;
+  if (curFoodCat === '自建') {
+    foods = list || FoodStore.customFoods();
+  } else {
+    foods = list || FoodStore.search('', { limit: 200, cat: curFoodCat === '全部' ? null : curFoodCat });
+  }
   const banner = curPickMode
     ? '<div class="pick-banner"><div class="pt">挑选模式 · 点任意食物即加入「我的常吃」，再点一次取消</div>'
       + '<div class="pd" onclick="endPickMode()">完成</div></div>'
@@ -7813,10 +7836,16 @@ function renderFoodList(list) {
         const enc = encodeURIComponent(f.name);
         const act = curPickMode ? 'pickUsual' : 'openFoodSheet';
         const on = curPickMode && manualUsuals().some(u => u.name === f.name);
+        // 自建食物：列表项带编辑✎ / 删除× 按钮（点按钮不触发卡片的打开份量逻辑）
+        const actions = f.src === 'custom'
+          ? `<span class="del edit" onclick="event.stopPropagation();editCustomFood('${f.id}')">✎</span>`
+            + `<span class="del" onclick="event.stopPropagation();removeCustomFood('${f.id}')">×</span>`
+          : '';
         return `<div class="result-item" style="${on ? 'border-color:#ffb800;' : ''}" onclick="${act}('${enc}')">
       <span class="cat" style="color:${CAT_COLOR[f.cat]||'#9aa8be'};">${f.cat}</span>
       <span class="n">${f.name}${srcBadge(f.src)}${on ? '<span class="usual-src manual" style="margin-left:6px;">已选</span>' : ''}</span>
       <span class="kcal">${Math.round(f.kcal)} kcal/100g</span>
+      ${actions}
     </div>`;
       }).join('');
 }
@@ -7919,12 +7948,38 @@ function addFood() {
   bumpStreak();
   closeFoodSheet(); render();
 }
+let editingCustomFoodId = null;
 function toggleCustomFood() {
   const f = document.getElementById('custom-food-form');
-  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  const show = f.style.display === 'none';
+  f.style.display = show ? 'block' : 'none';
+  // 每次重新展开都回到「新建」态，避免残留上一次的编辑目标
+  if (show) { editingCustomFoodId = null; const b = document.getElementById('cf-save-btn'); if (b) b.textContent = '保存自建食物'; }
 }
-function addCustomFood() {
-  const r = FoodStore.addCustom({
+function removeCustomFood(id) {
+  if (!confirm('确定删除这条自建食物吗？删除后该食物将不再出现在列表中（已记录的历史饮食不受影响）。')) return;
+  FoodStore.removeCustom(id);
+  renderFoodCats();
+  renderFoodList();
+}
+function editCustomFood(id) {
+  const f = FoodStore.get(id);
+  if (!f) { alert('未找到该自建食物'); return; }
+  editingCustomFoodId = id;
+  document.getElementById('cf-name').value = f.name || '';
+  document.getElementById('cf-alias').value = (f.alias || []).join(' ');
+  document.getElementById('cf-cat').value = f.cat || '自建';
+  document.getElementById('cf-kcal').value = Math.round(f.kcal || 0);
+  document.getElementById('cf-p').value = Math.round(f.p || 0);
+  document.getElementById('cf-f').value = Math.round(f.f || 0);
+  document.getElementById('cf-c').value = Math.round(f.c || 0);
+  document.getElementById('cf-gram').value = f.gram || 100;
+  document.getElementById('cf-unit').value = f.unit || '份';
+  document.getElementById('custom-food-form').style.display = 'block';
+  document.getElementById('cf-save-btn').textContent = '保存修改';
+}
+function saveCustomFood() {
+  const data = {
     name: document.getElementById('cf-name').value,
     alias: document.getElementById('cf-alias').value,
     cat: document.getElementById('cf-cat').value,
@@ -7934,11 +7989,16 @@ function addCustomFood() {
     c: document.getElementById('cf-c').value,
     gram: document.getElementById('cf-gram').value,
     unit: document.getElementById('cf-unit').value
-  });
+  };
+  const editing = editingCustomFoodId;
+  const r = editing ? FoodStore.updateCustom(editing, data) : FoodStore.addCustom(data);
   if (!r.ok) { alert(r.msg); return; }
+  editingCustomFoodId = null;
   ['cf-name','cf-alias','cf-kcal','cf-p','cf-f','cf-c'].forEach(function(id){ document.getElementById(id).value=''; });
-  alert('自建食物「' + r.food.name + '」已保存（来源：自定义）');
+  alert(editing ? ('自建食物「' + r.food.name + '」已更新') : ('自建食物「' + r.food.name + '」已保存（来源：自定义）'));
   document.getElementById('custom-food-form').style.display = 'none';
+  document.getElementById('cf-save-btn').textContent = '保存自建食物';
+  renderFoodCats();
   renderFoodList();
 }
 function removeFood(id) { state.diet = state.diet.filter(d => d.id !== id); if (state.__tomb) { if (state.__tomb.diet.indexOf(id) < 0) state.__tomb.diet.push(id); } else { state.__tomb = { diet: [id], exercise: [] }; } render(); }
