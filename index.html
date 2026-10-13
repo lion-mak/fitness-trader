@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.25"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.26"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -1771,11 +1771,11 @@ body.setup-pending .page { padding-top:39px; }
           <div class="field" data-page-node-id="PXjLBMUvggkY5DVQDgjyWJ"><label data-page-node-id="0kWTaArwyq6Qf7Q9OpBCTS">名称</label><input id="cf-name" type="text" placeholder="如 妈妈牌红烧肉" data-page-node-id="0FIAqY8JmzzZDDLLrByR70"></div>
           <div class="field" data-page-node-id="xwe9K82BacfN0bcaBMmTI2"><label data-page-node-id="uvNJwDLwcTuzTuCMHHbZSq">别名（空格分隔）</label><input id="cf-alias" type="text" placeholder="如 红烧猪肉" data-page-node-id="R81auhcKwGYitfAGjO7Lv4"></div>
           <div class="field" data-page-node-id="bVKXmrIPCV2jGYG0GMwP0p"><label data-page-node-id="vZBlMsxmlrUTy6gjTfk2at">分类</label><input id="cf-cat" type="text" value="自建" data-page-node-id="lCsCi50glytFtjyDdIXMGi"></div>
-          <div class="field" data-page-node-id="oIYbOITNk0FNCNJipV9zDD"><label data-page-node-id="K9RLTleHrLIvtmNOLLnFbc">每 100g 热量（kcal）</label><input id="cf-kcal" type="number" min="0" data-page-node-id="ACuihPIMwtK3zXPPycYCHS"></div>
+          <div class="field" data-page-node-id="oIYbOITNk0FNCNJipV9zDD"><label data-page-node-id="K9RLTleHrLIvtmNOLLnFbc">每 100g 热量（kcal）</label><input id="cf-kcal" type="number" min="0" step="0.1" data-page-node-id="ACuihPIMwtK3zXPPycYCHS"></div>
           <div class="field" data-page-node-id="MjMwXtvtix6AmciIDeneY1"><label data-page-node-id="OrqjIMteCESnMnFo4I3x7t">蛋白质 g</label><input id="cf-p" type="number" min="0" step="0.1" data-page-node-id="LB7DME5QlvboCR93ldS3I0"></div>
           <div class="field" data-page-node-id="JSxm2NGCJYvThNjVf3SFS6"><label data-page-node-id="NMhydzAGkQcBwm1i9PascM">脂肪 g</label><input id="cf-f" type="number" min="0" step="0.1" data-page-node-id="Prtgkty1yENnEKvVgPNyE6"></div>
           <div class="field" data-page-node-id="JNZG8Zk2oVtwvhEnbEAsnC"><label data-page-node-id="3DyeCNbWKsesBbCkH2AVhT">碳水 g</label><input id="cf-c" type="number" min="0" step="0.1" data-page-node-id="jfbuHXWGpj95BI871HP6i0"></div>
-          <div class="field" data-page-node-id="MVxZMCBllg4J1C0pQvIFYY"><label data-page-node-id="OI96S8Q0W25X03xPp8CGy7">默认份量（克）</label><input id="cf-gram" type="number" min="1" value="100" data-page-node-id="Ud2PLduaU8iCtgNdiOkcIv"></div>
+          <div class="field" data-page-node-id="MVxZMCBllg4J1C0pQvIFYY"><label data-page-node-id="OI96S8Q0W25X03xPp8CGy7">默认份量（克）</label><input id="cf-gram" type="number" min="1" step="0.1" value="100" data-page-node-id="Ud2PLduaU8iCtgNdiOkcIv"></div>
           <div class="field" data-page-node-id="fuFxNcTfXJJlwFmGIeuspM"><label data-page-node-id="cFYsIXEEskFwiYwWBtHiKo">默认单位</label><input id="cf-unit" type="text" value="份" data-page-node-id="McLBPAmIh4A4hnBeBF3Kb1"></div>
           <button id="cf-save-btn" class="confirm buy" onclick="saveCustomFood()" data-page-node-id="TiD2k62nu8qgFaqveRtu1X">保存自建食物</button>
         </div>
@@ -7861,7 +7861,7 @@ function usualItemHTML(u) {
   return '<div class="result-item usual-row" onclick="openFoodSheet(\'' + enc + '\')">'
     + '<span class="cat" style="color:' + (CAT_COLOR[f.cat] || '#9aa8be') + ';">' + f.cat + '</span>'
     + '<span class="n">' + f.name + tag + '</span>'
-    + '<span class="kcal">' + Math.round(f.kcal) + ' kcal/100g</span>'
+    + '<span class="kcal">' + fmtNum(f.kcal) + ' kcal/100g</span>'
     + '<span class="del" onclick="event.stopPropagation();removeUsual(\'' + enc + '\')">×</span>'
     + '</div>';
 }
@@ -7936,7 +7936,8 @@ function switchFoodCat(cat) {
   renderFoodCats();
   renderFoodList();
 }
-/* 数值格式化：热量一律取整；宏量最多保留 1 位，整数则不显示 .0 */
+/* 数值格式化：最多保留 1 位小数（四舍五入到 0.1），整数则不显示 .0
+   —— 10 显示为 "10"（不是 "10.0"），10.2 显示为 "10.2"（v2.18.26 自建食物 kcal 也走这条） */
 function fmtNum(n) {
   if (n == null || isNaN(n)) return '0';
   const v = Math.round(n * 10) / 10;
@@ -7991,7 +7992,7 @@ function renderFoodList(list) {
         return `<div class="result-item" style="${on ? 'border-color:#ffb800;' : ''}" onclick="${act}('${enc}')">
       <span class="cat" style="color:${CAT_COLOR[f.cat]||'#9aa8be'};">${f.cat}</span>
       <span class="n">${f.name}${srcBadge(f.src)}${on ? '<span class="usual-src manual" style="margin-left:6px;">已选</span>' : ''}</span>
-      <span class="kcal">${Math.round(f.kcal)} kcal/100g</span>
+      <span class="kcal">${fmtNum(f.kcal)} kcal/100g</span>
       ${actions}
     </div>`;
       }).join('');
@@ -8027,7 +8028,7 @@ function openFoodSheet(encName) {
   document.getElementById('food-search-sheet').classList.remove('show');
   // 名称后要拼接来源徽标（HTML），必须用 innerHTML，用 textContent 会把标签当纯文本显示
   document.getElementById('fs-name').innerHTML = curFood.name + srcBadge(curFood.src);
-  document.getElementById('fs-per').textContent = Math.round(curFood.kcal) + ' kcal / 100g · ' + curFood.cat + ' · 蛋白 ' + fmtNum(curFood.p) + 'g 脂肪 ' + fmtNum(curFood.f) + 'g 碳水 ' + fmtNum(curFood.c) + 'g';
+  document.getElementById('fs-per').textContent = fmtNum(curFood.kcal) + ' kcal / 100g · ' + curFood.cat + ' · 蛋白 ' + fmtNum(curFood.p) + 'g 脂肪 ' + fmtNum(curFood.f) + 'g 碳水 ' + fmtNum(curFood.c) + 'g';
   document.getElementById('fs-qty').textContent = curQty;
   document.getElementById('fs-gram').value = gramsPerUnit(curFood);
   document.getElementById('fs-kcal-manual').value = '';
@@ -8046,7 +8047,7 @@ function switchFoodMode(mode) {
   const g = gramsPerUnit(curFood);
   document.getElementById('fs-unit-lbl').textContent = '份量（' + curFood.unit + '）';
   document.getElementById('fs-unit-hint').textContent = '1' + curFood.unit + ' ≈ ' + g + ' 克';
-  document.getElementById('fs-gram-hint').textContent = '按克重更精准：' + Math.round(curFood.kcal) + ' kcal / 100g（约 ' + g + 'g/份）';
+  document.getElementById('fs-gram-hint').textContent = '按克重更精准：' + fmtNum(curFood.kcal) + ' kcal / 100g（约 ' + g + 'g/份）';
   updateFoodConfirm();
 }
 function stepQty(d) { curQty = Math.max(0.5, +(curQty + d).toFixed(1)); document.getElementById('fs-qty').textContent = curQty; updateFoodConfirm(); }
@@ -8116,11 +8117,11 @@ function editCustomFood(id) {
   document.getElementById('cf-name').value = f.name || '';
   document.getElementById('cf-alias').value = (f.alias || []).join(' ');
   document.getElementById('cf-cat').value = f.cat || '自建';
-  document.getElementById('cf-kcal').value = Math.round(f.kcal || 0);
-  document.getElementById('cf-p').value = Math.round(f.p || 0);
-  document.getElementById('cf-f').value = Math.round(f.f || 0);
-  document.getElementById('cf-c').value = Math.round(f.c || 0);
-  document.getElementById('cf-gram').value = f.gram || 100;
+  document.getElementById('cf-kcal').value = fmtNum(f.kcal);
+  document.getElementById('cf-p').value = fmtNum(f.p);
+  document.getElementById('cf-f').value = fmtNum(f.f);
+  document.getElementById('cf-c').value = fmtNum(f.c);
+  document.getElementById('cf-gram').value = fmtNum(f.gram);
   document.getElementById('cf-unit').value = f.unit || '份';
   document.getElementById('custom-food-form').style.display = 'block';
   document.getElementById('cf-save-btn').textContent = '保存修改';
