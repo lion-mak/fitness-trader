@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 
 ROOT = r'E:\WorkBuddy\jianpan-ghpages'
-GITROOT = r'C:/Users/Administrator/.workbuddy/binaries/PortableGit/versions/1.2.0/mingw64/bin'
+GITROOT = r'C:/Users/Administrator/.workbuddy/binaries/PortableGit/versions/1.3.0/mingw64/bin'
 GIT = GITROOT + '/git.exe'
 REPO = 'lion-mak/fitness-trader'
 BRANCH = 'master'

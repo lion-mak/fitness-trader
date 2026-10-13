@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.22"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.23"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5708,12 +5708,12 @@ function renderKline() {
   }
   /* 窗口内最高/最低（日K 无 h/l ⇒ 取 o/c）：用于下面的标注，同时兜进量程 ——
      否则日K 窗口第一根的开盘价（上一根收盘）可能顶出画布上沿，标注线画到视野外。 */
-  let winHi = -Infinity, winLo = Infinity;
-  vis.forEach(b => {
+  let winHi = -Infinity, winLo = Infinity, winHiI = -1, winLoI = -1;
+  vis.forEach((b, j) => {
     const hi = (b.h != null) ? b.h : Math.max(b.o, b.c);
     const lo = (b.l != null) ? b.l : Math.min(b.o, b.c);
-    if (hi > winHi) winHi = hi;
-    if (lo < winLo) winLo = lo;
+    if (hi > winHi) { winHi = hi; winHiI = j; }
+    if (lo < winLo) { winLo = lo; winLoI = j; }
   });
   min = Math.min(min, winLo); max = Math.max(max, winHi);
   if (max - min < 0.5) { min -= 0.5; max += 0.5; } else { min -= 0.4; max += 0.4; }
@@ -5775,13 +5775,22 @@ function renderKline() {
     const bodyH = Math.max(2, yBot - yTop);
     svg += '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + bodyH.toFixed(1) + '" fill="' + color + '"/>';
   }
-  /* 窗口内最高 / 最低点标注（v2.18.22，Mak 要求「类似股票的 K 线」）：
-     琥珀虚线横贯画布 + 左缘数值；高点标签压在线**上方**、低点压在线**下方**（通达信口径）。
-     hi === lo（窗口内体重完全一致）时只标一个，避免两个数字叠在一起。 */
-  const annLine = v => '<line x1="' + PAD_L + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + y(v).toFixed(1) + '" stroke="rgba(255,184,0,.45)" stroke-width="0.7" stroke-dasharray="3 3"/>';
-  const annLab = (v, above) => '<text x="' + (PAD_L + 3) + '" y="' + (above ? y(v) - 3 : y(v) + 9).toFixed(1) + '" fill="#ffb800" font-size="9">' + v.toFixed(1) + '</text>';
-  svg += annLine(winHi) + annLab(winHi, true);
-  if (winLo < winHi) svg += annLine(winLo) + annLab(winLo, false);
+  /* 窗口内最高 / 最低点标注（v2.18.23 Mak 修正：不要横贯虚线，改在极值那根 K 线附近标数值）。
+     winHiI/winLoI 是极值在窗口内的局部下标 → 全量 idx = winStart + j；
+     在该 K 线的极值点 (stepX(idx), y(v)) 画一个琥珀小圆点，数值贴圆点标注（高点压上方、低点压下方），
+     贴左/右缘时把文字朝画布内侧挪，避免溢出。hi === lo 时只标一个，避免两个数字叠在一起。 */
+  const annDot = (idx, v) => {
+    const cx = stepX(idx), cy = y(v);
+    let tx = cx, ty = cy - 4, anchor = 'middle';
+    if (cx < PAD_L + 14) { tx = cx + 2; anchor = 'start'; }
+    else if (cx > W - PAD_R - 14) { tx = cx - 2; anchor = 'end'; }
+    if (ty < PAD_T + 6) ty = cy + 11;
+    else if (ty > H - PAD_B - 2) ty = cy - 4;
+    return '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="2" fill="#ffb800"/>'
+         + '<text x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" fill="#ffb800" font-size="9" text-anchor="' + anchor + '">' + v.toFixed(1) + '</text>';
+  };
+  svg += annDot(winStart + winHiI, winHi);
+  if (winLo < winHi) svg += annDot(winStart + winLoI, winLo);
   svg += '<line x1="' + PAD_L + '" y1="' + (H - PAD_B) + '" x2="' + (W - PAD_R) + '" y2="' + (H - PAD_B) + '" stroke="#2a3348" stroke-width="1"/>';
   // 十字光标（仅悬浮时显示）
   svg += '<line id="kline-cross" x1="' + PAD_L + '" y1="' + PAD_T + '" x2="' + PAD_L + '" y2="' + (H - PAD_B) + '" stroke="#7c8aa5" stroke-width="0.7" stroke-dasharray="3 3" style="display:none"/>';
