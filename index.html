@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.26"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.27"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -521,19 +521,74 @@ body {
 .confirm.sell { background:var(--green); color:#0a1a15; }
 .mini-btn { display:inline-block; padding:7px 14px; border:none; border-radius:9px; background:var(--red); color:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:inherit; flex:none; line-height:1.3; white-space:nowrap; }
 
-/* 涨停仪式 */
-.celeb { position:absolute; inset:0; z-index:100; display:none; background:radial-gradient(ellipse at 50% 30%,#ff3b47 0%,#c91f2c 35%,#0a0e1a 85%); flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 24px; }
+/* ============ 涨停仪式（v2.18.27 重设计：V1 盘口深底 + 分时涨停动画）============
+   Mak 2026-10-13 定夺。三条诊断（旧版实测）：
+   ① 配色：背景 radial-gradient(#ff3b47 0%, #c91f2c 35%, #0a0e1a 85%) —— 高饱和纯红铺满 **85% 面积**，
+      红→暗红→近黑**硬过渡**（35% 处可见色带断层）；场上并存 3 种"主角色"（红 #ff3b47 + 琥珀 #ffb800
+      + 纯白按钮）无主次。⇒ 现在红**从背景降级为「氛围 + 强调」**，立三级：
+      底 #0a0e1a 深藏青 / 强调 #e8384f 涨停红（状态条·按钮）/ 奖励 #ffc53d 金 / 次要字 #8b95a8。
+   ② 排版：旧版 DOM 顺序是 奖杯→数字→「今日热量缺口」→「已封涨停！」⇒ **主标题排在数字与说明之后**，
+      第一眼只看到一个孤零零的 -520，要往下读两行才知道发生了什么（这才是「简陋」的真身）。
+      ⇒ 加贴顶状态条、**标题提到数字之前**、三格奖励收进内层面板分主次、间距归栅格 8/16/20/24。
+   ③ 奖杯：通用符号，换成本 App 自己的语言 —— **分时涨停走势图**，板型「厂字·斜升」。
+      🔴 为什么是窄柱而不是 SVG/图片：小程序**不解析 SVG**，旧奖杯是 promo/make_ach_assets.py
+         把 PWA 的 <svg> 烘焙成 celeb-trophy.png 的 —— 图片做不了路径描绘动画。
+         96 根窄柱 + 逐根 scaleY(0)→1 + animation-delay 递增，天然就是「分时线被逐根画出来」，
+         而且这套 CSS 能由 mp_build 整体同步到小程序（双端同源）。
+   ⚠️ `.celeb` 的 id 与 `show` 类**不可改名**：fullOverlayOn() 靠它们做遮罩让步判据。
+   ⚠️ 柱与金粒的动画挂在 `.celeb.run` 下（不是挂元素本身）：否则 DOM 建好即播完，
+      真正弹窗时只剩静止满高，没有「逐根画出来」。重播靠 remove('run')→reflow→add('run')。 */
+.celeb { position:absolute; inset:0; z-index:100; display:none; flex-direction:column; text-align:center;
+  background-color:#0a0e1a;
+  background-image:
+    radial-gradient(ellipse 100% 76% at 50% 46%, rgba(10,14,26,0) 40%, rgba(4,7,13,.72) 100%),
+    radial-gradient(ellipse 130% 58% at 50% 0%, rgba(232,56,79,.36), rgba(232,56,79,0) 72%),
+    linear-gradient(0deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:100% 100%, 100% 100%, 100% 30px;
+}
 .celeb.show { display:flex; }
-.celeb .big { font-size:80px; font-weight:600; line-height:1; color:#fff; }
-.celeb .big small { font-size:26px; color:rgba(255,255,255,0.7); }
-.celeb .heading { font-size:30px; font-weight:600; color:#fff; margin-top:18px; }
-.celeb .heading .em { background:linear-gradient(180deg,#ffb800,#ff8a00); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.celeb .trophy { width:84px; height:84px; border-radius:50%; background:var(--amber); margin-top:16px; display:flex; align-items:center; justify-content:center; }
-.celeb .stats { display:flex; gap:22px; margin-top:24px; }
-.celeb .stats > div { text-align:center; }
-.celeb .stats .n { font-size:20px; font-weight:500; }
-.celeb .stats .l { font-size:11px; opacity:0.7; margin-top:2px; }
-.celeb .btn { margin-top:28px; padding:12px 32px; border-radius:24px; background:#fff; color:#0a0e1a; font-size:14px; font-weight:500; cursor:pointer; border:none; }
+.celeb-bar { flex:none; height:46px; width:100%; background:#e8384f; color:#ffd98a; font-size:13px; font-weight:500; display:flex; align-items:center; justify-content:center; gap:7px; }
+.celeb-bar .dot { display:block; width:6px; height:6px; border-radius:50%; background:#ffd98a; animation:celebDot 1.6s infinite; }
+.celeb-body { flex:1 1 0; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 24px 24px; }
+.celeb-sp { position:relative; width:100%; max-width:300px; height:132px; box-sizing:border-box; padding:0 12px; background:rgba(255,255,255,.035); border:0.5px solid rgba(255,255,255,.09); border-radius:12px; }
+.celeb-sp-hd { position:absolute; top:3px; left:12px; right:12px; display:flex; justify-content:space-between; font-size:11px; color:#ffc53d; line-height:1; z-index:4; }
+.celeb-sp-hd .t2 { color:#8b95a8; }
+.celeb-sp-range { position:absolute; left:12px; right:12px; top:16px; bottom:10px; display:flex; align-items:flex-end; z-index:1; }
+.celeb-sp-range .b { flex:1 1 0; background:rgba(232,56,79,.34); border-top:1.5px solid #ff5b6b; transform-origin:bottom; transform:scaleY(0); }
+.celeb.run .celeb-sp-range .b { animation:celebBar .16s ease-out both; }
+.celeb-sp-line { position:absolute; left:12px; right:12px; top:16px; border-top:1px dashed rgba(255,197,61,.5); z-index:2; }
+.celeb.run .celeb-sp-line { animation:celebLock .7s ease-out .77s; }
+.celeb-sp-seal { position:absolute; right:13px; top:32px; font-size:11px; font-weight:500; color:#0b1018; background:#ffc53d; padding:2px 7px; border-radius:4px; opacity:0; z-index:3; }
+.celeb.run .celeb-sp-seal { animation:celebSeal .34s cubic-bezier(.2,1.4,.4,1) .78s both; }
+.celeb-sp-parts { position:absolute; left:12px; right:12px; top:14px; height:26px; pointer-events:none; z-index:3; }
+.celeb-sp-parts .p { position:absolute; bottom:0; width:3px; height:3px; border-radius:50%; background:#ffc53d; opacity:0; }
+.celeb.run .celeb-sp-parts .p { animation:celebFly .8s ease-out both; }
+.celeb-ti { margin-top:20px; font-size:26px; font-weight:500; line-height:1.2; color:#fff; }
+.celeb-ti .em { color:#ffc53d; }
+.celeb-net { margin-top:10px; font-size:54px; font-weight:500; line-height:1; color:#ff5b6b; }
+.celeb-net .small { font-size:16px; color:#8b95a8; margin-left:4px; }
+.celeb-sub { margin-top:9px; font-size:11px; color:#8b95a8; }
+.celeb-rw { display:flex; width:100%; max-width:300px; margin-top:18px; padding:12px 0; background:rgba(255,255,255,.045); border:0.5px solid rgba(255,255,255,.09); border-radius:12px; }
+.celeb-rw .c { flex:1 1 0; }
+.celeb-rw .c + .c { border-left:0.5px solid rgba(255,255,255,.09); }
+.celeb-rw .n { font-size:19px; font-weight:500; line-height:1; color:#fff; }
+.celeb-rw .c:first-child .n { color:#ffc53d; }
+.celeb-rw .l { font-size:11px; color:#8b95a8; margin-top:4px; }
+.celeb-ft { margin-top:14px; font-size:11px; color:#8b95a8; }
+.celeb-btn { margin-top:16px; width:100%; max-width:300px; height:44px; box-sizing:border-box; display:block; background:#e8384f; color:#fff; font-size:14px; font-weight:500; border-radius:12px; line-height:44px; cursor:pointer; }
+.celeb .celeb-ti, .celeb .celeb-net, .celeb .celeb-sub, .celeb .celeb-rw, .celeb .celeb-ft, .celeb .celeb-btn { opacity:0; }
+.celeb.run .celeb-ti { animation:celebUp .5s cubic-bezier(.2,1.3,.4,1) .70s both; }
+.celeb.run .celeb-net { animation:celebUp .4s ease-out .78s both; }
+.celeb.run .celeb-sub { animation:celebUp .4s ease-out .90s both; }
+.celeb.run .celeb-rw { animation:celebUp .45s ease-out 1.00s both; }
+.celeb.run .celeb-ft { animation:celebUp .4s ease-out 1.12s both; }
+.celeb.run .celeb-btn { animation:celebUp .4s ease-out 1.20s both; }
+@keyframes celebBar { from { transform:scaleY(0); } to { transform:scaleY(1); } }
+@keyframes celebFly { 0% { opacity:0; transform:translateY(0) scale(.5); } 18% { opacity:1; } 100% { opacity:0; transform:translateY(-30px) scale(1); } }
+@keyframes celebSeal { from { opacity:0; transform:translateY(-6px) scale(.7); } to { opacity:1; transform:translateY(0) scale(1); } }
+@keyframes celebLock { 0% { border-color:rgba(255,197,61,.5); } 35% { border-color:#ffc53d; } 100% { border-color:rgba(255,197,61,.5); } }
+@keyframes celebUp { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:translateY(0); } }
+@keyframes celebDot { 50% { opacity:.35; } }
 .fab-note { margin:12px 14px 0; padding:11px 14px; background:#0d2335; border:1px solid #103855; border-radius:12px; font-size:11px; color:#88c8fa; }
 
 /* 身体成分详情页 */
@@ -1729,16 +1784,26 @@ body.setup-pending .page { padding-top:39px; }
 
     <!-- ============ 涨停仪式 ============ -->
     <div class="celeb" id="celeb" data-page-node-id="E7AOqfodXpgpt2NLr0pfDK">
-      <div class="trophy" data-page-node-id="m6fG8tW8dnFspe7fug1ilJ"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" data-page-node-id="H4ZAPD0hW6E93RhHN6D1kF"><circle cx="12" cy="9" r="6" fill="#0a0e1a" data-page-node-id="y6LEAzLDtlTONcXkrFSeaQ"/><path d="M9 14 L7 22 L12 19 L17 22 L15 14 Z M9 9 L12 5 L15 9 L12 13 Z" fill="#0a0e1a" data-page-node-id="WTx9657XCXNAhMSD9VR8Xk"/></svg></div>
-      <div class="big" id="celeb-net" data-page-node-id="y2N2ZukaqLPpKdQdolGCUA">-0<small data-page-node-id="WxiTW0A93AMKquJVhXN95Z">kcal</small></div>
-      <div style="color:#fff;opacity:0.7;font-size:13px;margin-top:8px;" data-page-node-id="RCI7A1T0XlpdrJ3SRE4VHd">今日热量缺口 · 触发涨停</div>
-      <div class="heading" data-page-node-id="GtMe9lsKNEhs6ZytV0D9D2">已<span class="em" data-page-node-id="HW6SNad8zsWyBgNiXOHKLB">封涨停</span>！</div>
-      <div class="stats" data-page-node-id="yT3bflEyFL5JE6FcQulsux">
-        <div data-page-node-id="mEiHbvH58Exq7amc9MKUDY"><div class="n" data-page-node-id="vLHoDK6PEQDgAwkCBZX6zQ">+200</div><div class="l" data-page-node-id="HHkzQsawTDzAIPMTtVmjdt">健康币</div></div>
-        <div data-page-node-id="lw508QVQi44xfjM8BMTi62"><div class="n" data-page-node-id="2pDHvPLwwYt8QTEnO2Nduw">+30</div><div class="l" data-page-node-id="xjLx8yHhC6ytHtQAlGbEEE">经验值</div></div>
-        <div data-page-node-id="jloJt8R55Ak1lCa5UkFPtV"><div class="n" data-page-node-id="hVBWENEMmYmgrkOR8GDSCv">+1</div><div class="l" data-page-node-id="NmsTgCOpCcAsKeO2BQa8C1">勋章</div></div>
+      <div class="celeb-bar"><i class="dot"></i>已封板 · <span id="celeb-date">--/--</span> 收盘</div>
+      <div class="celeb-body">
+        <div class="celeb-sp">
+          <div class="celeb-sp-hd"><span>涨停 10.00%</span><span class="t2">09:30 — 15:00</span></div>
+          <div class="celeb-sp-range" id="celeb-sp-range"></div>
+          <div class="celeb-sp-line"></div>
+          <div class="celeb-sp-seal">已封</div>
+          <div class="celeb-sp-parts" id="celeb-sp-parts"></div>
+        </div>
+        <div class="celeb-ti">恭喜<span class="em">昨日涨停</span>！</div>
+        <div class="celeb-net" id="celeb-net">-0<small class="small">kcal</small></div>
+        <div class="celeb-sub">昨日热量缺口 · 已收盘结算</div>
+        <div class="celeb-rw">
+          <div class="c"><div class="n" id="celeb-coin">+0</div><div class="l">健康币</div></div>
+          <div class="c"><div class="n" id="celeb-exp">+0</div><div class="l">经验值</div></div>
+          <div class="c"><div class="n">+1</div><div class="l">勋章</div></div>
+        </div>
+        <div class="celeb-ft">连续 <span id="celeb-streak">1</span> 天达标 · <span id="celeb-ftdate">--/--</span> 收盘</div>
+        <div class="celeb-btn" onclick="closeCeleb()">收下奖励，继续盯盘</div>
       </div>
-      <button class="btn" onclick="closeCeleb()" data-page-node-id="VXtFslCVFV8szo6FDQqaGn">收下奖励，继续盯盘</button>
     </div>
 
     <!-- ============ 个人资料编辑弹层 ============ -->
@@ -2719,6 +2784,62 @@ const EXP_PER_FOOD = 1;         // 记一笔饮食：+1 经验
 const EXP_PER_EX = 2;           // 记一次运动：+2 经验
 const COIN_LIMITUP = 200;       // 涨停奖励（每日缺口达标）
 const EXP_LIMITUP = 20;         // 涨停经验（每日至多一次，幂等锚 state.settledDate）
+
+/* ---- 涨停仪式 · 分时涨停图数据（v2.18.27）----
+   🔴 这三个函数是**纯计算**、放内核顶层 ⇒ mp_build 会把它们连同下面的常量一起抽进
+      lib/calc.js，于是 PWA（JS 造 DOM）与小程序（wx:for 渲染）**形态逐值同源**。
+      ⛔ 别在两个页面各写一份：必然漂移，而且「形态错了」这种错最难发现。
+   ⛔ 别用 Math.random：确定性伪随机（取模）才能被探针逐值断言、被负控精准咬住 ——
+      随机值最多只能断言「数量对」，形态画错了照样全绿。
+
+   板型 = 厂字·斜升（Mak 2026-10-13 定）：从左下**斜**拉到涨停，之后顶部横住，形如「厂」字。
+   为什么不是台阶式（低位横盘→垂直拉板）：厂字的撇本来就是斜的，斜升是它最忠实的笔画；
+   而且「资金持续推高再封住」比「瞬间拔起」更贴「昨天是靠自律一点点达标」这个隐喻。 */
+const CELEB_SPARK_N = 96;       // 分时柱数（240 分钟交易时段，每根 2.5 分钟）
+const CELEB_PART_N = 12;        // 金粒数（低端安卓上限，⛔别再调高）
+const CELEB_SEAL_AT = 0.62;     // 封板时点（占全天比例）：此前斜升，此后一字封死无波动
+const CELEB_BAR_START = 100;    // 首根延迟(ms)：留给底盘淡入
+const CELEB_BAR_DELAY = 6.5;    // 逐根延迟(ms)：96 根 × 6.5 ≈ 624ms 画完整个交易日
+
+/* 返回 [{h:'62.3', d:100}, …]：h = 柱高百分比（相对柱区，100 = 涨停价），d = 动画延迟(ms)。
+   ⚠️ 涨到 100 那一根之后**恒为 100**（封板段无波动），只有斜升段带确定性微抖 ——
+      否则「封板」看起来像还在挣扎，语义就错了。 */
+function celebSparkBars() {
+  var n = CELEB_SPARK_N, seal = Math.round(n * CELEB_SEAL_AT), a = [], i, v;
+  for (i = 0; i < n; i++) {
+    if (i < seal) {
+      v = 0.06 + (i / seal) * 0.93 + Math.sin(i * 1.7) * 0.008;
+      if (v < 0.03) v = 0.03;
+      if (v > 0.99) v = 0.99;
+    } else {
+      v = 1;
+    }
+    a.push({ h: Math.round(v * 1000) / 10, d: Math.round(CELEB_BAR_START + i * CELEB_BAR_DELAY) });
+  }
+  return a;
+}
+
+/* 金粒：x = 起始左偏移(%)、d = 起始延迟(ms)、u = 时长(ms)，全走确定性伪随机（取模）。 */
+function celebSparkParts() {
+  var a = [], i;
+  for (i = 0; i < CELEB_PART_N; i++) {
+    a.push({
+      x: Math.round((4 + (i * 37) % 92) * 10) / 10,
+      d: 790 + (i * 17) % 140,
+      u: 560 + (i * 43) % 380
+    });
+  }
+  return a;
+}
+
+/* 数字滚动用：p ∈ [0,1] 进度 → 该进度下应显示的读数（三次缓出，快起慢落）。
+   ⚠️ 曲线放内核是为了两端**同源**：PWA 用 requestAnimationFrame 驱动、小程序用定时器驱动，
+      驱动方式各按平台（小程序没有 rAF），但「第 p 帧该显示什么数」必须只有一份真相。 */
+function celebNetAt(net, p) {
+  if (!(p > 0)) p = 0;
+  if (p > 1) p = 1;
+  return Math.round(net * (1 - Math.pow(1 - p, 3)));
+}
 
 /* ---- 操盘手段位（等级成长体系 · LV1–LV10 封顶）----
    ⚠️ 顺序 = 「我的」页段位卡廊卡片顺序 = assets/ranks/*.webp 编号顺序，三者须一致。
@@ -9041,7 +9162,84 @@ function renderBodyViz() {
 /* ============ 成就 / 涨停 ============ */
 function showAchievements() { switchTab('achievements'); }
 function backToProfile() { switchTab('profile'); }
-function closeCeleb() { document.getElementById('celeb').classList.remove('show'); render(); }
+function closeCeleb() {
+  /* ⚠️ show 与 run 必须一起摘：只摘 show 的话，下次打开时 run 仍在 ⇒ 动画不算「重新应用」，
+     柱子不会重播逐根升起，直接以终态出现（看起来像没做动效）。 */
+  var cb = document.getElementById('celeb');
+  if (cb) { cb.classList.remove('show'); cb.classList.remove('run'); }
+  render();
+}
+
+/* ---- 涨停仪式 · 分时图 DOM（v2.18.27）----
+   只建一次：形态固定（厂字·斜升），重播靠重挂 .run 类。
+   🔴 柱子数与高度全部来自内核 celebSparkBars()，⛔ 不在页面层重写形态：
+      小程序侧用同一份数据 wx:for 渲染，形态才逐值同源。
+   ⚠️ 「建过没建过」用 **DOM 事实**（#celeb-sp-range 有没有子节点）判断，⛔ 不引入模块级
+      状态变量 —— 顶层 var 会被 mp_build 当常量抽进内核，在内核里躺一份谁也改不到的
+      死状态（同 fullOverlayOn 注释里那条教训）。 */
+function celebBuildDom() {
+  var rg = document.getElementById('celeb-sp-range'), pt = document.getElementById('celeb-sp-parts');
+  if (!rg || !pt) return;
+  var bars = celebSparkBars(), parts = celebSparkParts(), i, el;
+  for (i = 0; i < bars.length; i++) {
+    el = document.createElement('i');
+    el.className = 'b';
+    el.style.height = bars[i].h + '%';
+    el.style.animationDelay = bars[i].d + 'ms';
+    rg.appendChild(el);
+  }
+  for (i = 0; i < parts.length; i++) {
+    el = document.createElement('i');
+    el.className = 'p';
+    el.style.left = parts[i].x + '%';
+    el.style.animationDelay = parts[i].d + 'ms';
+    el.style.animationDuration = parts[i].u + 'ms';
+    pt.appendChild(el);
+  }
+}
+
+/* 弹出涨停仪式（settleDay 达标分支调用）。
+   ⚠️ 奖励三格**从常量现取**，⛔ 不再在 HTML 里硬编码：旧版写死 +30 而 EXP_LIMITUP 是 20
+      ⇒ 显示应得 +30、实发 +20，且每渲染一次骗一次，是纯静默错值。
+   ⚠️ 顺序必须「先 show 再 run」：.celeb 平时是 display:none，隐藏状态下挂 run 不会建立
+      动画时间轴，表现是「一弹出来就是终态」——柱满高、文案全在，看着像根本没做动效。
+   ⚠️ date 传的是**已收盘那一天**（D 日，不是弹出时的 D+1），文案的「昨日」即由此而来。 */
+function celebShow(net, streak, date) {
+  var cb = document.getElementById('celeb');
+  if (!cb) return;
+  var rg = document.getElementById('celeb-sp-range');
+  if (rg && rg.children.length === 0) celebBuildDom();
+  var d = String(date || '').slice(5).replace('-', '/');
+  var cEl = document.getElementById('celeb-coin');   if (cEl) cEl.textContent = '+' + COIN_LIMITUP;
+  var eEl = document.getElementById('celeb-exp');    if (eEl) eEl.textContent = '+' + EXP_LIMITUP;
+  var sEl = document.getElementById('celeb-streak'); if (sEl) sEl.textContent = String(streak > 1 ? streak : 1);
+  var dEl = document.getElementById('celeb-date');   if (dEl) dEl.textContent = d;
+  var fEl = document.getElementById('celeb-ftdate'); if (fEl) fEl.textContent = d;
+  cb.classList.remove('run');
+  cb.classList.add('show');
+  void cb.offsetWidth;      /* 已可见 ⇒ 在此 flush，下面挂 run 才会从第 0 帧开始播 */
+  cb.classList.add('run');
+  celebRollNet(net);
+}
+
+/* 读数 0 → net 滚上去（比直接出现更像一笔成交回报）。曲线走内核 celebNetAt（两端同源），
+   这里只管驱动 —— PWA 有 requestAnimationFrame，小程序没有，那边用定时器驱动同一个曲线。 */
+function celebRollNet(net) {
+  var el = document.getElementById('celeb-net');
+  if (!el) return;
+  function put(v) { el.innerHTML = v + '<small class="small">kcal</small>'; }
+  if (typeof requestAnimationFrame !== 'function') { put(Math.round(net)); return; }
+  var t0 = null, D0 = 780, DUR = 480;
+  put(0);
+  requestAnimationFrame(function step(ts) {
+    if (t0 === null) t0 = ts;
+    var e = ts - t0 - D0;
+    if (e < 0) { requestAnimationFrame(step); return; }
+    var p = e / DUR; if (p > 1) p = 1;
+    put(celebNetAt(net, p));
+    if (p < 1) requestAnimationFrame(step);
+  });
+}
 
 /* ============ 健康币 / 等级 详情页 ============ */
 function currentRank() {
@@ -9545,8 +9743,12 @@ function settleDay(dateStr) {
     state.coinsEarnedTotal += COIN_LIMITUP;
     state.exp += EXP_LIMITUP;
     buzz(28);                       /* 涨停是大事：比成就/升段那两处稍长一点 */
-    var ce=document.getElementById('celeb-net'); if(ce) ce.innerHTML = net + '<small>kcal</small>';
-    var cb=document.getElementById('celeb'); if(cb) cb.classList.add('show');
+    /* ⚠️ 这一行是 mp_build.py 里 DE_DOM 表**按正则匹配**的对象（会被换成
+       __fire('celebrate', {date,net,streak}) 钩子，把 DOM 痕迹清掉，好让本函数整体
+       以「纯计算档」抽进 lib/calc.js —— 否则它会变成 no-op 空壳，币和连板一分不发）。
+       ⛔ 改这一行 = 必须同步改 mp_build.py 的 DE_DOM 规则；不同步它会**直接报错退出**
+       （"DE_DOM 的规则没命中"）—— 那正是它设计成硬失败的原因：宁可报错，也不静默生成空壳。 */
+    celebShow(net, state.limitUpStreak, dateStr);
   } else if (hasRec && net > state.user.target) {
     /* ============ 未达标回执（v2.17.3）============
        从前没达标是**彻底静默**的：只有涨停才弹 #celeb，于是「昨天没达标」这件事
