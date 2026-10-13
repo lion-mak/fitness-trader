@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.24"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.25"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -658,9 +658,23 @@ body {
 .sector-net-badge.bull { background:#0d3a32; color:#00c896; }
 .sector-net-badge.bear { background:#2a0d10; color:#ff3b47; }
 .sector-net-badge.flat { background:#1f2638; color:#9aa8be; }
+/* 固定高度 + 两列各自上下滚动（v2.18.25，Mak：记录食物种类过多时不能溢出画面）。
+   🔴 溢出根因（不是"高度没锁死"，是**条目挤不下去**）：
+      `.sector-item` 的内联样式原写 `flex:<N>` —— 这是**简写**，等价于
+      flex-grow:N + flex-shrink:1 + flex-basis:0%。配合 `min-height:44px`，
+      条目多到总和超过 280px 时**既不能继续缩、列上又没有 overflow** ⇒ 直接顶出
+      `.sector-grid` 之外，压住下面的「今日成交」卡。
+   现在：① 容器高度仍锁 280px；② 两列 overflow-y:auto 各自独立滚动；
+        ③ 条目改 `flex-grow`（保留按 kcal 分配比例）+ `flex-shrink:0` + basis auto
+           ⇒ 装得下时按比例铺满、装不下时可滚。
+   ⚠️ basis 从 0 改成 auto 的可见差异：可读下限从"能被压到 44px 并裁掉数值行"
+      变成"内容自身高度（≈ 20 内边距 + 名称行 + 数值行 ≈ 58px）"。
+      即小热量块不再被压扁裁字，比例分配只作用在**多余空间**上 ⇒ 块间差距比原来收敛。
+  滚动条照抄 .screen / .ex-heat-scroll 的既有口径（全 app 一律不显示滚动条）。 */
 .sector-grid { display:flex; gap:8px; height:280px; }
-.sector-col { flex:1; display:flex; flex-direction:column; gap:6px; }
-.sector-item { border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; min-height:44px; position:relative; overflow:hidden; }
+.sector-col { flex:1; display:flex; flex-direction:column; gap:6px; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.sector-col::-webkit-scrollbar { display:none; }
+.sector-item { border-radius:10px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; min-height:44px; position:relative; overflow:hidden; flex-shrink:0; }
 .sector-item .n { font-size:12px; font-weight:500; }
 .sector-item .v { font-size:15px; font-weight:600; align-self:flex-end; }
 .sector-short .sector-item { background:#0d3a32; color:#5ee0c0; }
@@ -4756,7 +4770,10 @@ function renderSectors() {
     el.innerHTML = items.map(i => {
       const flex = Math.max(1, Math.round(Math.sqrt(i.kcal) * 10));
       const editable = !i.fixed;
-      const style = 'flex:' + flex + ';' + (editable ? 'cursor:pointer;' : '');
+      /* 🔴 必须用 flex-grow 长写，不能用 `flex:<N>` 简写：简写会把 flex-shrink 重置成 1、
+         flex-basis 重置成 0% ⇒ 盖掉 .sector-item 上的 flex-shrink:0，条目又变回可压缩，
+         列**永远滚不动**（v2.18.25 修，铁律 #38：这种情况静态读源码看不出来）。 */
+      const style = 'flex-grow:' + flex + ';' + (editable ? 'cursor:pointer;' : '');
       const click = editable ? ` onclick="openRecordEdit('${i.id}','${i.type}')"` : '';
       const badge = editable ? ' <span style="font-size:9px;color:#5a6478;">✎</span>' : '';
       return `<div class="sector-item"${click} style="${style}">
