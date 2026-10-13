@@ -18,7 +18,7 @@ import subprocess, os, sys, time, ssl, re, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)                       # promo/ -> 仓库根
-GBIN = r"C:\Users\Administrator\.workbuddy\binaries\PortableGit\versions\1.2.0\mingw64\bin"
+GBIN = r"C:\Users\Administrator\.workbuddy\binaries\PortableGit\versions\1.3.0\mingw64\bin"
 GIT = os.path.join(GBIN, "git.exe")
 PAGES = "https://lion-mak.github.io/fitness-trader/"
 

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="5Vg0aSWIFHwnRSjrHkv9Ts">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" data-page-node-id="fi86V0YjU0sEV9dCA0veN9">
 <meta name="apple-mobile-web-app-title" content="健身交易员" data-page-node-id="Y08FGBD1zxhGUjK7qps7o2">
-<meta name="app-version" content="2.18.10"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
+<meta name="app-version" content="2.18.22"><!-- 与 sw.js CACHE_VERSION + ver.txt 三者同步，用于「我的」页显示当前运行版本与检查更新比对 -->
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -5455,6 +5455,9 @@ function switchKlinePeriod(p) {
   state.klinePeriod = p;
   const tabs = document.querySelectorAll('#kline-tabs .kline-tab');
   tabs.forEach(t => t.classList.toggle('on', t.getAttribute('data-p') === p));
+  // 切周期 ⇒ 视窗回右缘（最新）：不同周期的柱数差异很大，沿用旧平移位置没有意义
+  const kel = document.getElementById('kline');
+  if (kel) kel._win = null;
   renderKline();
 }
 // 日期工具（局部）
@@ -5519,8 +5522,9 @@ function bindKlineTip(chart) {
     const scale = sr.width / g.W;
     // 指针 X → viewBox X → 最近的数据索引（触屏手指粗也能精确取到值）
     const vx = (cx - sr.left) / scale;
-    let idx = Math.round((vx - g.PAD_L - g.slotW / 2) / g.slotW);
-    idx = Math.max(0, Math.min(g.bars.length - 1, idx));
+    // 索引 = 窗口起点 + 窗内偏移；越界夹到窗口两端（v2.18.22 视窗化后窗口外没有柱子可命中）
+    let idx = g.winStart + Math.round((vx - g.PAD_L - g.slotW / 2) / g.slotW);
+    idx = Math.max(g.winStart, Math.min(g.winStart + g.visN - 1, idx));
     const b = g.bars[idx];
     if (!b) return;
     const sx = g.PAD_L + idx * g.slotW + g.slotW / 2;
@@ -5560,13 +5564,82 @@ function bindKlineTip(chart) {
     if (cross) cross.style.display = 'none';
     if (dot) dot.style.display = 'none';
   };
-  chart.addEventListener('pointermove', function(e) { show(e.clientX, e.clientY); });
-  chart.addEventListener('pointerdown', function(e) { show(e.clientX, e.clientY); });
-  chart.addEventListener('pointerleave', hide);
-  chart.addEventListener('pointercancel', hide);
-  chart.addEventListener('touchstart', function(e) { const p = e.touches[0]; if (p) show(p.clientX, p.clientY); }, { passive: true });
-  chart.addEventListener('touchmove', function(e) { const p = e.touches[0]; if (p) { e.preventDefault(); show(p.clientX, p.clientY); } }, { passive: false });
-  chart.addEventListener('touchend', hide);
+  /* ---------- v2.18.22 左右滑动平移视窗 ----------
+     手势判定：水平位移 > 6px 且水平占优 ⇒ 平移；否则维持旧行为（十字光标）。
+     ⚠️ 必须自己判定：本区 touchmove 是 preventDefault 的（页面不滚），
+        不判定就会把「想翻页面」的竖直拖动也当成平移吃掉。
+     ⚠️ 滚轮同样只在真能平移时才 preventDefault —— 窗口没满时放过页面滚动。 */
+  const TH = 6;                                     // 触发平移的最小水平位移（客户端 px）
+  const maxStartOf = g => g ? Math.max(0, g.bars.length - g.visN) : 0;
+  const winStartNow = () => {
+    const g = klineGeom;
+    if (!g) return 0;
+    const ms = maxStartOf(g);
+    const w = chart._win;
+    return (w && w.s != null && !w.right) ? Math.min(Math.max(0, w.s), ms) : ms;
+  };
+  const panTo = (ws) => {
+    const g = klineGeom;
+    if (!g) return;
+    const ms = maxStartOf(g);
+    if (ms <= 0) return;                            // 没超出窗口 ⇒ 无可平移
+    const s = Math.min(ms, Math.max(0, ws));
+    if (s === g.winStart) return;
+    chart._win = { s: s, right: s >= ms };          // 回到右缘即置位 ⇒ 新数据自动跟进（renderKline 读它）
+    renderKline();
+  };
+  const panBySlots = (slots) => panTo(winStartNow() + slots);
+  // 客户端位移 → 槽数（槽宽是 viewBox 单位，要按 svg 实际缩放比换算）
+  const slotsFromDx = (dx) => {
+    const g = klineGeom;
+    if (!g || !g.slotW) return 0;
+    const svgEl = chart.querySelector('svg');
+    const sr = svgEl ? svgEl.getBoundingClientRect() : null;
+    const scale = (sr && sr.width) ? (sr.width / g.W) : 1;
+    return Math.round((dx / scale) / g.slotW);
+  };
+  let pan = null;      // 指针（鼠标）拖拽
+  let tpan = null;     // 触摸拖拽
+  chart.addEventListener('pointerdown', function(e) {
+    pan = { x0: e.clientX, y0: e.clientY, ws0: winStartNow(), on: false };
+    show(e.clientX, e.clientY);
+  });
+  chart.addEventListener('pointermove', function(e) {
+    if (!pan) { show(e.clientX, e.clientY); return; }
+    const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
+    if (!pan.on && Math.abs(dx) > TH && Math.abs(dx) > Math.abs(dy)) { pan.on = true; hide(); }
+    if (pan.on) panTo(pan.ws0 - slotsFromDx(dx));
+    else if (Math.abs(dx) <= TH) show(e.clientX, e.clientY);
+  });
+  chart.addEventListener('pointerup', function() { pan = null; });
+  chart.addEventListener('pointerleave', function() { pan = null; hide(); });
+  chart.addEventListener('pointercancel', function() { pan = null; hide(); });
+  chart.addEventListener('wheel', function(e) {
+    const g = klineGeom;
+    if (!g || maxStartOf(g) <= 0) return;           // 窗口没满 ⇒ 不劫持页面滚动
+    const d = Math.abs(e.deltaX) >= Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!d) return;
+    e.preventDefault();
+    const step = Math.max(1, Math.min(4, Math.round(Math.abs(d) / 60)));
+    panBySlots(-Math.sign(d) * step);
+  }, { passive: false });
+  chart.addEventListener('touchstart', function(e) {
+    const p = e.touches[0]; if (!p) return;
+    tpan = { x0: p.clientX, y0: p.clientY, ws0: winStartNow(), on: false };
+    show(p.clientX, p.clientY);
+  }, { passive: true });
+  chart.addEventListener('touchmove', function(e) {
+    const p = e.touches[0]; if (!p) return;
+    e.preventDefault();
+    if (tpan) {
+      const dx = p.clientX - tpan.x0, dy = p.clientY - tpan.y0;
+      if (!tpan.on && Math.abs(dx) > TH && Math.abs(dx) > Math.abs(dy)) { tpan.on = true; hide(); }
+      if (tpan.on) { panTo(tpan.ws0 - slotsFromDx(dx)); return; }
+    }
+    show(p.clientX, p.clientY);
+  }, { passive: false });
+  chart.addEventListener('touchend', function() { tpan = null; hide(); });
+  chart.addEventListener('touchcancel', function() { tpan = null; hide(); });
 }
 function renderKline() {
   const u = state.user;
@@ -5610,20 +5683,49 @@ function renderKline() {
   if (l7el) l7el.textContent = '● MA7 ' + (m7v == null ? '--' : m7v.toFixed(2));
   if (l14el) l14el.textContent = '● MA14 ' + (m14v == null ? '--' : m14v.toFixed(2));
   if (l30el) l30el.textContent = '● MA30 ' + (m30v == null ? '--' : m30v.toFixed(2));
+  /* ---------- v2.18.22 视窗化：窗口最多 40 根，超出左右滑动看全部 ----------
+     口径与小程序 market.js computeGeom 逐行同源（对拍闸 mp_kline_compare.py 像素级校验）。
+     · n ≤ 40：不开窗，槽宽沿用旧口径（n*12 ≤ availW 时锁 12px 从左自然生长，否则等比压缩）
+     · n > 40：槽宽锁 availW/40，只画窗口内 40 根，手势左右平移看全部（见 bindKlineTip）
+     · 窗口位置存在容器元素 #kline 的 _win 上：不落 state、不落盘（瞬时视图状态，
+       进了 state 会被云同步白名单当数据拷来拷去）。⚠️ 之所以挂元素而不是模块级变量：
+       对拍闸只抽 renderKline 一个函数体，模块级状态在闸里恒为 undefined；
+       元素属性在真假 document 里都能读写，函数因此保持自包含。 */
+  const KLINE_WINDOW = 40;
+  const klineEl0 = document.getElementById('kline');
+  const visN = Math.min(n, KLINE_WINDOW);
+  const maxStart = Math.max(0, n - visN);
+  const win = klineEl0 && klineEl0._win;
+  // 默认跟着最新一根（炒股软件惯例：新数据从右侧涌入）；用户平移过才记住位置
+  const winStart = (!win || win.s == null || win.right) ? maxStart
+                : Math.min(Math.max(0, win.s), maxStart);
+  const vis = bars.slice(winStart, winStart + visN);
   let min, max;
   if (period === 'd') {
-    min = Math.min.apply(null, closes); max = Math.max.apply(null, closes);
+    min = Math.min.apply(null, vis.map(b => b.c)); max = Math.max.apply(null, vis.map(b => b.c));
   } else {
-    min = Math.min.apply(null, bars.map(b => b.l)); max = Math.max.apply(null, bars.map(b => b.h));
+    min = Math.min.apply(null, vis.map(b => b.l)); max = Math.max.apply(null, vis.map(b => b.h));
   }
+  /* 窗口内最高/最低（日K 无 h/l ⇒ 取 o/c）：用于下面的标注，同时兜进量程 ——
+     否则日K 窗口第一根的开盘价（上一根收盘）可能顶出画布上沿，标注线画到视野外。 */
+  let winHi = -Infinity, winLo = Infinity;
+  vis.forEach(b => {
+    const hi = (b.h != null) ? b.h : Math.max(b.o, b.c);
+    const lo = (b.l != null) ? b.l : Math.min(b.o, b.c);
+    if (hi > winHi) winHi = hi;
+    if (lo < winLo) winLo = lo;
+  });
+  min = Math.min(min, winLo); max = Math.max(max, winHi);
   if (max - min < 0.5) { min -= 0.5; max += 0.5; } else { min -= 0.4; max += 0.4; }
   // 画布与边距：左侧留给 Y 轴体重刻度，底部留给 X 轴日期
   const W = 340, H = 150, PAD_L = 36, PAD_R = 8, PAD_T = 12, PAD_B = 26;
   const availW = W - PAD_L - PAD_R;
-  const slotW = (n * 12 <= availW) ? 12 : availW / n;   // 固定槽宽：数据少时从最左自然生长、右侧留白
+  const slotW = (n <= KLINE_WINDOW)
+    ? ((n * 12 <= availW) ? 12 : availW / n)   // 数据少时从最左自然生长、右侧留白
+    : availW / KLINE_WINDOW;                    // 超出窗口：槽宽锁死，改由平移看全部
   const barW = Math.max(2, Math.min(slotW * 0.55, 7));
   const chartH = H - PAD_T - PAD_B;
-  const stepX = i => PAD_L + i * slotW + slotW / 2;
+  const stepX = i => PAD_L + (i - winStart) * slotW + slotW / 2;   // i 是全量索引，窗口外不可见
   const y = v => PAD_T + (max - v) / (max - min) * chartH;
   let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:150px;display:block;">';
   // Y 轴：体重数值刻度
@@ -5634,24 +5736,30 @@ function renderKline() {
     svg += '<line x1="' + PAD_L + '" y1="' + yy + '" x2="' + (W - PAD_R) + '" y2="' + yy + '" stroke="#1f2638" stroke-width="0.5"/>';
     svg += '<text x="' + (PAD_L - 4) + '" y="' + (yy + 3) + '" text-anchor="end" fill="#5a6478" font-size="9">' + v.toFixed(1) + '</text>';
   }
-  // X 轴：日期标签
-  const xstep = Math.max(1, Math.ceil(30 / slotW));   // 按槽宽自适应抽稀，保证日期标签间距 ≥30px 不重叠
-  bars.forEach((b, i) => {
-    if (i % xstep === 0) {
-      svg += '<text x="' + stepX(i) + '" y="' + (H - 8) + '" text-anchor="middle" fill="#7c8aa5" font-size="9">' + (b.lab || '') + '</text>';
-    }
-  });
+  // X 轴：日期标签（按槽宽自适应抽稀，保证标签间距 ≥30px 不重叠；只标窗口内的）
+  const xstep = Math.max(1, Math.ceil(30 / slotW));
+  for (let i = winStart; i < winStart + visN; i++) {
+    // 窗口锚定（(i-winStart) 取模）而非全量锚定：平移时标签贴着视口走，口径同通达信
+    if ((i - winStart) % xstep !== 0) continue;
+    svg += '<text x="' + stepX(i) + '" y="' + (H - 8) + '" text-anchor="middle" fill="#7c8aa5" font-size="9">' + (bars[i].lab || '') + '</text>';
+  }
   // MA 线（绘制在柱体之上）
   const drawMA = (arr, color) => {
     let d = '';
-    arr.forEach((val, i) => { if (val == null) return; const x = stepX(i); d += (d ? ' L' : 'M') + x + ' ' + y(val); });
+    for (let i = winStart; i < winStart + visN; i++) {   // 均线按全量历史算，只画窗口内那一段
+      const val = arr[i];
+      if (val == null) continue;
+      const x = stepX(i);
+      d += (d ? ' L' : 'M') + x + ' ' + y(val);
+    }
     if (d) svg += '<path d="' + d + '" stroke="' + color + '" stroke-width="1.2" fill="none" opacity="0.9"/>';
   };
   drawMA(ma30, '#5ac8fa');
   drawMA(ma14, '#a78bfa');   // 紫：与 MA7 琥珀 / MA30 蓝 / 涨绿跌红都不撞（口径同小程序端）
   drawMA(ma7, '#ffb800');
-  // K 线柱体（绿=降体重=涨 / 红=升体重=跌），从最左对齐生长
-  bars.forEach((b, i) => {
+  // K 线柱体（绿=降体重=涨 / 红=升体重=跌），只画窗口内
+  for (let i = winStart; i < winStart + visN; i++) {
+    const b = bars[i];
     const x = stepX(i) - barW / 2;
     const up = b.c < b.o;
     const color = up ? '#00c896' : '#ff3b47';
@@ -5666,7 +5774,14 @@ function renderKline() {
     const yBot = y(Math.min(b.o, b.c));
     const bodyH = Math.max(2, yBot - yTop);
     svg += '<rect x="' + x.toFixed(1) + '" y="' + yTop.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + bodyH.toFixed(1) + '" fill="' + color + '"/>';
-  });
+  }
+  /* 窗口内最高 / 最低点标注（v2.18.22，Mak 要求「类似股票的 K 线」）：
+     琥珀虚线横贯画布 + 左缘数值；高点标签压在线**上方**、低点压在线**下方**（通达信口径）。
+     hi === lo（窗口内体重完全一致）时只标一个，避免两个数字叠在一起。 */
+  const annLine = v => '<line x1="' + PAD_L + '" y1="' + y(v).toFixed(1) + '" x2="' + (W - PAD_R) + '" y2="' + y(v).toFixed(1) + '" stroke="rgba(255,184,0,.45)" stroke-width="0.7" stroke-dasharray="3 3"/>';
+  const annLab = (v, above) => '<text x="' + (PAD_L + 3) + '" y="' + (above ? y(v) - 3 : y(v) + 9).toFixed(1) + '" fill="#ffb800" font-size="9">' + v.toFixed(1) + '</text>';
+  svg += annLine(winHi) + annLab(winHi, true);
+  if (winLo < winHi) svg += annLine(winLo) + annLab(winLo, false);
   svg += '<line x1="' + PAD_L + '" y1="' + (H - PAD_B) + '" x2="' + (W - PAD_R) + '" y2="' + (H - PAD_B) + '" stroke="#2a3348" stroke-width="1"/>';
   // 十字光标（仅悬浮时显示）
   svg += '<line id="kline-cross" x1="' + PAD_L + '" y1="' + PAD_T + '" x2="' + PAD_L + '" y2="' + (H - PAD_B) + '" stroke="#7c8aa5" stroke-width="0.7" stroke-dasharray="3 3" style="display:none"/>';
@@ -5675,7 +5790,7 @@ function renderKline() {
   const klineEl = document.getElementById('kline');
   klineEl.innerHTML = svg + '<div class="kline-tip" id="kline-tip"></div>';
   // 缓存本次渲染几何，供悬浮标签把指针坐标换算成数据索引（不依赖窄命中区）
-  klineGeom = { W: W, H: H, PAD_L: PAD_L, PAD_T: PAD_T, PAD_B: PAD_B, slotW: slotW, period: period, bars: bars, ma7: ma7, ma14: ma14, ma30: ma30, y: y };
+  klineGeom = { W: W, H: H, PAD_L: PAD_L, PAD_T: PAD_T, PAD_B: PAD_B, slotW: slotW, period: period, bars: bars, ma7: ma7, ma14: ma14, ma30: ma30, y: y, winStart: winStart, visN: visN };
   bindKlineTip(klineEl);
 }
 
